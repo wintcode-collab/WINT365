@@ -2019,6 +2019,11 @@ async function sendMessageToGroup() {
     if (window.selectedMediaInfo && window.selectedMediaInfo.raw_message_data) {
         message = window.selectedMediaInfo.raw_message_data.text || messageInput.value.trim();
         console.log('📤 원본 메시지 데이터 사용:', message);
+        console.log('📤 원본 데이터:', window.selectedMediaInfo.raw_message_data);
+    } else if (window.selectedMediaInfo && window.selectedMediaInfo.has_custom_emoji) {
+        // 커스텀 이모지가 있는 경우 원본 텍스트 사용
+        message = window.selectedMediaInfo.raw_message_data?.text || messageInput.value.trim();
+        console.log('📤 커스텀 이모지 원본 텍스트 사용:', message);
     } else {
         message = messageInput.value.trim();
         console.log('📤 입력칸 텍스트 사용:', message);
@@ -2357,16 +2362,13 @@ function selectTelegramSavedMessage(messageIndex, savedMessages) {
         });
         
         if (messageInput) {
-            // 텍스트 입력 (커스텀 이모지 보존을 위해 원본 텍스트 사용)
-            const originalText = message.text || '';
-            messageInput.value = originalText;
-            messageInput.focus();
-            console.log('💾 메시지 입력칸에 텍스트 설정 완료:', messageInput.value);
-            console.log('💾 원본 텍스트 길이:', originalText.length);
-            
-            // 커스텀 이모지가 있는 경우 경고 메시지 표시
+            // 커스텀 이모지가 있는 경우 입력칸에 표시하지 않음
             if (message.has_custom_emoji) {
-                console.log('⚠️ 커스텀 이모지가 포함된 메시지입니다. 입력칸에서는 일반 텍스트로 표시되지만 전송 시에는 원본 그대로 전송됩니다.');
+                console.log('⚠️ 커스텀 이모지가 포함된 메시지입니다. 입력칸에는 표시하지 않고 원본 데이터만 저장합니다.');
+                
+                // 입력칸은 비워두고 원본 데이터만 저장
+                messageInput.value = '';
+                messageInput.placeholder = '💾 커스텀 이모지가 포함된 저장된 메시지가 선택되었습니다. 전송 시 원본 그대로 전송됩니다.';
                 
                 // 사용자에게 알림
                 const notification = document.createElement('div');
@@ -2382,7 +2384,7 @@ function selectTelegramSavedMessage(messageIndex, savedMessages) {
                     font-size: 14px;
                     max-width: 300px;
                 `;
-                notification.textContent = '💾 커스텀 이모지가 포함된 메시지입니다. 전송 시 원본 그대로 전송됩니다.';
+                notification.textContent = '💾 커스텀 이모지 메시지 선택됨. 전송 시 원본 그대로 전송됩니다.';
                 document.body.appendChild(notification);
                 
                 // 3초 후 자동 제거
@@ -2391,7 +2393,15 @@ function selectTelegramSavedMessage(messageIndex, savedMessages) {
                         notification.parentNode.removeChild(notification);
                     }
                 }, 3000);
+            } else {
+                // 커스텀 이모지가 없는 경우에만 입력칸에 표시
+                const originalText = message.text || '';
+                messageInput.value = originalText;
+                messageInput.placeholder = '전송할 메시지를 입력하세요...';
+                console.log('💾 일반 메시지 입력칸에 설정 완료:', messageInput.value);
             }
+            
+            messageInput.focus();
         }
         
         // 미디어 정보 및 커스텀 이모지 정보 저장 (전역 변수에)
