@@ -1207,6 +1207,9 @@ def send_telegram_message():
             }), 400
         
         logger.info(f'📤 메시지 전송 요청: 사용자={user_id}, 그룹={group_id}, 메시지={message[:50]}...')
+        
+        # 미디어 정보 가져오기
+        media_info = data.get('mediaInfo')
         logger.info(f'📤 미디어 정보: {media_info}')
         
         # Firebase에서 계정 정보 조회
