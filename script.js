@@ -1124,28 +1124,32 @@ function showVerificationCodeInput() {
     }
 }
 
-// 2단계 인증 비밀번호 입력칸 표시
+// 2단계 인증 비밀번호 입력칸 표시 (같은 칸에서 인증코드 → 비밀번호로 변경)
 function showPasswordInput() {
-    const passwordGroup = document.getElementById('passwordGroup');
-    if (passwordGroup) {
-        passwordGroup.style.display = 'block';
-        passwordGroup.style.opacity = '0';
-        passwordGroup.style.transform = 'translateY(20px)';
+    const verificationGroup = elements.verificationCodeGroup;
+    const verificationInput = elements.telegramVerificationCode;
+    const passwordInput = document.getElementById('telegramPassword');
+    
+    if (verificationGroup && verificationInput && passwordInput) {
+        // 인증코드 입력칸을 비밀번호 입력칸으로 변경
+        verificationInput.style.display = 'none';
+        passwordInput.style.display = 'block';
         
-        // 애니메이션으로 표시
-        setTimeout(() => {
-            passwordGroup.style.transition = 'all 0.3s ease';
-            passwordGroup.style.opacity = '1';
-            passwordGroup.style.transform = 'translateY(0)';
-        }, 100);
+        // 플레이스홀더와 아이콘 업데이트
+        const placeholder = document.getElementById('telegramVerificationCodePlaceholder');
+        const icon = verificationGroup.querySelector('.telegram-input-icon');
+        
+        if (placeholder) {
+            placeholder.textContent = '2단계 인증 비밀번호';
+        }
+        if (icon) {
+            icon.textContent = '🔐';
+        }
         
         // 비밀번호 입력 필드에 포커스
-        const passwordInput = document.getElementById('telegramPassword');
-        if (passwordInput) {
-            setTimeout(() => {
-                passwordInput.focus();
-            }, 400);
-        }
+        setTimeout(() => {
+            passwordInput.focus();
+        }, 100);
         
         // 버튼 텍스트 변경
         const saveBtn = document.getElementById('saveTelegramBtn');
@@ -1196,7 +1200,6 @@ async function completePasswordAuth(password) {
             
             // 입력칸 숨기기
             document.getElementById('verificationCodeGroup').style.display = 'none';
-            document.getElementById('passwordGroup').style.display = 'none';
             
             // 버튼 상태 초기화
             elements.saveTelegramBtn.textContent = 'Register';

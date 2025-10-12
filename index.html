@@ -239,18 +239,11 @@
                                     <div class="telegram-input-container">
                                         <span class="telegram-input-icon">🔐</span>
                                         <input type="text" class="telegram-input-field" id="telegramVerificationCode" placeholder="텔레그램 앱에서 받은 5자리 코드" maxlength="5">
+                                        <input type="password" class="telegram-input-field" id="telegramPassword" placeholder="2단계 인증 비밀번호" style="display: none;">
                                         <span class="telegram-placeholder" id="telegramVerificationCodePlaceholder">텔레그램 앱에서 받은 5자리 코드</span>
                                     </div>
                                 </div>
                                 
-                                <!-- 2단계 인증 비밀번호 입력칸 (2단계 인증 필요 시 표시) -->
-                                <div class="telegram-input-group" id="passwordGroup" style="display: none;">
-                                    <div class="telegram-input-container">
-                                        <span class="telegram-input-icon">🔑</span>
-                                        <input type="password" class="telegram-input-field" id="telegramPassword" placeholder="2단계 인증 비밀번호">
-                                        <span class="telegram-placeholder" id="telegramPasswordPlaceholder">2단계 인증 비밀번호</span>
-                                    </div>
-                                </div>
                                 
                                 <div class="telegram-actions">
                                     <button class="telegram-btn telegram-save-btn" id="saveTelegramBtn">Register</button>
