@@ -1318,7 +1318,7 @@ def send_telegram_message():
                 'success': True,
                 'message': '메시지가 성공적으로 전송되었습니다.',
                 'group_id': group_id,
-                'message_preview': message[:100] + ('...' if len(message) > 100 else '')
+                'message_preview': (message[:100] + ('...' if len(message) > 100 else '')) if message else '저장된 메시지'
             })
         else:
             logger.error(f'❌ 메시지 전송 실패: 그룹={group_id}')
@@ -1408,9 +1408,45 @@ def get_telegram_saved_messages_with_session(account_info):
                         # 🚀 완전히 새로운 접근: 텔레그램의 원본 메시지 데이터를 직접 가져오기
                         logger.info('💾 🚀 완전히 새로운 접근: 원본 메시지 데이터 직접 가져오기')
                         
-                        # 방법 1: get_messages로 원본 데이터 가져오기
-                        messages = await client.get_messages(InputPeerSelf(), limit=100)
-                        logger.info(f'💾 저장된 메시지 {len(messages)}개를 찾았습니다.')
+                        # 🚀 핵심: 원본 메시지 데이터를 직접 가져오기
+                        logger.info('💾 🚀 원본 메시지 데이터 직접 가져오기 시도')
+                        
+                        # 방법 1: get_messages로 원본 데이터 가져오기 (parse_mode=None으로 원본 그대로)
+                        messages = await client.get_messages(InputPeerSelf(), limit=100, parse_mode=None)
+                        logger.info(f'💾 저장된 메시지 {len(messages)}개를 찾았습니다 (parse_mode=None으로 원본 그대로).')
+                        
+                        # 🚀 추가: 원본 메시지 데이터를 직접 가져오기
+                        if messages:
+                            logger.info('💾 🚀 원본 메시지 데이터 직접 가져오기 시도')
+                            for msg in messages[:3]:  # 처음 3개만 분석
+                                logger.info(f'💾 원본 메시지 분석: ID={msg.id}')
+                                logger.info(f'💾 원본 텍스트 (repr): {repr(msg.text)}')
+                                logger.info(f'💾 원본 텍스트 (str): {msg.text}')
+                                logger.info(f'💾 원본 엔티티: {msg.entities}')
+                                
+                                # 원본 메시지의 모든 속성 확인
+                                raw_attrs = [attr for attr in dir(msg) if not attr.startswith('_')]
+                                logger.info(f'💾 원본 메시지 속성들: {raw_attrs}')
+                                
+                                # 원본 메시지의 raw 데이터 확인
+                                if hasattr(msg, 'raw_text'):
+                                    logger.info(f'💾 원본 raw_text: {msg.raw_text}')
+                                if hasattr(msg, 'message'):
+                                    logger.info(f'💾 원본 message: {msg.message}')
+                                if hasattr(msg, 'text'):
+                                    logger.info(f'💾 원본 text: {msg.text}')
+                                
+                                # 원본 메시지의 엔티티 정보 확인
+                                if msg.entities:
+                                    for i, entity in enumerate(msg.entities[:5]):  # 처음 5개만
+                                        logger.info(f'💾 원본 엔티티 {i}: {type(entity).__name__}')
+                                        logger.info(f'💾   - offset: {entity.offset}, length: {entity.length}')
+                                        if hasattr(entity, 'type'):
+                                            logger.info(f'💾   - type: {entity.type}')
+                                        if hasattr(entity, 'document_id'):
+                                            logger.info(f'💾   - document_id: {entity.document_id}')
+                                
+                                break  # 첫 번째 메시지만 상세 분석
                         
                         
                         if len(messages) == 0:
@@ -1756,6 +1792,12 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                         me = await client.get_me()
                         logger.info(f'📤 자신의 저장된 메시지에서 전달: {me.id}')
                         
+                        # InputPeerSelf import
+                        from telethon.tl.types import InputPeerSelf
+                        
+                        # InputPeerSelf import
+                        from telethon.tl.types import InputPeerSelf
+                        
                         # 원본 메시지를 직접 전달 (완전히 원본 그대로)
                         forwarded_messages = await client.forward_messages(
                             entity=group_entity,
@@ -1806,6 +1848,9 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                         # 자신의 저장된 메시지에서 원본 메시지를 직접 전달
                         me = await client.get_me()
                         logger.info(f'📤 자신의 저장된 메시지에서 전달: {me.id}')
+                        
+                        # InputPeerSelf import
+                        from telethon.tl.types import InputPeerSelf
                         
                         # 원본 메시지를 직접 전달 (완전히 원본 그대로)
                         forwarded_messages = await client.forward_messages(
