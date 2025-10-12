@@ -122,12 +122,9 @@ def send_code():
                 asyncio.set_event_loop(loop)
                 
                 async def send_code_async():
-                    # Telethon 클라이언트 생성 (메모리 세션 사용)
+                    # Telethon 클라이언트 생성 (이벤트 루프 내에서)
                     logger.info('🔧 Telethon 클라이언트 생성 중...')
-                    import io
-                    session_data = io.BytesIO()
-                    logger.info('📁 메모리 세션 사용')
-                    client = TelegramClient(session_data, api_id, api_hash)
+                    client = TelegramClient(f'session_{client_id}', api_id, api_hash)
                     logger.info('✅ Telethon 클라이언트 생성 완료')
                 
                     try:
@@ -285,12 +282,9 @@ def verify_code():
                 asyncio.set_event_loop(loop)
                 
                 async def verify_code_async():
-                    # 새로운 클라이언트 생성 (메모리 세션 사용)
+                    # 새로운 클라이언트 생성 (asyncio 문제 방지)
                     logger.info('🔧 새로운 클라이언트 생성 중...')
-                    import io
-                    session_data = io.BytesIO()
-                    logger.info('📁 메모리 세션 사용')
-                    client = TelegramClient(session_data, client_data['api_id'], client_data['api_hash'])
+                    client = TelegramClient(f'session_verify_{client_id}', client_data['api_id'], client_data['api_hash'])
                     logger.info('✅ 새로운 클라이언트 생성 완료')
                     
                     try:
@@ -327,10 +321,23 @@ def verify_code():
                 finally:
                     loop.close()
             
-            # 새 스레드에서 실행
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(run_telethon_verify)
-                result = future.result()
+            # 동일한 이벤트 루프에서 실행 (asyncio 문제 해결)
+            try:
+                # 현재 실행 중인 이벤트 루프가 있는지 확인
+                try:
+                    current_loop = asyncio.get_running_loop()
+                    logger.info('📋 기존 이벤트 루프 감지, 새 스레드에서 실행')
+                    # 기존 루프가 있으면 새 스레드에서 실행
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(run_telethon_verify)
+                        result = future.result()
+                except RuntimeError:
+                    # 실행 중인 이벤트 루프가 없으면 직접 실행
+                    logger.info('📋 새 이벤트 루프에서 직접 실행')
+                    result = run_telethon_verify()
+            except Exception as loop_error:
+                logger.error(f'❌ 이벤트 루프 실행 실패: {loop_error}')
+                raise loop_error
             
             # 클라이언트 정리
             if client_id in clients:
