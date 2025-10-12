@@ -1571,6 +1571,7 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                 if media_info and media_info.get('has_custom_emoji'):
                     # 커스텀 이모지가 포함된 메시지 전송
                     logger.info('📤 커스텀 이모지 포함 메시지 전송')
+                    logger.info(f'📤 미디어 정보: {media_info}')
                     
                     # 커스텀 이모지 엔티티를 직접 사용
                     custom_emoji_entities = media_info.get('custom_emoji_entities', [])
@@ -1589,8 +1590,25 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                             ))
                             logger.info(f'📤 커스텀 이모지 엔티티 추가: offset={custom_emoji["offset"]}, length={custom_emoji["length"]}, document_id={custom_emoji["document_id"]}')
                         
-                        await client.send_message(group_entity, message, formatting_entities=telegram_entities)
-                        logger.info('✅ 커스텀 이모지 메시지 전송 완료')
+                        # 메시지와 엔티티 정보 로깅
+                        logger.info(f'📤 전송할 메시지: {message}')
+                        logger.info(f'📤 전송할 엔티티 개수: {len(telegram_entities)}')
+                        
+                        # formatting_entities 대신 entities 사용 시도
+                        try:
+                            sent_message = await client.send_message(group_entity, message, formatting_entities=telegram_entities)
+                            logger.info(f'✅ 커스텀 이모지 메시지 전송 완료: {sent_message.id}')
+                        except Exception as e:
+                            logger.error(f'❌ formatting_entities 실패: {e}')
+                            # entities로 재시도
+                            try:
+                                sent_message = await client.send_message(group_entity, message, entities=telegram_entities)
+                                logger.info(f'✅ entities로 커스텀 이모지 메시지 전송 완료: {sent_message.id}')
+                            except Exception as e2:
+                                logger.error(f'❌ entities도 실패: {e2}')
+                                # 일반 메시지로 전송
+                                sent_message = await client.send_message(group_entity, message)
+                                logger.info(f'⚠️ 일반 메시지로 전송 완료: {sent_message.id}')
                     else:
                         logger.warning('⚠️ 커스텀 이모지 엔티티가 없습니다')
                         await client.send_message(group_entity, message)
@@ -1628,18 +1646,50 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                                     logger.info(f'📤 미디어 커스텀 이모지 엔티티 추가: offset={custom_emoji["offset"]}, length={custom_emoji["length"]}, document_id={custom_emoji["document_id"]}')
                                 
                                 # 미디어와 함께 커스텀 이모지 전송
-                                if media_type == 'photo':
-                                    await client.send_file(group_entity, media_path, caption=message, formatting_entities=telegram_entities)
-                                elif media_type == 'video':
-                                    await client.send_file(group_entity, media_path, caption=message, formatting_entities=telegram_entities)
-                                elif media_type == 'document':
-                                    await client.send_file(group_entity, media_path, caption=message, formatting_entities=telegram_entities)
-                                elif media_type == 'voice':
-                                    await client.send_file(group_entity, media_path, caption=message, formatting_entities=telegram_entities)
-                                else:
-                                    await client.send_message(group_entity, message, formatting_entities=telegram_entities)
-                                
-                                logger.info('✅ 미디어와 함께 커스텀 이모지 전송 완료')
+                                try:
+                                    if media_type == 'photo':
+                                        sent_message = await client.send_file(group_entity, media_path, caption=message, formatting_entities=telegram_entities)
+                                    elif media_type == 'video':
+                                        sent_message = await client.send_file(group_entity, media_path, caption=message, formatting_entities=telegram_entities)
+                                    elif media_type == 'document':
+                                        sent_message = await client.send_file(group_entity, media_path, caption=message, formatting_entities=telegram_entities)
+                                    elif media_type == 'voice':
+                                        sent_message = await client.send_file(group_entity, media_path, caption=message, formatting_entities=telegram_entities)
+                                    else:
+                                        sent_message = await client.send_message(group_entity, message, formatting_entities=telegram_entities)
+                                    
+                                    logger.info(f'✅ 미디어와 함께 커스텀 이모지 전송 완료: {sent_message.id}')
+                                except Exception as e:
+                                    logger.error(f'❌ 미디어 formatting_entities 실패: {e}')
+                                    # entities로 재시도
+                                    try:
+                                        if media_type == 'photo':
+                                            sent_message = await client.send_file(group_entity, media_path, caption=message, entities=telegram_entities)
+                                        elif media_type == 'video':
+                                            sent_message = await client.send_file(group_entity, media_path, caption=message, entities=telegram_entities)
+                                        elif media_type == 'document':
+                                            sent_message = await client.send_file(group_entity, media_path, caption=message, entities=telegram_entities)
+                                        elif media_type == 'voice':
+                                            sent_message = await client.send_file(group_entity, media_path, caption=message, entities=telegram_entities)
+                                        else:
+                                            sent_message = await client.send_message(group_entity, message, entities=telegram_entities)
+                                        
+                                        logger.info(f'✅ 미디어 entities로 커스텀 이모지 전송 완료: {sent_message.id}')
+                                    except Exception as e2:
+                                        logger.error(f'❌ 미디어 entities도 실패: {e2}')
+                                        # 일반 미디어 전송
+                                        if media_type == 'photo':
+                                            sent_message = await client.send_file(group_entity, media_path, caption=message)
+                                        elif media_type == 'video':
+                                            sent_message = await client.send_file(group_entity, media_path, caption=message)
+                                        elif media_type == 'document':
+                                            sent_message = await client.send_file(group_entity, media_path, caption=message)
+                                        elif media_type == 'voice':
+                                            sent_message = await client.send_file(group_entity, media_path, caption=message)
+                                        else:
+                                            sent_message = await client.send_message(group_entity, message)
+                                        
+                                        logger.info(f'⚠️ 미디어 일반 전송 완료: {sent_message.id}')
                             else:
                                 logger.warning('⚠️ 미디어 커스텀 이모지 엔티티가 없습니다')
                                 # 일반 미디어 전송
@@ -1687,8 +1737,20 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                                     ))
                                     logger.info(f'📤 텍스트 커스텀 이모지 엔티티 추가: offset={custom_emoji["offset"]}, length={custom_emoji["length"]}, document_id={custom_emoji["document_id"]}')
                                 
-                                await client.send_message(group_entity, message, formatting_entities=telegram_entities)
-                                logger.info('✅ 텍스트만 커스텀 이모지 전송 완료')
+                                try:
+                                    sent_message = await client.send_message(group_entity, message, formatting_entities=telegram_entities)
+                                    logger.info(f'✅ 텍스트만 커스텀 이모지 전송 완료: {sent_message.id}')
+                                except Exception as e:
+                                    logger.error(f'❌ 텍스트 formatting_entities 실패: {e}')
+                                    # entities로 재시도
+                                    try:
+                                        sent_message = await client.send_message(group_entity, message, entities=telegram_entities)
+                                        logger.info(f'✅ 텍스트 entities로 커스텀 이모지 전송 완료: {sent_message.id}')
+                                    except Exception as e2:
+                                        logger.error(f'❌ 텍스트 entities도 실패: {e2}')
+                                        # 일반 메시지로 전송
+                                        sent_message = await client.send_message(group_entity, message)
+                                        logger.info(f'⚠️ 텍스트 일반 전송 완료: {sent_message.id}')
                             else:
                                 logger.warning('⚠️ 텍스트 커스텀 이모지 엔티티가 없습니다')
                                 await client.send_message(group_entity, message)
