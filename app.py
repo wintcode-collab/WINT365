@@ -1407,10 +1407,56 @@ def get_telegram_saved_messages_with_session(account_info):
                             logger.info(f'💾 원본 메시지 속성: {dir(message)}')
                             
                             # 원본 메시지 그대로 저장 (텔레그램 이모지 포함)
+                            # 중요: message.text는 이미 파싱된 텍스트이므로, 원본을 복원해야 함
+                            original_text = message.text or ''
+                            
+                            # 원본 텍스트 복원 시도 (엔티티 정보를 사용해서)
+                            if message.entities:
+                                logger.info(f'💾 원본 텍스트 복원 시도: {original_text}')
+                                # 엔티티 정보를 사용해서 원본 마크다운 복원
+                                try:
+                                    # 텔레그램의 원본 포맷팅을 마크다운으로 변환
+                                    from telethon.tl.types import MessageEntityBold, MessageEntityItalic, MessageEntityCode, MessageEntityPre, MessageEntityTextUrl
+                                    
+                                    # 텍스트를 문자 배열로 변환
+                                    text_chars = list(original_text)
+                                    
+                                    # 엔티티를 offset 기준으로 정렬 (역순으로)
+                                    sorted_entities = sorted(message.entities, key=lambda x: x.offset, reverse=True)
+                                    
+                                    for entity in sorted_entities:
+                                        start = entity.offset
+                                        end = entity.offset + entity.length
+                                        
+                                        if isinstance(entity, MessageEntityBold):
+                                            text_chars.insert(end, '**')
+                                            text_chars.insert(start, '**')
+                                        elif isinstance(entity, MessageEntityItalic):
+                                            text_chars.insert(end, '*')
+                                            text_chars.insert(start, '*')
+                                        elif isinstance(entity, MessageEntityCode):
+                                            text_chars.insert(end, '`')
+                                            text_chars.insert(start, '`')
+                                        elif isinstance(entity, MessageEntityPre):
+                                            text_chars.insert(end, '```')
+                                            text_chars.insert(start, '```')
+                                        elif isinstance(entity, MessageEntityTextUrl):
+                                            url = entity.url
+                                            text_chars.insert(end, f']({url})')
+                                            text_chars.insert(start, '[')
+                                    
+                                    # 복원된 텍스트
+                                    restored_text = ''.join(text_chars)
+                                    logger.info(f'💾 복원된 텍스트: {restored_text[:100]}...')
+                                    original_text = restored_text
+                                    
+                                except Exception as e:
+                                    logger.error(f'❌ 원본 텍스트 복원 실패: {e}')
+                            
                             message_info = {
                                 'id': message.id,
                                 'date': message.date.isoformat() if message.date else '',
-                                'text': message.text or '',
+                                'text': original_text,  # 복원된 원본 텍스트 사용
                                 'media_type': None,
                                 'media_url': None,
                                 'media_path': None,
@@ -1419,11 +1465,11 @@ def get_telegram_saved_messages_with_session(account_info):
                                 'entities': [],
                                 'raw_message_data': {
                                     'id': message.id,
-                                    'text': message.text or '',
+                                    'text': original_text,  # 복원된 원본 텍스트 사용
                                     'entities': [],
                                     'original_message': {
                                         'id': message.id,
-                                        'text': message.text or '',
+                                        'text': original_text,  # 복원된 원본 텍스트 사용
                                         'entities': [],  # JSON 직렬화 문제로 빈 배열로 설정
                                         'date': message.date.isoformat() if message.date else None,
                                         'from_id': str(getattr(message, 'from_id', None)) if getattr(message, 'from_id', None) else None,
