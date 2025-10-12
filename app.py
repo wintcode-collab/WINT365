@@ -1572,27 +1572,27 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                     # 커스텀 이모지가 포함된 메시지 전송
                     logger.info('📤 커스텀 이모지 포함 메시지 전송')
                     
-                    # 엔티티 정보를 사용하여 메시지 전송
-                    entities = media_info.get('entities', [])
-                    if entities:
+                    # 커스텀 이모지 엔티티를 직접 사용
+                    custom_emoji_entities = media_info.get('custom_emoji_entities', [])
+                    if custom_emoji_entities:
+                        logger.info(f'📤 커스텀 이모지 엔티티 {len(custom_emoji_entities)}개 처리 중')
+                        
                         # 엔티티 정보를 텔레그램 형식으로 변환
                         from telethon.tl.types import MessageEntityCustomEmoji
                         telegram_entities = []
                         
-                        for entity in entities:
-                            if entity['type'] == 'CUSTOM_EMOJI':
-                                # 커스텀 이모지 엔티티 찾기
-                                custom_emoji = next((ce for ce in media_info.get('custom_emoji_entities', []) 
-                                                   if ce['offset'] == entity['offset'] and ce['length'] == entity['length']), None)
-                                if custom_emoji:
-                                    telegram_entities.append(MessageEntityCustomEmoji(
-                                        offset=entity['offset'],
-                                        length=entity['length'],
-                                        document_id=custom_emoji['document_id']
-                                    ))
+                        for custom_emoji in custom_emoji_entities:
+                            telegram_entities.append(MessageEntityCustomEmoji(
+                                offset=custom_emoji['offset'],
+                                length=custom_emoji['length'],
+                                document_id=custom_emoji['document_id']
+                            ))
+                            logger.info(f'📤 커스텀 이모지 엔티티 추가: offset={custom_emoji["offset"]}, length={custom_emoji["length"]}, document_id={custom_emoji["document_id"]}')
                         
                         await client.send_message(group_entity, message, formatting_entities=telegram_entities)
+                        logger.info('✅ 커스텀 이모지 메시지 전송 완료')
                     else:
+                        logger.warning('⚠️ 커스텀 이모지 엔티티가 없습니다')
                         await client.send_message(group_entity, message)
                     
                 elif media_info and media_info.get('media_path'):
@@ -1610,33 +1610,49 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                         if media_info.get('has_custom_emoji'):
                             logger.info('📤 미디어와 함께 커스텀 이모지 전송')
                             
-                            # 엔티티 정보를 텔레그램 형식으로 변환
-                            from telethon.tl.types import MessageEntityCustomEmoji
-                            telegram_entities = []
-                            
-                            for entity in media_info.get('entities', []):
-                                if entity['type'] == 'CUSTOM_EMOJI':
-                                    # 커스텀 이모지 엔티티 찾기
-                                    custom_emoji = next((ce for ce in media_info.get('custom_emoji_entities', []) 
-                                                       if ce['offset'] == entity['offset'] and ce['length'] == entity['length']), None)
-                                    if custom_emoji:
-                                        telegram_entities.append(MessageEntityCustomEmoji(
-                                            offset=entity['offset'],
-                                            length=entity['length'],
-                                            document_id=custom_emoji['document_id']
-                                        ))
-                            
-                            # 미디어와 함께 커스텀 이모지 전송
-                            if media_type == 'photo':
-                                await client.send_file(group_entity, media_path, caption=message, formatting_entities=telegram_entities)
-                            elif media_type == 'video':
-                                await client.send_file(group_entity, media_path, caption=message, formatting_entities=telegram_entities)
-                            elif media_type == 'document':
-                                await client.send_file(group_entity, media_path, caption=message, formatting_entities=telegram_entities)
-                            elif media_type == 'voice':
-                                await client.send_file(group_entity, media_path, caption=message, formatting_entities=telegram_entities)
+                            # 커스텀 이모지 엔티티를 직접 사용
+                            custom_emoji_entities = media_info.get('custom_emoji_entities', [])
+                            if custom_emoji_entities:
+                                logger.info(f'📤 미디어와 함께 커스텀 이모지 엔티티 {len(custom_emoji_entities)}개 처리 중')
+                                
+                                # 엔티티 정보를 텔레그램 형식으로 변환
+                                from telethon.tl.types import MessageEntityCustomEmoji
+                                telegram_entities = []
+                                
+                                for custom_emoji in custom_emoji_entities:
+                                    telegram_entities.append(MessageEntityCustomEmoji(
+                                        offset=custom_emoji['offset'],
+                                        length=custom_emoji['length'],
+                                        document_id=custom_emoji['document_id']
+                                    ))
+                                    logger.info(f'📤 미디어 커스텀 이모지 엔티티 추가: offset={custom_emoji["offset"]}, length={custom_emoji["length"]}, document_id={custom_emoji["document_id"]}')
+                                
+                                # 미디어와 함께 커스텀 이모지 전송
+                                if media_type == 'photo':
+                                    await client.send_file(group_entity, media_path, caption=message, formatting_entities=telegram_entities)
+                                elif media_type == 'video':
+                                    await client.send_file(group_entity, media_path, caption=message, formatting_entities=telegram_entities)
+                                elif media_type == 'document':
+                                    await client.send_file(group_entity, media_path, caption=message, formatting_entities=telegram_entities)
+                                elif media_type == 'voice':
+                                    await client.send_file(group_entity, media_path, caption=message, formatting_entities=telegram_entities)
+                                else:
+                                    await client.send_message(group_entity, message, formatting_entities=telegram_entities)
+                                
+                                logger.info('✅ 미디어와 함께 커스텀 이모지 전송 완료')
                             else:
-                                await client.send_message(group_entity, message, formatting_entities=telegram_entities)
+                                logger.warning('⚠️ 미디어 커스텀 이모지 엔티티가 없습니다')
+                                # 일반 미디어 전송
+                                if media_type == 'photo':
+                                    await client.send_file(group_entity, media_path, caption=message)
+                                elif media_type == 'video':
+                                    await client.send_file(group_entity, media_path, caption=message)
+                                elif media_type == 'document':
+                                    await client.send_file(group_entity, media_path, caption=message)
+                                elif media_type == 'voice':
+                                    await client.send_file(group_entity, media_path, caption=message)
+                                else:
+                                    await client.send_message(group_entity, message)
                         else:
                             # 일반 미디어 전송
                             if media_type == 'photo':
@@ -1653,21 +1669,29 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                         logger.error(f'❌ 미디어 파일이 존재하지 않음: {media_path}')
                         # 파일이 없으면 텍스트만 전송 (커스텀 이모지 포함)
                         if media_info.get('has_custom_emoji'):
-                            from telethon.tl.types import MessageEntityCustomEmoji
-                            telegram_entities = []
+                            logger.info('📤 미디어 파일 없음 - 텍스트만 커스텀 이모지와 함께 전송')
                             
-                            for entity in media_info.get('entities', []):
-                                if entity['type'] == 'CUSTOM_EMOJI':
-                                    custom_emoji = next((ce for ce in media_info.get('custom_emoji_entities', []) 
-                                                       if ce['offset'] == entity['offset'] and ce['length'] == entity['length']), None)
-                                    if custom_emoji:
-                                        telegram_entities.append(MessageEntityCustomEmoji(
-                                            offset=entity['offset'],
-                                            length=entity['length'],
-                                            document_id=custom_emoji['document_id']
-                                        ))
-                            
-                            await client.send_message(group_entity, message, formatting_entities=telegram_entities)
+                            # 커스텀 이모지 엔티티를 직접 사용
+                            custom_emoji_entities = media_info.get('custom_emoji_entities', [])
+                            if custom_emoji_entities:
+                                logger.info(f'📤 텍스트만 커스텀 이모지 엔티티 {len(custom_emoji_entities)}개 처리 중')
+                                
+                                from telethon.tl.types import MessageEntityCustomEmoji
+                                telegram_entities = []
+                                
+                                for custom_emoji in custom_emoji_entities:
+                                    telegram_entities.append(MessageEntityCustomEmoji(
+                                        offset=custom_emoji['offset'],
+                                        length=custom_emoji['length'],
+                                        document_id=custom_emoji['document_id']
+                                    ))
+                                    logger.info(f'📤 텍스트 커스텀 이모지 엔티티 추가: offset={custom_emoji["offset"]}, length={custom_emoji["length"]}, document_id={custom_emoji["document_id"]}')
+                                
+                                await client.send_message(group_entity, message, formatting_entities=telegram_entities)
+                                logger.info('✅ 텍스트만 커스텀 이모지 전송 완료')
+                            else:
+                                logger.warning('⚠️ 텍스트 커스텀 이모지 엔티티가 없습니다')
+                                await client.send_message(group_entity, message)
                         else:
                             await client.send_message(group_entity, message)
                 else:
