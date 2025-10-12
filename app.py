@@ -1374,121 +1374,12 @@ def get_telegram_saved_messages_with_session(account_info):
                     from telethon.tl.types import InputPeerSelf
                     
                     try:
-                        # 완전히 새로운 접근: 텔레그램의 원본 메시지 데이터를 직접 가져오기
-                        logger.info('💾 🚀 최종 방법: 텔레그램 원본 메시지 데이터 직접 가져오기')
+                        # 간단하고 확실한 방법: 저장된 메시지 가져오기
+                        logger.info('💾 저장된 메시지 가져오기 시작')
                         
-                        # 방법 1: get_messages로 원본 데이터 가져오기 (parse_mode=None으로 원본 그대로)
-                        messages = await client.get_messages(InputPeerSelf(), limit=100, parse_mode=None)
-                        logger.info(f'💾 저장된 메시지 {len(messages)}개를 찾았습니다 (parse_mode=None으로 원본 그대로).')
-                        
-                        # 🚀 추가: 원본 메시지 데이터를 직접 가져오기
-                        logger.info('💾 🚀 원본 메시지 데이터 직접 가져오기 시도')
-                        try:
-                            # 원본 메시지 데이터를 직접 가져오기
-                            raw_messages = await client.get_messages(InputPeerSelf(), limit=100, parse_mode=None)
-                            logger.info(f'💾 원본 메시지 데이터 {len(raw_messages)}개를 직접 가져왔습니다.')
-                            
-                            # 원본 메시지 데이터 분석
-                            if raw_messages:
-                                for raw_msg in raw_messages[:3]:  # 처음 3개만 분석
-                                    logger.info(f'💾 원본 메시지 분석: ID={raw_msg.id}')
-                                    logger.info(f'💾 원본 텍스트 (repr): {repr(raw_msg.text)}')
-                                    logger.info(f'💾 원본 텍스트 (str): {raw_msg.text}')
-                                    logger.info(f'💾 원본 엔티티: {raw_msg.entities}')
-                                    
-                                    # 원본 메시지의 모든 속성 확인
-                                    raw_attrs = [attr for attr in dir(raw_msg) if not attr.startswith('_')]
-                                    logger.info(f'💾 원본 메시지 속성들: {raw_attrs}')
-                                    
-                                    # 원본 메시지의 raw 데이터 확인
-                                    if hasattr(raw_msg, 'raw_text'):
-                                        logger.info(f'💾 원본 raw_text: {raw_msg.raw_text}')
-                                    if hasattr(raw_msg, 'message'):
-                                        logger.info(f'💾 원본 message: {raw_msg.message}')
-                                    if hasattr(raw_msg, 'text'):
-                                        logger.info(f'💾 원본 text: {raw_msg.text}')
-                                    
-                                    # 원본 메시지의 엔티티 정보 확인
-                                    if raw_msg.entities:
-                                        for i, entity in enumerate(raw_msg.entities[:5]):  # 처음 5개만
-                                            logger.info(f'💾 원본 엔티티 {i}: {type(entity).__name__}')
-                                            logger.info(f'💾   - offset: {entity.offset}, length: {entity.length}')
-                                            if hasattr(entity, 'type'):
-                                                logger.info(f'💾   - type: {entity.type}')
-                                            if hasattr(entity, 'document_id'):
-                                                logger.info(f'💾   - document_id: {entity.document_id}')
-                                    
-                                    break  # 첫 번째 메시지만 상세 분석
-                                    
-                        except Exception as e:
-                            logger.error(f'❌ 원본 메시지 데이터 직접 가져오기 실패: {e}')
-                        
-                        # 원본 메시지 데이터를 더 상세하게 분석
-                        if messages:
-                            logger.info('💾 원본 메시지 데이터 상세 분석 시작')
-                            for msg in messages[:3]:  # 처음 3개만 상세 분석
-                                logger.info(f'💾 메시지 ID: {msg.id}')
-                                logger.info(f'💾 원본 텍스트 (repr): {repr(msg.text)}')
-                                logger.info(f'💾 원본 텍스트 (str): {msg.text}')
-                                logger.info(f'💾 엔티티 개수: {len(msg.entities) if msg.entities else 0}')
-                                
-                                # 원본 메시지의 모든 속성 확인
-                                logger.info(f'💾 메시지 속성들: {[attr for attr in dir(msg) if not attr.startswith("_")]}')
-                                
-                                if msg.entities:
-                                    for i, entity in enumerate(msg.entities[:10]):  # 처음 10개 엔티티
-                                        logger.info(f'💾 엔티티 {i}: {type(entity).__name__}')
-                                        logger.info(f'💾   - offset: {entity.offset}, length: {entity.length}')
-                                        if hasattr(entity, 'type'):
-                                            logger.info(f'💾   - type: {entity.type}')
-                                        if hasattr(entity, 'document_id'):
-                                            logger.info(f'💾   - document_id: {entity.document_id}')
-                                        if hasattr(entity, 'url'):
-                                            logger.info(f'💾   - url: {entity.url}')
-                                
-                                # 원본 메시지의 raw 데이터 확인
-                                logger.info(f'💾 원본 메시지 raw 데이터: {msg}')
-                                
-                                # 텔레그램의 원본 포맷팅을 그대로 사용해보기
-                                if msg.entities:
-                                    logger.info('💾 원본 포맷팅을 그대로 사용 시도')
-                                    try:
-                                        # 텔레그램의 원본 포맷팅을 마크다운으로 변환
-                                        from telethon.tl.types import MessageEntityBold, MessageEntityItalic, MessageEntityCode, MessageEntityPre, MessageEntityTextUrl, MessageEntityCustomEmoji
-                                        
-                                        # 텍스트를 문자 배열로 변환
-                                        text_chars = list(msg.text or '')
-                                        
-                                        # 엔티티를 offset 기준으로 정렬 (역순으로)
-                                        sorted_entities = sorted(msg.entities, key=lambda x: x.offset, reverse=True)
-                                        
-                                        for entity in sorted_entities:
-                                            start = entity.offset
-                                            end = entity.offset + entity.length
-                                            
-                                            if isinstance(entity, MessageEntityBold):
-                                                text_chars.insert(end, '**')
-                                                text_chars.insert(start, '**')
-                                            elif isinstance(entity, MessageEntityItalic):
-                                                text_chars.insert(end, '*')
-                                                text_chars.insert(start, '*')
-                                            elif isinstance(entity, MessageEntityCode):
-                                                text_chars.insert(end, '`')
-                                                text_chars.insert(start, '`')
-                                            elif isinstance(entity, MessageEntityPre):
-                                                text_chars.insert(end, '```')
-                                                text_chars.insert(start, '```')
-                                            elif isinstance(entity, MessageEntityTextUrl):
-                                                url = entity.url
-                                                text_chars.insert(end, f']({url})')
-                                                text_chars.insert(start, '[')
-                                        
-                                        # 복원된 텍스트
-                                        restored_text = ''.join(text_chars)
-                                        logger.info(f'💾 ✅ 복원된 텍스트: {restored_text[:100]}...')
-                                        
-                                    except Exception as e:
-                                        logger.error(f'❌ 원본 포맷팅 복원 실패: {e}')
+                        # 방법 1: InputPeerSelf를 사용하여 저장된 메시지 가져오기
+                        messages = await client.get_messages(InputPeerSelf(), limit=100)
+                        logger.info(f'💾 저장된 메시지 {len(messages)}개를 찾았습니다.')
                         
                         if len(messages) == 0:
                             # 대화 목록에서 자신과의 대화 찾기
@@ -1518,57 +1409,26 @@ def get_telegram_saved_messages_with_session(account_info):
                             logger.info(f'💾 원본 메시지 타입: {type(message)}')
                             logger.info(f'💾 원본 메시지 속성: {dir(message)}')
                             
-                            # 🚀 최종 해결책: 원본 텍스트를 그대로 보존 (복잡한 변환 없이)
-                            logger.info(f'💾 🚀 최종 해결책: 원본 텍스트 그대로 보존')
-                            
-                            # 🚀 핵심: message.text는 이미 변환된 텍스트이므로 원본 raw 데이터 사용
-                            # 텔레그램의 원본 메시지 데이터에서 raw 텍스트 추출
+                            # 간단한 방법: 원본 텍스트 그대로 사용
                             original_text = message.text or ''
+                            logger.info(f'💾 원본 텍스트: {original_text[:100]}...')
                             
-                            # 🚀 새로운 접근: 원본 메시지의 raw 데이터를 직접 사용
-                            logger.info(f'💾 원본 메시지 raw 데이터 분석 시작')
-                            logger.info(f'💾 message.text (변환된 텍스트): {original_text[:100]}...')
+                            # 원본 메시지 데이터 생성
+                            original_message_data = {
+                                'id': message.id,
+                                'text': original_text,
+                                'entities': [],
+                                'date': message.date.isoformat() if message.date else None,
+                                'from_id': str(getattr(message, 'from_id', None)) if getattr(message, 'from_id', None) else None,
+                                'peer_id': str(getattr(message, 'peer_id', None)) if getattr(message, 'peer_id', None) else None,
+                                'message_id': message.id,
+                                'raw_text': original_text,
+                                'preserve_original': True,
+                                'original_message_object': True,
+                                'use_forward_message': True
+                            }
                             
-                            # 원본 메시지의 모든 속성 확인
-                            message_attrs = [attr for attr in dir(message) if not attr.startswith('_')]
-                            logger.info(f'💾 메시지 속성들: {message_attrs}')
-                            
-                            # 🚀 핵심: 원본 메시지의 raw 데이터를 직접 추출
-                            # 텔레그램의 원본 메시지 객체에서 raw 텍스트 추출
-                            try:
-                                # 🚀 최종 해결책: 원본 메시지 객체 자체를 그대로 보존
-                                # 텔레그램의 원본 메시지 객체를 JSON 직렬화 가능한 형태로 변환
-                                original_message_data = {
-                                    'id': message.id,
-                                    'text': original_text,  # 원본 텍스트 그대로 사용
-                                    'entities': [],
-                                    'date': message.date.isoformat() if message.date else None,
-                                    'from_id': str(getattr(message, 'from_id', None)) if getattr(message, 'from_id', None) else None,
-                                    'peer_id': str(getattr(message, 'peer_id', None)) if getattr(message, 'peer_id', None) else None,
-                                    'message_id': message.id,
-                                    'raw_text': original_text,
-                                    'preserve_original': True,
-                                    'original_message_object': True,
-                                    'use_forward_message': True  # 메시지 전달 방식 사용
-                                }
-                                
-                                logger.info(f'💾 원본 메시지 데이터 생성 완료: {original_message_data}')
-                                
-                            except Exception as e:
-                                logger.error(f'❌ 원본 메시지 데이터 추출 실패: {e}')
-                                original_message_data = {
-                                    'id': message.id,
-                                    'text': original_text,
-                                    'entities': [],
-                                    'date': message.date.isoformat() if message.date else None,
-                                    'message_id': message.id,
-                                    'raw_text': original_text,
-                                    'preserve_original': True,
-                                    'original_message_object': True,
-                                    'use_forward_message': True
-                                }
-                            
-                            logger.info(f'💾 최종 원본 텍스트: {original_text[:100]}...')
+                            logger.info(f'💾 원본 메시지 데이터 생성 완료: {original_message_data}')
                             
                             # 엔티티 정보만 저장 (복잡한 변환은 하지 않음)
                             if message.entities:
