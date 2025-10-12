@@ -298,8 +298,14 @@
                             </div>
                             
                             <div class="message-input-container">
-                                <textarea class="message-input" id="messageInput" placeholder="전송할 메시지를 입력하세요..."></textarea>
+                                <div class="message-inputs" id="messageInputs">
+                                    <div class="message-input-row">
+                                        <textarea class="message-input" placeholder="전송할 메시지를 입력하세요..."></textarea>
+                                        <button class="remove-message-btn" style="display: none;">❌</button>
+                                    </div>
+                                </div>
                                 <div class="message-actions">
+                                    <button class="add-message-btn" id="addMessageBtn">➕ 메시지 추가</button>
                                     <button class="send-message-btn" id="sendMessageBtn">📤 전송</button>
                                     <button class="cancel-message-btn" id="cancelMessageBtn">❌ 취소</button>
                                 </div>

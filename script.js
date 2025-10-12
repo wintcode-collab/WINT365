@@ -1854,10 +1854,51 @@ function selectGroup(group, groupElement) {
     }
     
     // 메시지 입력 필드 포커스
-    const messageInput = document.getElementById('messageInput');
-    if (messageInput) {
-        messageInput.focus();
+    const messageInputs = document.querySelectorAll('.message-input');
+    if (messageInputs.length > 0) {
+        messageInputs[0].focus();
     }
+}
+
+// 메시지 입력 필드 추가
+function addMessageInput() {
+    console.log('➕ 메시지 입력 필드 추가');
+    
+    const messageInputs = document.getElementById('messageInputs');
+    if (!messageInputs) return;
+    
+    const messageRow = document.createElement('div');
+    messageRow.className = 'message-input-row';
+    messageRow.innerHTML = `
+        <textarea class="message-input" placeholder="전송할 메시지를 입력하세요..."></textarea>
+        <button class="remove-message-btn">❌</button>
+    `;
+    
+    messageInputs.appendChild(messageRow);
+    
+    // 삭제 버튼 이벤트 추가
+    const removeBtn = messageRow.querySelector('.remove-message-btn');
+    removeBtn.addEventListener('click', () => {
+        messageRow.remove();
+        updateRemoveButtonsVisibility();
+    });
+    
+    // 새로 추가된 입력 필드에 포커스
+    const newInput = messageRow.querySelector('.message-input');
+    newInput.focus();
+    
+    updateRemoveButtonsVisibility();
+}
+
+// 삭제 버튼 표시/숨김 업데이트
+function updateRemoveButtonsVisibility() {
+    const messageRows = document.querySelectorAll('.message-input-row');
+    const removeButtons = document.querySelectorAll('.remove-message-btn');
+    
+    // 첫 번째 행의 삭제 버튼은 숨기고, 나머지는 표시
+    removeButtons.forEach((btn, index) => {
+        btn.style.display = index === 0 ? 'none' : 'block';
+    });
 }
 
 // 텔레그램 그룹 관리 창 이벤트 리스너 설정
@@ -1874,6 +1915,12 @@ function setupTelegramGroupsEventListeners() {
         refreshGroupsBtn.addEventListener('click', refreshGroups);
     }
     
+    // 메시지 추가 버튼
+    const addMessageBtn = document.getElementById('addMessageBtn');
+    if (addMessageBtn) {
+        addMessageBtn.addEventListener('click', addMessageInput);
+    }
+    
     // 메시지 전송 버튼
     const sendMessageBtn = document.getElementById('sendMessageBtn');
     if (sendMessageBtn) {
@@ -1884,16 +1931,6 @@ function setupTelegramGroupsEventListeners() {
     const cancelMessageBtn = document.getElementById('cancelMessageBtn');
     if (cancelMessageBtn) {
         cancelMessageBtn.addEventListener('click', cancelMessage);
-    }
-    
-    // 메시지 입력 필드 Enter 키 이벤트
-    const messageInput = document.getElementById('messageInput');
-    if (messageInput) {
-        messageInput.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter' && e.ctrlKey) {
-                sendMessageToGroup();
-            }
-        });
     }
 }
 
@@ -1922,9 +1959,15 @@ function closeTelegramGroupsWindow() {
     }
     
     // 메시지 입력 필드 초기화
-    const messageInput = document.getElementById('messageInput');
-    if (messageInput) {
-        messageInput.value = '';
+    const messageInputs = document.querySelectorAll('.message-input');
+    messageInputs.forEach(input => {
+        input.value = '';
+    });
+    
+    // 추가된 메시지 입력 필드들 제거 (첫 번째 제외)
+    const messageRows = document.querySelectorAll('.message-input-row');
+    for (let i = 1; i < messageRows.length; i++) {
+        messageRows[i].remove();
     }
     
     // 선택된 그룹 상태 초기화
@@ -1991,13 +2034,21 @@ async function refreshGroups() {
 async function sendMessageToGroup() {
     console.log('📤 그룹에 메시지 전송');
     
-    const messageInput = document.getElementById('messageInput');
+    const messageInputs = document.querySelectorAll('.message-input');
     const sendBtn = document.getElementById('sendMessageBtn');
     const selectedGroupName = document.getElementById('selectedGroupName').textContent;
     
-    if (!messageInput || !messageInput.value.trim()) {
+    // 모든 메시지 입력 필드에서 메시지 수집
+    const messages = [];
+    messageInputs.forEach(input => {
+        if (input.value.trim()) {
+            messages.push(input.value.trim());
+        }
+    });
+    
+    if (messages.length === 0) {
         alert('전송할 메시지를 입력해주세요.');
-        messageInput?.focus();
+        messageInputs[0]?.focus();
         return;
     }
     
@@ -2005,8 +2056,6 @@ async function sendMessageToGroup() {
         alert('전송할 그룹을 선택해주세요.');
         return;
     }
-    
-    const message = messageInput.value.trim();
     
     // 버튼 상태 변경
     if (sendBtn) {
@@ -2049,29 +2098,60 @@ async function sendMessageToGroup() {
             throw new Error('계정을 찾을 수 없습니다.');
         }
         
-        // 메시지 전송 API 호출 (백엔드에서 구현 필요)
-        const sendResponse = await fetch('/api/telegram/send-message', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                userId: account.user_id,
-                groupId: groupId,
-                message: message
-            })
-        });
+        // 여러 개 메시지 전송
+        let successCount = 0;
+        let failCount = 0;
         
-        const sendResult = await sendResponse.json();
-        
-        if (sendResponse.ok && sendResult.success) {
-            alert(`✅ 메시지 전송 성공!\n\n그룹: ${selectedGroupName}\n메시지: ${message}`);
+        for (let i = 0; i < messages.length; i++) {
+            const message = messages[i];
             
-            // 메시지 입력 필드 초기화
-            messageInput.value = '';
-        } else {
-            throw new Error(sendResult.error || '메시지 전송 실패');
+            try {
+                const sendResponse = await fetch('/api/telegram/send-message', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        userId: account.user_id,
+                        groupId: groupId,
+                        message: message
+                    })
+                });
+                
+                const sendResult = await sendResponse.json();
+                
+                if (sendResponse.ok && sendResult.success) {
+                    successCount++;
+                    console.log(`✅ 메시지 ${i + 1} 전송 성공: ${message.substring(0, 50)}...`);
+                } else {
+                    failCount++;
+                    console.error(`❌ 메시지 ${i + 1} 전송 실패: ${sendResult.error}`);
+                }
+                
+                // 메시지 간 간격 (1초)
+                if (i < messages.length - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+                
+            } catch (error) {
+                failCount++;
+                console.error(`❌ 메시지 ${i + 1} 전송 에러: ${error.message}`);
+            }
         }
+        
+        // 결과 알림
+        if (successCount > 0 && failCount === 0) {
+            alert(`✅ 모든 메시지 전송 성공!\n\n그룹: ${selectedGroupName}\n전송된 메시지: ${successCount}개`);
+        } else if (successCount > 0 && failCount > 0) {
+            alert(`⚠️ 부분 전송 완료\n\n그룹: ${selectedGroupName}\n성공: ${successCount}개\n실패: ${failCount}개`);
+        } else {
+            throw new Error('모든 메시지 전송 실패');
+        }
+        
+        // 메시지 입력 필드 초기화
+        messageInputs.forEach(input => {
+            input.value = '';
+        });
         
     } catch (error) {
         console.error('❌ 메시지 전송 실패:', error);
@@ -2088,11 +2168,18 @@ async function sendMessageToGroup() {
 function cancelMessage() {
     console.log('❌ 메시지 전송 취소');
     
-    const messageInput = document.getElementById('messageInput');
+    const messageInputs = document.querySelectorAll('.message-input');
     const messageSection = document.getElementById('messageSendingSection');
     
-    if (messageInput) {
-        messageInput.value = '';
+    // 모든 메시지 입력 필드 초기화
+    messageInputs.forEach(input => {
+        input.value = '';
+    });
+    
+    // 추가된 메시지 입력 필드들 제거 (첫 번째 제외)
+    const messageRows = document.querySelectorAll('.message-input-row');
+    for (let i = 1; i < messageRows.length; i++) {
+        messageRows[i].remove();
     }
     
     if (messageSection) {

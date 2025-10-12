@@ -726,19 +726,19 @@ input:focus, button:focus, textarea:focus, select:focus {
 /* 텔레그램 그룹 관리 창 */
 .telegram-groups-window {
     position: absolute;
-    top: 0;
+    bottom: 0;
     left: 0;
     right: 0;
     height: 100%;
-    background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
-    border: 2px solid #10B981;
-    border-radius: 20px;
-    transform: translateY(-100%);
+    background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
+    border: 2px solid #333;
+    border-radius: 20px 20px 0 0;
+    transform: translateY(100%);
     transition: transform 0.5s ease-in-out;
     z-index: 1000;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.8);
 }
 
 .telegram-groups-window.show {
@@ -750,8 +750,8 @@ input:focus, button:focus, textarea:focus, select:focus {
     justify-content: space-between;
     align-items: center;
     padding: 20px 30px;
-    border-bottom: 1px solid rgba(16, 185, 129, 0.3);
-    background: rgba(16, 185, 129, 0.1);
+    border-bottom: 1px solid #333;
+    background: rgba(0, 0, 0, 0.3);
 }
 
 .groups-title {
@@ -767,7 +767,7 @@ input:focus, button:focus, textarea:focus, select:focus {
 .groups-title-text {
     font-size: 18px;
     font-weight: 600;
-    color: #10B981;
+    color: #fff;
 }
 
 .groups-close-btn {
@@ -800,8 +800,8 @@ input:focus, button:focus, textarea:focus, select:focus {
 }
 
 .groups-account-info {
-    background: rgba(16, 185, 129, 0.1);
-    border: 1px solid rgba(16, 185, 129, 0.3);
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid #333;
     border-radius: 10px;
     padding: 15px;
     margin-bottom: 20px;
@@ -835,7 +835,7 @@ input:focus, button:focus, textarea:focus, select:focus {
 
 .groups-count {
     font-size: 14px;
-    color: #10B981;
+    color: #fff;
     font-weight: 600;
 }
 
@@ -879,8 +879,8 @@ input:focus, button:focus, textarea:focus, select:focus {
 }
 
 .group-item {
-    background: linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%);
-    border: 1px solid #444;
+    background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
+    border: 1px solid #333;
     border-radius: 10px;
     padding: 15px;
     cursor: pointer;
@@ -902,7 +902,7 @@ input:focus, button:focus, textarea:focus, select:focus {
 .group-name {
     font-size: 16px;
     font-weight: 600;
-    color: #10B981;
+    color: #fff;
     margin-bottom: 5px;
 }
 
@@ -929,8 +929,8 @@ input:focus, button:focus, textarea:focus, select:focus {
 }
 
 .message-sending-section {
-    background: rgba(16, 185, 129, 0.1);
-    border: 1px solid rgba(16, 185, 129, 0.3);
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid #333;
     border-radius: 10px;
     padding: 20px;
     margin-top: 20px;
@@ -959,9 +959,56 @@ input:focus, button:focus, textarea:focus, select:focus {
     gap: 15px;
 }
 
+.message-inputs {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.message-input-row {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+}
+
+.remove-message-btn {
+    background: rgba(220, 53, 69, 0.2);
+    border: 1px solid #dc3545;
+    color: #dc3545;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    flex-shrink: 0;
+    margin-top: 5px;
+}
+
+.remove-message-btn:hover {
+    background: #dc3545;
+    color: #fff;
+}
+
+.add-message-btn {
+    background: rgba(0, 123, 255, 0.2);
+    border: 1px solid #007bff;
+    color: #007bff;
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.add-message-btn:hover {
+    background: #007bff;
+    color: #fff;
+}
+
 .message-input {
     background: rgba(0, 0, 0, 0.3);
-    border: 1px solid #444;
+    border: 1px solid #333;
     border-radius: 8px;
     padding: 15px;
     color: #fff;
@@ -970,6 +1017,7 @@ input:focus, button:focus, textarea:focus, select:focus {
     resize: vertical;
     min-height: 80px;
     transition: border-color 0.3s ease;
+    flex: 1;
 }
 
 .message-input:focus {
