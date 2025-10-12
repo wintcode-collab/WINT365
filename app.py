@@ -621,6 +621,10 @@ def verify_code():
             
         except PhoneCodeExpiredError:
             logger.error('❌ 인증코드가 만료되었습니다.')
+            # 인증 실패 시 Firebase 세션 정리
+            logger.info('🔥 인증 실패, Firebase 세션 정리 중...')
+            delete_session_from_firebase(client_id)
+            
             if client_id in clients:
                 del clients[client_id]
             return jsonify({
