@@ -2188,7 +2188,12 @@ async def get_custom_emojis_async(account_info):
                                         emoji_info['alt'] = attr.alt
                                         break
                                 
+                                # alt 텍스트가 없으면 document_id를 기반으로 생성
+                                if not emoji_info['alt'] or emoji_info['alt'] == '😀':
+                                    emoji_info['alt'] = f'[이모지_{document.id}]'
+                                
                                 pack_info['emojis'].append(emoji_info)
+                                logger.info(f'😀 이모지 추가: {emoji_info["alt"]} (ID: {emoji_info["document_id"]})')
                     
                     except Exception as e:
                         logger.error(f'❌ 스티커셋 {sticker_set.title} 처리 실패: {e}')

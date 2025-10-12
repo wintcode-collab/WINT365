@@ -2597,14 +2597,33 @@ function displayCustomEmojis(emojiPacks) {
             emojiElement.className = 'emoji-item';
             emojiElement.onclick = () => insertEmoji(emoji);
             
-            // 이모지 미리보기 (텔레그램에서 가져오기)
-            const preview = document.createElement('img');
+            // 커스텀 이모지 미리보기 (텔레그램 커스텀 이모지용)
+            const preview = document.createElement('div');
             preview.className = 'emoji-preview';
-            preview.src = `https://t.me/sticker/${emoji.document_id}`;
-            preview.alt = emoji.alt || '이모지';
-            preview.onerror = () => {
-                preview.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTAiIGhlaWdodD0iNTAiIHZpZXdCb3g9IjAgMCA1MCA1MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjUwIiBoZWlnaHQ9IjUwIiBmaWxsPSIjMzMzIi8+Cjx0ZXh0IHg9IjI1IiB5PSIzMCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjE0IiBmaWxsPSIjODg4IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj7wn5C8PC90ZXh0Pgo8L3N2Zz4K';
-            };
+            preview.style.width = '48px';
+            preview.style.height = '48px';
+            preview.style.display = 'flex';
+            preview.style.alignItems = 'center';
+            preview.style.justifyContent = 'center';
+            preview.style.border = '1px solid #333';
+            preview.style.borderRadius = '8px';
+            preview.style.backgroundColor = '#f0f0f0';
+            preview.style.margin = '2px';
+            
+            // 커스텀 이모지 표시를 위한 특별한 처리
+            if (emoji.alt && emoji.alt !== '😀' && !emoji.alt.startsWith('[이모지_')) {
+                // 실제 alt 텍스트가 있으면 그것을 표시
+                preview.textContent = emoji.alt;
+                preview.style.fontSize = '20px';
+            } else {
+                // 커스텀 이모지임을 나타내는 표시
+                preview.innerHTML = `
+                    <div style="text-align: center; font-size: 12px; color: #666;">
+                        <div style="font-size: 16px;">🎨</div>
+                        <div>커스텀</div>
+                    </div>
+                `;
+            }
             
             const altText = document.createElement('div');
             altText.className = 'emoji-alt';
@@ -2648,8 +2667,15 @@ function insertEmoji(emoji) {
         
         window.selectedEmojis.push(emojiInfo);
         
-        // 메시지 입력칸에 이모지 표시 (임시로 alt 텍스트 사용)
-        const emojiText = emoji.alt || '😀';
+        // 메시지 입력칸에 이모지 표시 (커스텀 이모지 표시)
+        let emojiText;
+        if (emoji.alt && emoji.alt !== '😀' && !emoji.alt.startsWith('[이모지_')) {
+            // 실제 alt 텍스트가 있으면 그것을 사용
+            emojiText = emoji.alt;
+        } else {
+            // 커스텀 이모지임을 나타내는 표시
+            emojiText = '🎨';
+        }
         messageInput.value += emojiText;
         
         // 커서를 끝으로 이동
@@ -2657,6 +2683,9 @@ function insertEmoji(emoji) {
         messageInput.setSelectionRange(messageInput.value.length, messageInput.value.length);
         
         console.log('😀 이모지 삽입 완료:', emojiInfo);
+        
+        // 이모지 선택 후 창 닫기
+        closeEmojiPicker();
         
     } catch (error) {
         console.error('❌ 이모지 삽입 오류:', error);
