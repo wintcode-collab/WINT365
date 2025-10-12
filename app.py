@@ -1515,9 +1515,26 @@ def get_telegram_saved_messages_with_session(account_info):
                             logger.info(f'💾 원본 메시지 데이터 생성 완료: {original_message_data}')
                             
                             # 엔티티 정보만 저장 (복잡한 변환은 하지 않음)
+                            custom_emoji_entities = []
+                            has_custom_emoji = False
+                            
                             if message.entities:
                                 logger.info(f'💾 엔티티 개수: {len(message.entities)}')
-                                # 엔티티 정보는 나중에 전송할 때 사용
+                                
+                                # 커스텀 이모지 엔티티 찾기
+                                for entity in message.entities:
+                                    if hasattr(entity, '__class__') and 'CustomEmoji' in str(entity.__class__):
+                                        has_custom_emoji = True
+                                        custom_emoji_entities.append({
+                                            'offset': entity.offset,
+                                            'length': entity.length,
+                                            'type': str(entity.__class__),
+                                            'document_id': getattr(entity, 'document_id', None)
+                                        })
+                                        logger.info(f'💾 커스텀 이모지 엔티티 발견: offset={entity.offset}, length={entity.length}, document_id={getattr(entity, "document_id", None)}')
+                                
+                                logger.info(f'💾 커스텀 이모지 엔티티 개수: {len(custom_emoji_entities)}')
+                                logger.info(f'💾 커스텀 이모지 있음: {has_custom_emoji}')
                             else:
                                 logger.info(f'💾 엔티티 없음')
                             
@@ -1529,17 +1546,17 @@ def get_telegram_saved_messages_with_session(account_info):
                                 'media_type': None,
                                 'media_url': None,
                                 'media_path': None,
-                                'has_custom_emoji': False,
-                                'custom_emoji_entities': [],
-                                'entities': [],
+                                'has_custom_emoji': has_custom_emoji,  # 실제 커스텀 이모지 여부
+                                'custom_emoji_entities': custom_emoji_entities,  # 실제 커스텀 이모지 엔티티
+                                'entities': [{'offset': e.offset, 'length': e.length, 'type': str(e.__class__)} for e in message.entities] if message.entities else [],
                                 'raw_message_data': {
                                     'id': message.id,
                                     'text': original_text,  # 원본 텍스트 그대로 사용
-                                    'entities': [],
+                                    'entities': [{'offset': e.offset, 'length': e.length, 'type': str(e.__class__)} for e in message.entities] if message.entities else [],
                                     'original_message': {
                                         'id': message.id,
                                         'text': original_text,  # 원본 텍스트 그대로 사용
-                                        'entities': [],  # JSON 직렬화 문제로 빈 배열로 설정
+                                        'entities': [{'offset': e.offset, 'length': e.length, 'type': str(e.__class__)} for e in message.entities] if message.entities else [],
                                         'date': message.date.isoformat() if message.date else None,
                                         'from_id': str(getattr(message, 'from_id', None)) if getattr(message, 'from_id', None) else None,
                                         'peer_id': str(getattr(message, 'peer_id', None)) if getattr(message, 'peer_id', None) else None
