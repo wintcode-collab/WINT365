@@ -132,9 +132,15 @@ def send_code():
                         await client.connect()
                         logger.info('✅ Telegram 서버 연결 성공')
                         
-                        # 연결 안정화 대기
-                        await asyncio.sleep(2)
-                        logger.info('⏳ 연결 안정화 대기 완료')
+                        # 연결 안정화 대기 (더 길게)
+                        await asyncio.sleep(5)
+                        logger.info('⏳ 연결 안정화 대기 완료 (5초)')
+                        
+                        # 연결 상태 확인
+                        if not client.is_connected():
+                            logger.error('❌ 클라이언트 연결 실패')
+                            raise Exception('텔레그램 서버 연결에 실패했습니다.')
+                        logger.info('✅ 클라이언트 연결 상태 확인 완료')
                         
                         logger.info('📱 인증코드 발송 요청 중...')
                         logger.info(f'📋 전화번호 형식: {phone_number}')
@@ -315,14 +321,7 @@ def verify_code():
                         
                         # Telethon의 올바른 sign_in 사용법
                         logger.info('🔐 sign_in 메서드 호출 중...')
-                        logger.info(f'📋 인증 시도 정보: phone={client_data.get("phone_number")}, code={phone_code}, hash=***{phone_code_hash[-4:]}')
-                        
-                        # 전화번호와 함께 sign_in 시도
-                        result = await client.sign_in(
-                            phone=client_data.get('phone_number'),
-                            code=phone_code, 
-                            phone_code_hash=phone_code_hash
-                        )
+                        result = await client.sign_in(phone_code, phone_code_hash=phone_code_hash)
                         logger.info(f'✅ 인증 성공: userId={result.id}, firstName={result.first_name}')
                         
                         return result
