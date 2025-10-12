@@ -2225,8 +2225,10 @@ async function loadTelegramSavedMessages() {
         console.log('💾 저장된 메시지 응답:', savedResult);
         
         if (savedResponse.ok && savedResult.success) {
+            console.log('💾 저장된 메시지 로딩 성공:', savedResult.saved_messages);
             displayTelegramSavedMessages(savedResult.saved_messages);
         } else {
+            console.error('💾 저장된 메시지 로딩 실패:', savedResult);
             throw new Error(savedResult.error || '저장된 메시지 로딩 실패');
         }
         
@@ -2255,8 +2257,12 @@ function displayTelegramSavedMessages(savedMessages) {
     if (savedMessages.length === 0) {
         messagesList.innerHTML = `
             <div style="text-align: center; color: #888; padding: 20px;">
-                텔레그램에 저장된 메시지가 없습니다.<br>
-                텔레그램 앱에서 메시지를 저장해보세요.
+                텔레그램에 저장된 메시지가 없습니다.<br><br>
+                <strong>저장된 메시지 사용법:</strong><br>
+                1. 텔레그램 앱에서 메시지를 길게 누르세요<br>
+                2. "저장" 또는 "북마크" 버튼을 누르세요<br>
+                3. 메시지가 "저장된 메시지"에 추가됩니다<br><br>
+                <small>저장된 메시지가 있다면 페이지를 새로고침해보세요.</small>
             </div>
         `;
         return;

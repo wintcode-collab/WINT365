@@ -1313,11 +1313,37 @@ def get_telegram_saved_messages_with_session(account_info):
                 saved_messages = []
 
                 try:
-                    # "Saved Messages" 채팅 찾기
+                    # "Saved Messages" 채팅 찾기 (여러 방법 시도)
                     me = await client.get_me()
-                    saved_messages_entity = await client.get_entity(me.id)
+                    logger.info(f'💾 현재 사용자: {me.first_name} (ID: {me.id})')
                     
-                    logger.info('💾 저장된 메시지 채팅 찾기 완료')
+                    # 방법 1: 자신의 ID로 직접 접근
+                    try:
+                        saved_messages_entity = await client.get_entity(me.id)
+                        logger.info('💾 방법 1: 자신의 ID로 저장된 메시지 접근 성공')
+                    except Exception as e:
+                        logger.error(f'❌ 방법 1 실패: {e}')
+                        
+                        # 방법 2: "me" 문자열로 접근
+                        try:
+                            saved_messages_entity = await client.get_entity("me")
+                            logger.info('💾 방법 2: "me" 문자열로 저장된 메시지 접근 성공')
+                        except Exception as e2:
+                            logger.error(f'❌ 방법 2 실패: {e2}')
+                            
+                            # 방법 3: 대화 목록에서 찾기
+                            dialogs = await client.get_dialogs()
+                            saved_messages_entity = None
+                            
+                            for dialog in dialogs:
+                                if dialog.entity.id == me.id:
+                                    saved_messages_entity = dialog.entity
+                                    logger.info('💾 방법 3: 대화 목록에서 저장된 메시지 찾기 성공')
+                                    break
+                            
+                            if not saved_messages_entity:
+                                logger.error('❌ 모든 방법으로 저장된 메시지를 찾을 수 없음')
+                                return None
 
                     # 저장된 메시지 목록 가져오기 (최근 50개)
                     messages = await client.get_messages(saved_messages_entity, limit=50)
