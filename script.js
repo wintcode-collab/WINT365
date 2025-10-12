@@ -2000,9 +2000,11 @@ async function sendMessageToGroup() {
     const messageInput = document.querySelector('.message-input');
     const sendBtn = document.getElementById('sendMessageBtn');
     
-    // 메시지 확인
-    if (!messageInput || !messageInput.value.trim()) {
-        alert('전송할 메시지를 입력해주세요.');
+    // 메시지 확인 (저장된 메시지가 선택되어 있으면 입력칸이 비어있어도 OK)
+    const hasSavedMessage = window.selectedMediaInfo && window.selectedMediaInfo.raw_message_data;
+    
+    if (!messageInput || (!messageInput.value.trim() && !hasSavedMessage)) {
+        alert('전송할 메시지를 입력하거나 저장된 메시지를 선택해주세요.');
         messageInput?.focus();
         return;
     }
@@ -2361,47 +2363,23 @@ function selectTelegramSavedMessage(messageIndex, savedMessages) {
             media_type: message.media_type
         });
         
+        // 입력칸에는 아무것도 표시하지 않음 (원본 데이터만 저장)
         if (messageInput) {
-            // 커스텀 이모지가 있는 경우 입력칸에 표시하지 않음
-            if (message.has_custom_emoji) {
-                console.log('⚠️ 커스텀 이모지가 포함된 메시지입니다. 입력칸에는 표시하지 않고 원본 데이터만 저장합니다.');
-                
-                // 입력칸은 비워두고 원본 데이터만 저장
-                messageInput.value = '';
-                messageInput.placeholder = '💾 커스텀 이모지가 포함된 저장된 메시지가 선택되었습니다. 전송 시 원본 그대로 전송됩니다.';
-                
-                // 사용자에게 알림
-                const notification = document.createElement('div');
-                notification.style.cssText = `
-                    position: fixed;
-                    top: 20px;
-                    right: 20px;
-                    background: #4CAF50;
-                    color: white;
-                    padding: 10px 15px;
-                    border-radius: 5px;
-                    z-index: 10000;
-                    font-size: 14px;
-                    max-width: 300px;
-                `;
-                notification.textContent = '💾 커스텀 이모지 메시지 선택됨. 전송 시 원본 그대로 전송됩니다.';
-                document.body.appendChild(notification);
-                
-                // 3초 후 자동 제거
-                setTimeout(() => {
-                    if (notification.parentNode) {
-                        notification.parentNode.removeChild(notification);
-                    }
-                }, 3000);
-            } else {
-                // 커스텀 이모지가 없는 경우에만 입력칸에 표시
-                const originalText = message.text || '';
-                messageInput.value = originalText;
-                messageInput.placeholder = '전송할 메시지를 입력하세요...';
-                console.log('💾 일반 메시지 입력칸에 설정 완료:', messageInput.value);
-            }
-            
-            messageInput.focus();
+            messageInput.value = '';
+            messageInput.placeholder = '💾 저장된 메시지가 선택되었습니다. 해제 후 입력하세요.';
+            messageInput.disabled = true;
+            messageInput.style.backgroundColor = '#f0f0f0';
+            messageInput.style.cursor = 'not-allowed';
+        }
+        
+        // 저장된 메시지 버튼을 해제 버튼으로 변경
+        const savedMessagesBtn = document.getElementById('savedMessagesBtn');
+        if (savedMessagesBtn) {
+            savedMessagesBtn.textContent = '❌ 저장된 메시지 해제';
+            savedMessagesBtn.style.backgroundColor = '#ff4444';
+            savedMessagesBtn.style.borderColor = '#ff4444';
+            savedMessagesBtn.onclick = clearSavedMessage;
+            console.log('💾 저장된 메시지 버튼이 해제 버튼으로 변경됨');
         }
         
         // 미디어 정보 및 커스텀 이모지 정보 저장 (전역 변수에)
@@ -2437,6 +2415,59 @@ function selectTelegramSavedMessage(messageIndex, savedMessages) {
         
         console.log('✅ 텔레그램 저장된 메시지 선택 완료:', message.text?.substring(0, 50) + '...');
     }
+}
+
+// 저장된 메시지 해제 함수
+function clearSavedMessage() {
+    console.log('🗑️ 저장된 메시지 해제');
+    
+    // 전역 변수 초기화
+    window.selectedMediaInfo = null;
+    
+    // 입력칸 초기화 및 활성화
+    const messageInput = document.querySelector('.message-input');
+    if (messageInput) {
+        messageInput.value = '';
+        messageInput.placeholder = '전송할 메시지를 입력하세요...';
+        messageInput.disabled = false;
+        messageInput.style.backgroundColor = '';
+        messageInput.style.cursor = '';
+        messageInput.focus();
+    }
+    
+    // 저장된 메시지 버튼을 원래대로 복원
+    const savedMessagesBtn = document.getElementById('savedMessagesBtn');
+    if (savedMessagesBtn) {
+        savedMessagesBtn.textContent = '💾 저장된 메시지';
+        savedMessagesBtn.style.backgroundColor = '';
+        savedMessagesBtn.style.borderColor = '';
+        savedMessagesBtn.onclick = showSavedMessages;
+        console.log('💾 저장된 메시지 버튼이 원래대로 복원됨');
+    }
+    
+    // 알림 표시
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #ff4444;
+        color: white;
+        padding: 10px 15px;
+        border-radius: 5px;
+        z-index: 10000;
+        font-size: 14px;
+        max-width: 300px;
+    `;
+    notification.textContent = '🗑️ 저장된 메시지가 해제되었습니다.';
+    document.body.appendChild(notification);
+    
+    // 2초 후 자동 제거
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.parentNode.removeChild(notification);
+        }
+    }, 2000);
 }
 
 // 저장된 메시지 모달 닫기
