@@ -1213,12 +1213,14 @@ async function completePasswordAuth(password) {
             // 성공 메시지 표시
             alert(`✅ 2단계 인증이 완료되었습니다!\n\n👤 사용자: ${result.user.first_name} ${result.user.last_name || ''}\n📱 전화번호: ${result.account_info.phone_number}\n🆔 사용자 ID: ${result.user.id}`);
             
-            // 입력 필드 초기화
-            elements.telegramApiId.value = '';
-            elements.telegramApiHash.value = '';
-            elements.telegramPhone.value = '';
-            elements.telegramVerificationCode.value = '';
-            elements.telegramPassword.value = '';
+            // 입력 필드 초기화 (안전하게)
+            if (elements.telegramApiId) elements.telegramApiId.value = '';
+            if (elements.telegramApiHash) elements.telegramApiHash.value = '';
+            if (elements.telegramPhone) elements.telegramPhone.value = '';
+            if (elements.telegramVerificationCode) elements.telegramVerificationCode.value = '';
+            
+            const passwordInput = document.getElementById('telegramPassword');
+            if (passwordInput) passwordInput.value = '';
             
             // 입력칸 숨기기
             document.getElementById('verificationCodeGroup').style.display = 'none';
