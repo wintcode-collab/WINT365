@@ -1260,13 +1260,20 @@ def send_telegram_message():
         group_id = data.get('groupId')
         message = data.get('message')
         
-        if not user_id or not group_id or not message:
+        if not user_id or not group_id:
             return jsonify({
                 'success': False,
-                'error': '사용자 ID, 그룹 ID, 메시지가 모두 필요합니다.'
+                'error': '사용자 ID, 그룹 ID가 모두 필요합니다.'
             }), 400
         
-        logger.info(f'📤 메시지 전송 요청: 사용자={user_id}, 그룹={group_id}, 메시지={message[:50]}...')
+        # 메시지가 없어도 미디어 정보가 있으면 전송 가능
+        if not message and not data.get('mediaInfo'):
+            return jsonify({
+                'success': False,
+                'error': '메시지 또는 미디어 정보가 필요합니다.'
+            }), 400
+        
+        logger.info(f'📤 메시지 전송 요청: 사용자={user_id}, 그룹={group_id}, 메시지={message[:50] if message else "None"}...')
         
         # 미디어 정보 가져오기
         media_info = data.get('mediaInfo')
@@ -1282,9 +1289,13 @@ def send_telegram_message():
             }), 404
         
         logger.info(f'📤 계정 정보 조회 성공: {account_info.get("first_name", "Unknown")}')
+        logger.info(f'📤 전송할 메시지: {message}')
+        logger.info(f'📤 전송할 그룹 ID: {group_id}')
+        logger.info(f'📤 미디어 정보 상세: {media_info}')
         
         # 메시지 전송 실행 (미디어 정보 포함)
         result = send_message_to_telegram_group(account_info, group_id, message, media_info)
+        logger.info(f'📤 메시지 전송 결과: {result}')
         
         if result:
             logger.info(f'✅ 메시지 전송 성공: 그룹={group_id}')
@@ -1377,9 +1388,9 @@ def get_telegram_saved_messages_with_session(account_info):
                         # 간단하고 확실한 방법: 저장된 메시지 가져오기
                         logger.info('💾 저장된 메시지 가져오기 시작')
                         
-                        # 방법 1: InputPeerSelf를 사용하여 저장된 메시지 가져오기
-                        messages = await client.get_messages(InputPeerSelf(), limit=100)
-                        logger.info(f'💾 저장된 메시지 {len(messages)}개를 찾았습니다.')
+                        # 방법 1: InputPeerSelf를 사용하여 저장된 메시지 가져오기 (원본 그대로)
+                        messages = await client.get_messages(InputPeerSelf(), limit=100, parse_mode=None)
+                        logger.info(f'💾 저장된 메시지 {len(messages)}개를 찾았습니다 (parse_mode=None으로 원본 그대로).')
                         
                         if len(messages) == 0:
                             # 대화 목록에서 자신과의 대화 찾기
@@ -1409,11 +1420,25 @@ def get_telegram_saved_messages_with_session(account_info):
                             logger.info(f'💾 원본 메시지 타입: {type(message)}')
                             logger.info(f'💾 원본 메시지 속성: {dir(message)}')
                             
-                            # 간단한 방법: 원본 텍스트 그대로 사용
+                            # 🚀 핵심: 원본 메시지의 raw 데이터를 직접 추출
                             original_text = message.text or ''
-                            logger.info(f'💾 원본 텍스트: {original_text[:100]}...')
+                            logger.info(f'💾 원본 텍스트 (message.text): {original_text[:100]}...')
                             
-                            # 원본 메시지 데이터 생성
+                            # 🚀 새로운 접근: 원본 메시지의 raw 데이터 확인
+                            logger.info(f'💾 원본 메시지 속성 분석 시작')
+                            message_attrs = [attr for attr in dir(message) if not attr.startswith('_')]
+                            logger.info(f'💾 메시지 속성들: {message_attrs}')
+                            
+                            # 원본 메시지의 raw 데이터 확인
+                            if hasattr(message, 'raw_text'):
+                                original_text = message.raw_text or original_text
+                                logger.info(f'💾 raw_text 발견: {original_text[:100]}...')
+                            
+                            if hasattr(message, 'message'):
+                                original_text = message.message or original_text
+                                logger.info(f'💾 message 속성 발견: {original_text[:100]}...')
+                            
+                            # 🚀 최종 해결책: 원본 메시지 객체 자체를 그대로 보존
                             original_message_data = {
                                 'id': message.id,
                                 'text': original_text,
@@ -1597,7 +1622,7 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
     """텔레그램 그룹에 메시지 전송"""
     try:
         logger.info(f'📤 텔레그램 메시지 전송 시작: {account_info["user_id"]} -> {group_id}')
-        logger.info(f'📤 메시지 내용: {message[:100]}...')
+        logger.info(f'📤 메시지 내용: {message[:100] if message else "None"}...')
         logger.info(f'📤 미디어 정보: {media_info}')
         
         # 세션 데이터 복원
@@ -1684,7 +1709,7 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                     return False
                 
                 # 메시지 전송 (미디어 포함)
-                logger.info(f'📤 메시지 전송 중: 그룹={group_entity.title}, 메시지={message[:50]}...')
+                logger.info(f'📤 메시지 전송 중: 그룹={group_entity.title}, 메시지={message[:50] if message else "None"}...')
                 
                 # 원본 메시지 객체가 있는지 확인 (최우선 처리)
                 if media_info and media_info.get('original_message_object'):
@@ -1694,7 +1719,7 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                     logger.info(f'📤 원본 객체: {original_obj}')
                     
                     # 원본 텍스트 사용
-                    original_text = original_obj.get('text', message)
+                    original_text = original_obj.get('text', message or '')
                     original_message_id = original_obj.get('id', 1)
                     
                     logger.info(f'📤 원본 텍스트: {original_text}')
@@ -1727,8 +1752,11 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                         logger.info('📤 백업: 원본 텍스트 전송')
                         
                         # 백업: 원본 텍스트 전송
-                        sent_message = await client.send_message(group_entity, original_text)
-                        logger.info(f'✅ 백업 성공: 원본 텍스트 전송 완료: {sent_message.id}')
+                        if original_text:
+                            sent_message = await client.send_message(group_entity, original_text)
+                            logger.info(f'✅ 백업 성공: 원본 텍스트 전송 완료: {sent_message.id}')
+                        else:
+                            logger.warning('⚠️ 원본 텍스트가 없어서 전송할 수 없습니다.')
                 
                 # 기존 raw_message_data 방식도 지원
                 elif media_info and media_info.get('raw_message_data'):
@@ -1738,7 +1766,7 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                     logger.info(f'📤 원본 데이터: {raw_data}')
                     
                     # 원본 텍스트와 엔티티 사용
-                    original_text = raw_data.get('text', message)
+                    original_text = raw_data.get('text', message or '')
                     original_entities = raw_data.get('entities', [])
                     
                     logger.info(f'📤 원본 텍스트: {original_text}')
@@ -1775,8 +1803,11 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                         logger.info('📤 백업: 단순 텍스트 전송')
                         
                         # 백업: 단순 텍스트 전송
-                        sent_message = await client.send_message(group_entity, original_text)
-                        logger.info(f'✅ 백업 성공: 단순 텍스트 전송 완료: {sent_message.id}')
+                        if original_text:
+                            sent_message = await client.send_message(group_entity, original_text)
+                            logger.info(f'✅ 백업 성공: 단순 텍스트 전송 완료: {sent_message.id}')
+                        else:
+                            logger.warning('⚠️ 원본 텍스트가 없어서 전송할 수 없습니다.')
                 
                 # 커스텀 이모지가 있는 메시지인지 확인 (기존 방식)
                 elif media_info and media_info.get('has_custom_emoji'):
@@ -1802,27 +1833,33 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                             logger.info(f'📤 커스텀 이모지 엔티티 추가: offset={custom_emoji["offset"]}, length={custom_emoji["length"]}, document_id={custom_emoji["document_id"]}')
                         
                         # 메시지와 엔티티 정보 로깅
-                        logger.info(f'📤 전송할 메시지: {message}')
+                        logger.info(f'📤 전송할 메시지: {message or "None"}')
                         logger.info(f'📤 전송할 엔티티 개수: {len(telegram_entities)}')
                         
                         # formatting_entities 대신 entities 사용 시도
-                        try:
-                            sent_message = await client.send_message(group_entity, message, formatting_entities=telegram_entities)
-                            logger.info(f'✅ 커스텀 이모지 메시지 전송 완료: {sent_message.id}')
-                        except Exception as e:
-                            logger.error(f'❌ formatting_entities 실패: {e}')
-                            # entities로 재시도
+                        if message:
                             try:
-                                sent_message = await client.send_message(group_entity, message, entities=telegram_entities)
-                                logger.info(f'✅ entities로 커스텀 이모지 메시지 전송 완료: {sent_message.id}')
-                            except Exception as e2:
-                                logger.error(f'❌ entities도 실패: {e2}')
-                                # 일반 메시지로 전송
-                                sent_message = await client.send_message(group_entity, message)
-                                logger.info(f'⚠️ 일반 메시지로 전송 완료: {sent_message.id}')
+                                sent_message = await client.send_message(group_entity, message, formatting_entities=telegram_entities)
+                                logger.info(f'✅ 커스텀 이모지 메시지 전송 완료: {sent_message.id}')
+                            except Exception as e:
+                                logger.error(f'❌ formatting_entities 실패: {e}')
+                                # entities로 재시도
+                                try:
+                                    sent_message = await client.send_message(group_entity, message, entities=telegram_entities)
+                                    logger.info(f'✅ entities로 커스텀 이모지 메시지 전송 완료: {sent_message.id}')
+                                except Exception as e2:
+                                    logger.error(f'❌ entities도 실패: {e2}')
+                                    # 일반 메시지로 전송
+                                    sent_message = await client.send_message(group_entity, message)
+                                    logger.info(f'⚠️ 일반 메시지로 전송 완료: {sent_message.id}')
+                        else:
+                            logger.warning('⚠️ 메시지가 없어서 커스텀 이모지만 전송할 수 없습니다.')
                     else:
                         logger.warning('⚠️ 커스텀 이모지 엔티티가 없습니다')
-                        await client.send_message(group_entity, message)
+                        if message:
+                            await client.send_message(group_entity, message)
+                        else:
+                            logger.warning('⚠️ 메시지가 없어서 전송할 수 없습니다.')
                     
                 elif media_info and media_info.get('media_path'):
                     # 미디어와 함께 메시지 전송 (원본 이모지 포함)
@@ -1970,7 +2007,10 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                 else:
                     # 텍스트만 전송
                     logger.info('📤 텍스트만 전송')
-                    await client.send_message(group_entity, message)
+                    if message:
+                        await client.send_message(group_entity, message)
+                    else:
+                        logger.warning('⚠️ 메시지가 없어서 전송할 수 없습니다.')
                 
                 logger.info('✅ 메시지 전송 성공')
                 
