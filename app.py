@@ -1313,126 +1313,35 @@ def get_telegram_saved_messages_with_session(account_info):
                 saved_messages = []
 
                 try:
-                    # "Saved Messages" 채팅 찾기 (더 강력한 방법들)
+                    # "Saved Messages" 채팅 찾기 - 간단하고 직접적인 방법
                     me = await client.get_me()
                     logger.info(f'💾 현재 사용자: {me.first_name} (ID: {me.id})')
                     
-                    # 방법 1: InputPeerSelf를 사용한 직접 접근
+                    # 가장 간단한 방법: InputPeerSelf 사용
                     from telethon.tl.types import InputPeerSelf
-                    saved_messages_entity = InputPeerSelf()
-                    logger.info('💾 방법 1: InputPeerSelf로 저장된 메시지 접근 시도')
                     
                     try:
-                        messages = await client.get_messages(saved_messages_entity, limit=50)
-                        logger.info(f'💾 방법 1 성공: {len(messages)}개의 저장된 메시지를 찾았습니다.')
+                        # 저장된 메시지 가져오기 (원본 그대로)
+                        messages = await client.get_messages(InputPeerSelf(), limit=100)
+                        logger.info(f'💾 저장된 메시지 {len(messages)}개를 찾았습니다.')
+                        
+                        if len(messages) == 0:
+                            # 대화 목록에서 자신과의 대화 찾기
+                            dialogs = await client.get_dialogs()
+                            logger.info(f'💾 총 {len(dialogs)}개의 대화 확인 중...')
+                            
+                            for dialog in dialogs:
+                                if dialog.entity.id == me.id:
+                                    messages = await client.get_messages(dialog.entity, limit=100)
+                                    logger.info(f'💾 대화 목록에서 저장된 메시지 {len(messages)}개를 찾았습니다.')
+                                    break
+                        
                     except Exception as e:
-                        logger.error(f'❌ 방법 1 실패: {e}')
+                        logger.error(f'❌ 저장된 메시지 가져오기 실패: {e}')
                         messages = []
                     
-                    # 방법 2: 대화 목록에서 자신과의 대화 찾기
                     if len(messages) == 0:
-                        try:
-                            dialogs = await client.get_dialogs()
-                            logger.info(f'💾 총 {len(dialogs)}개의 대화를 확인 중...')
-                            
-                            for dialog in dialogs:
-                                entity = dialog.entity
-                                logger.info(f'💾 대화 확인: {getattr(entity, "title", "Unknown")} (ID: {entity.id}, Type: {type(entity).__name__})')
-                                
-                                # 자신과의 대화 (Saved Messages) 찾기
-                                if entity.id == me.id:
-                                    saved_messages_entity = entity
-                                    logger.info('💾 방법 2: 대화 목록에서 저장된 메시지 찾기 성공')
-                                    break
-                            
-                            if saved_messages_entity:
-                                messages = await client.get_messages(saved_messages_entity, limit=50)
-                                logger.info(f'💾 방법 2 성공: {len(messages)}개의 저장된 메시지를 찾았습니다.')
-                        except Exception as e:
-                            logger.error(f'❌ 방법 2 실패: {e}')
-                    
-                    # 방법 3: 자신의 ID로 직접 접근
-                    if len(messages) == 0:
-                        try:
-                            saved_messages_entity = await client.get_entity(me.id)
-                            messages = await client.get_messages(saved_messages_entity, limit=50)
-                            logger.info(f'💾 방법 3 성공: {len(messages)}개의 저장된 메시지를 찾았습니다.')
-                        except Exception as e:
-                            logger.error(f'❌ 방법 3 실패: {e}')
-                    
-                    # 방법 4: "me" 문자열로 접근
-                    if len(messages) == 0:
-                        try:
-                            saved_messages_entity = await client.get_entity("me")
-                            messages = await client.get_messages(saved_messages_entity, limit=50)
-                            logger.info(f'💾 방법 4 성공: {len(messages)}개의 저장된 메시지를 찾았습니다.')
-                        except Exception as e:
-                            logger.error(f'❌ 방법 4 실패: {e}')
-                    
-                    # 방법 5: 모든 대화에서 메시지 검색
-                    if len(messages) == 0:
-                        try:
-                            logger.info('💾 방법 5: 모든 대화에서 저장된 메시지 검색')
-                            dialogs = await client.get_dialogs()
-                            
-                            for dialog in dialogs:
-                                entity = dialog.entity
-                                if entity.id == me.id:
-                                    # 이 대화의 메시지들을 확인
-                                    dialog_messages = await client.get_messages(entity, limit=50)
-                                    if dialog_messages:
-                                        messages = dialog_messages
-                                        saved_messages_entity = entity
-                                        logger.info(f'💾 방법 5 성공: {len(messages)}개의 저장된 메시지를 찾았습니다.')
-                                        break
-                        except Exception as e:
-                            logger.error(f'❌ 방법 5 실패: {e}')
-                    
-                    # 방법 6: GetHistoryRequest 직접 사용
-                    if len(messages) == 0:
-                        try:
-                            logger.info('💾 방법 6: GetHistoryRequest 직접 사용')
-                            from telethon.tl.functions.messages import GetHistoryRequest
-                            from telethon.tl.types import InputPeerSelf
-                            
-                            result = await client(GetHistoryRequest(
-                                peer=InputPeerSelf(),
-                                limit=50,
-                                offset_date=None,
-                                offset_id=0,
-                                max_id=0,
-                                min_id=0,
-                                add_offset=0,
-                                hash=0
-                            ))
-                            
-                            if result and hasattr(result, 'messages'):
-                                messages = result.messages
-                                logger.info(f'💾 방법 6 성공: {len(messages)}개의 저장된 메시지를 찾았습니다.')
-                        except Exception as e:
-                            logger.error(f'❌ 방법 6 실패: {e}')
-                    
-                    # 방법 7: GetFullUserRequest로 자신의 정보 가져오기
-                    if len(messages) == 0:
-                        try:
-                            logger.info('💾 방법 7: GetFullUserRequest로 자신의 정보 가져오기')
-                            from telethon.tl.functions.users import GetFullUserRequest
-                            
-                            full_user = await client(GetFullUserRequest(me))
-                            logger.info(f'💾 사용자 전체 정보: {full_user}')
-                            
-                            # 다시 InputPeerSelf로 시도
-                            messages = await client.get_messages(InputPeerSelf(), limit=50)
-                            logger.info(f'💾 방법 7 성공: {len(messages)}개의 저장된 메시지를 찾았습니다.')
-                        except Exception as e:
-                            logger.error(f'❌ 방법 7 실패: {e}')
-                    
-                    if len(messages) == 0:
-                        logger.error('❌ 모든 방법으로 저장된 메시지를 찾을 수 없음')
-                        logger.info('💾 디버깅: 사용자 정보 다시 확인')
-                        logger.info(f'💾 사용자 ID: {me.id}')
-                        logger.info(f'💾 사용자 이름: {me.first_name}')
-                        logger.info(f'💾 사용자 유저네임: {getattr(me, "username", "None")}')
+                        logger.error('❌ 저장된 메시지를 찾을 수 없습니다.')
                         return []
                     
                     logger.info(f'💾 최종 결과: {len(messages)}개의 저장된 메시지를 찾았습니다.')
@@ -1441,34 +1350,46 @@ def get_telegram_saved_messages_with_session(account_info):
                         try:
                             logger.info(f'💾 메시지 처리 중: ID={message.id}, 텍스트={message.text[:50] if message.text else "None"}...')
                             
-                            # 커스텀 이모지 엔티티 정보 추출
-                            custom_emoji_entities = []
-                            if message.entities:
-                                logger.info(f'💾 메시지 엔티티 개수: {len(message.entities)}')
-                                for entity in message.entities:
-                                    if hasattr(entity, 'type') and entity.type.name == 'CUSTOM_EMOJI':
-                                        custom_emoji_entities.append({
-                                            'offset': entity.offset,
-                                            'length': entity.length,
-                                            'document_id': entity.document_id
-                                        })
-                                        logger.info(f'💾 커스텀 이모지 발견: offset={entity.offset}, length={entity.length}')
-                            
+                            # 원본 메시지 그대로 저장 (텔레그램 이모지 포함)
                             message_info = {
                                 'id': message.id,
                                 'date': message.date.isoformat() if message.date else '',
                                 'text': message.text or '',
                                 'media_type': None,
                                 'media_url': None,
-                                'has_custom_emoji': len(custom_emoji_entities) > 0,
-                                'custom_emoji_entities': custom_emoji_entities,
-                                'entities': [{'offset': e.offset, 'length': e.length, 'type': e.type.name} for e in message.entities] if message.entities else []
+                                'media_path': None,
+                                'original_message': message,  # 원본 메시지 객체 전체 저장
+                                'has_custom_emoji': False,
+                                'custom_emoji_entities': [],
+                                'entities': []
                             }
+                            
+                            # 텔레그램 이모지 엔티티 정보 추출
+                            if message.entities:
+                                logger.info(f'💾 메시지 엔티티 개수: {len(message.entities)}')
+                                custom_emoji_entities = []
+                                
+                                for entity in message.entities:
+                                    entity_info = {
+                                        'offset': entity.offset,
+                                        'length': entity.length,
+                                        'type': entity.type.name if hasattr(entity, 'type') else str(type(entity))
+                                    }
+                                    
+                                    # 커스텀 이모지인 경우
+                                    if hasattr(entity, 'type') and entity.type.name == 'CUSTOM_EMOJI':
+                                        entity_info['document_id'] = entity.document_id
+                                        custom_emoji_entities.append(entity_info)
+                                        logger.info(f'💾 커스텀 이모지 발견: offset={entity.offset}, length={entity.length}, document_id={entity.document_id}')
+                                    
+                                    message_info['entities'].append(entity_info)
+                                
+                                message_info['custom_emoji_entities'] = custom_emoji_entities
+                                message_info['has_custom_emoji'] = len(custom_emoji_entities) > 0
 
-                            # 미디어 처리
+                            # 미디어 처리 (원본 그대로)
                             if message.photo:
                                 message_info['media_type'] = 'photo'
-                                # 사진 다운로드
                                 try:
                                     photo_path = await client.download_media(message.photo, file=f'temp_photos/photo_{message.id}.jpg')
                                     message_info['media_url'] = f'/api/telegram/media/photo_{message.id}.jpg'
@@ -1476,37 +1397,36 @@ def get_telegram_saved_messages_with_session(account_info):
                                     logger.info(f'💾 사진 다운로드 성공: {photo_path}')
                                 except Exception as e:
                                     logger.error(f'❌ 사진 다운로드 실패: {e}')
-                                    message_info['media_url'] = None
                             elif message.video:
                                 message_info['media_type'] = 'video'
                                 try:
                                     video_path = await client.download_media(message.video, file=f'temp_videos/video_{message.id}.mp4')
                                     message_info['media_url'] = f'/api/telegram/media/video_{message.id}.mp4'
                                     message_info['media_path'] = video_path
+                                    logger.info(f'💾 비디오 다운로드 성공: {video_path}')
                                 except Exception as e:
                                     logger.error(f'❌ 비디오 다운로드 실패: {e}')
-                                    message_info['media_url'] = None
                             elif message.document:
                                 message_info['media_type'] = 'document'
                                 try:
                                     doc_path = await client.download_media(message.document, file=f'temp_docs/doc_{message.id}')
                                     message_info['media_url'] = f'/api/telegram/media/doc_{message.id}'
                                     message_info['media_path'] = doc_path
+                                    logger.info(f'💾 문서 다운로드 성공: {doc_path}')
                                 except Exception as e:
                                     logger.error(f'❌ 문서 다운로드 실패: {e}')
-                                    message_info['media_url'] = None
                             elif message.voice:
                                 message_info['media_type'] = 'voice'
                                 try:
                                     voice_path = await client.download_media(message.voice, file=f'temp_voices/voice_{message.id}.ogg')
                                     message_info['media_url'] = f'/api/telegram/media/voice_{message.id}.ogg'
                                     message_info['media_path'] = voice_path
+                                    logger.info(f'💾 음성 다운로드 성공: {voice_path}')
                                 except Exception as e:
                                     logger.error(f'❌ 음성 다운로드 실패: {e}')
-                                    message_info['media_url'] = None
 
                             saved_messages.append(message_info)
-                            logger.info(f'✅ 저장된 메시지 추가: {message.id} - {message_info["text"][:50]}...')
+                            logger.info(f'✅ 저장된 메시지 추가: {message.id} - 텍스트: {message_info["text"][:50]}... - 이모지: {message_info["has_custom_emoji"]} - 미디어: {message_info["media_type"]}')
 
                         except Exception as e:
                             logger.error(f'❌ 메시지 처리 중 에러: {e}')
@@ -1677,7 +1597,7 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                         await client.send_message(group_entity, message)
                     
                 elif media_info and media_info.get('media_path'):
-                    # 미디어와 함께 메시지 전송
+                    # 미디어와 함께 메시지 전송 (원본 이모지 포함)
                     media_path = media_info['media_path']
                     media_type = media_info.get('media_type')
                     
@@ -1687,20 +1607,70 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                     if os.path.exists(media_path):
                         logger.info(f'📤 미디어 파일 존재 확인: {media_path}')
                         
-                        if media_type == 'photo':
-                            await client.send_file(group_entity, media_path, caption=message)
-                        elif media_type == 'video':
-                            await client.send_file(group_entity, media_path, caption=message)
-                        elif media_type == 'document':
-                            await client.send_file(group_entity, media_path, caption=message)
-                        elif media_type == 'voice':
-                            await client.send_file(group_entity, media_path, caption=message)
+                        # 커스텀 이모지가 있는 경우 formatting_entities 사용
+                        if media_info.get('has_custom_emoji'):
+                            logger.info('📤 미디어와 함께 커스텀 이모지 전송')
+                            
+                            # 엔티티 정보를 텔레그램 형식으로 변환
+                            from telethon.tl.types import MessageEntityCustomEmoji
+                            telegram_entities = []
+                            
+                            for entity in media_info.get('entities', []):
+                                if entity['type'] == 'CUSTOM_EMOJI':
+                                    # 커스텀 이모지 엔티티 찾기
+                                    custom_emoji = next((ce for ce in media_info.get('custom_emoji_entities', []) 
+                                                       if ce['offset'] == entity['offset'] and ce['length'] == entity['length']), None)
+                                    if custom_emoji:
+                                        telegram_entities.append(MessageEntityCustomEmoji(
+                                            offset=entity['offset'],
+                                            length=entity['length'],
+                                            document_id=custom_emoji['document_id']
+                                        ))
+                            
+                            # 미디어와 함께 커스텀 이모지 전송
+                            if media_type == 'photo':
+                                await client.send_file(group_entity, media_path, caption=message, formatting_entities=telegram_entities)
+                            elif media_type == 'video':
+                                await client.send_file(group_entity, media_path, caption=message, formatting_entities=telegram_entities)
+                            elif media_type == 'document':
+                                await client.send_file(group_entity, media_path, caption=message, formatting_entities=telegram_entities)
+                            elif media_type == 'voice':
+                                await client.send_file(group_entity, media_path, caption=message, formatting_entities=telegram_entities)
+                            else:
+                                await client.send_message(group_entity, message, formatting_entities=telegram_entities)
                         else:
-                            await client.send_message(group_entity, message)
+                            # 일반 미디어 전송
+                            if media_type == 'photo':
+                                await client.send_file(group_entity, media_path, caption=message)
+                            elif media_type == 'video':
+                                await client.send_file(group_entity, media_path, caption=message)
+                            elif media_type == 'document':
+                                await client.send_file(group_entity, media_path, caption=message)
+                            elif media_type == 'voice':
+                                await client.send_file(group_entity, media_path, caption=message)
+                            else:
+                                await client.send_message(group_entity, message)
                     else:
                         logger.error(f'❌ 미디어 파일이 존재하지 않음: {media_path}')
-                        # 파일이 없으면 텍스트만 전송
-                        await client.send_message(group_entity, message)
+                        # 파일이 없으면 텍스트만 전송 (커스텀 이모지 포함)
+                        if media_info.get('has_custom_emoji'):
+                            from telethon.tl.types import MessageEntityCustomEmoji
+                            telegram_entities = []
+                            
+                            for entity in media_info.get('entities', []):
+                                if entity['type'] == 'CUSTOM_EMOJI':
+                                    custom_emoji = next((ce for ce in media_info.get('custom_emoji_entities', []) 
+                                                       if ce['offset'] == entity['offset'] and ce['length'] == entity['length']), None)
+                                    if custom_emoji:
+                                        telegram_entities.append(MessageEntityCustomEmoji(
+                                            offset=entity['offset'],
+                                            length=entity['length'],
+                                            document_id=custom_emoji['document_id']
+                                        ))
+                            
+                            await client.send_message(group_entity, message, formatting_entities=telegram_entities)
+                        else:
+                            await client.send_message(group_entity, message)
                 else:
                     # 텍스트만 전송
                     logger.info('📤 텍스트만 전송')
