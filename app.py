@@ -152,6 +152,109 @@ def get_account_from_firebase(user_id):
         logger.error(f'🔥 Firebase 계정 정보 조회 에러: {e}')
         return None
 
+def load_telegram_groups_with_session(account_info):
+    """세션 데이터를 사용해서 텔레그램 그룹 목록 로드"""
+    try:
+        logger.info(f'🔍 텔레그램 그룹 로딩 시작: {account_info["user_id"]}')
+        
+        # 임시 세션 파일 생성
+        temp_session_file = f'temp_groups_{account_info["user_id"]}'
+        
+        # 세션 데이터 복원
+        session_b64 = account_info.get('session_data')
+        if not session_b64:
+            logger.error('❌ 세션 데이터 없음')
+            return None
+            
+        session_bytes = base64.b64decode(session_b64)
+        
+        # 임시 세션 파일 생성
+        with open(f'{temp_session_file}.session', 'wb') as f:
+            f.write(session_bytes)
+        
+        # 클라이언트 생성
+        client = TelegramClient(temp_session_file, account_info['api_id'], account_info['api_hash'])
+        
+        try:
+            # 연결
+            client.connect()
+            logger.info('✅ 텔레그램 연결 성공')
+            
+            # 그룹 목록 가져오기
+            groups = []
+            
+            # 대화 목록 가져오기 (그룹과 채널만)
+            dialogs = client.get_dialogs()
+            
+            for dialog in dialogs:
+                if hasattr(dialog.entity, 'megagroup') or hasattr(dialog.entity, 'broadcast'):
+                    group_info = {
+                        'id': dialog.entity.id,
+                        'title': dialog.entity.title,
+                        'type': 'supergroup' if hasattr(dialog.entity, 'megagroup') else 'channel',
+                        'member_count': getattr(dialog.entity, 'participants_count', 0),
+                        'username': getattr(dialog.entity, 'username', ''),
+                        'description': getattr(dialog.entity, 'about', '')
+                    }
+                    groups.append(group_info)
+            
+            logger.info(f'✅ {len(groups)}개의 그룹/채널을 찾았습니다.')
+            return groups
+            
+        except Exception as e:
+            logger.error(f'❌ 그룹 로딩 실패: {e}')
+            return None
+            
+        finally:
+            # 연결 해제 및 임시 파일 정리
+            try:
+                if client.is_connected():
+                    client.disconnect()
+            except:
+                pass
+                
+            try:
+                os.remove(f'{temp_session_file}.session')
+            except:
+                pass
+            
+    except Exception as e:
+        logger.error(f'❌ 그룹 로딩 에러: {e}')
+        return None
+
+def get_all_accounts_from_firebase():
+    """Firebase에서 모든 인증된 계정 목록 조회"""
+    try:
+        url = f"{FIREBASE_URL}/authenticated_accounts.json"
+        response = requests.get(url, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data:
+                accounts = []
+                for user_id, account_info in data.items():
+                    if account_info:  # None이 아닌 경우만
+                        accounts.append({
+                            'user_id': user_id,
+                            'first_name': account_info.get('first_name', ''),
+                            'last_name': account_info.get('last_name', ''),
+                            'username': account_info.get('username', ''),
+                            'phone_number': account_info.get('phone_number', ''),
+                            'authenticated_at': account_info.get('authenticated_at', '')
+                        })
+                logger.info(f'🔥 Firebase 계정 목록 조회 성공: {len(accounts)}개 계정')
+                return accounts
+            else:
+                logger.info('🔥 Firebase에 저장된 계정이 없습니다.')
+                return []
+        else:
+            logger.error(f'🔥 Firebase 계정 목록 조회 실패: {response.status_code}')
+            return []
+            
+    except Exception as e:
+        logger.error(f'🔥 Firebase 계정 목록 조회 에러: {e}')
+        return []
+
 def test_telegram_connection(account_info):
     """텔레그램 연결 테스트 (그룹 로딩 전)"""
     try:
@@ -747,7 +850,17 @@ def verify_password():
                     result = await client.sign_in(password=password)
                     logger.info('✅ 2단계 인증 성공!')
                     
-                    # 계정 정보 수집
+                    # 세션 데이터 읽기
+                    session_data = None
+                    if session_file and os.path.exists(session_file):
+                        try:
+                            with open(session_file, 'rb') as f:
+                                session_data = base64.b64encode(f.read()).decode('utf-8')
+                            logger.info('📁 2단계 인증 세션 데이터 읽기 성공')
+                        except Exception as e:
+                            logger.error(f'❌ 2단계 인증 세션 데이터 읽기 실패: {e}')
+                    
+                    # 계정 정보 수집 (세션 데이터 포함)
                     account_info = {
                         'user_id': result.id,
                         'first_name': result.first_name,
@@ -756,7 +869,8 @@ def verify_password():
                         'phone_number': client_data.get('phone_number'),
                         'api_id': client_data['api_id'],
                         'api_hash': client_data['api_hash'],
-                        'session_file': session_file
+                        'session_data': session_data,  # 세션 데이터 추가
+                        'authenticated_at': datetime.now().isoformat()
                     }
                     
                     # Firebase에 계정 정보 저장
@@ -806,6 +920,38 @@ def health():
         'telethon_loaded': TelegramClient is not None
     })
 
+# 텔레그램 계정 목록 로딩 엔드포인트
+@app.route('/api/telegram/load-accounts', methods=['GET'])
+def load_accounts():
+    """Firebase에서 모든 인증된 텔레그램 계정 목록 로드"""
+    try:
+        logger.info('🔍 인증된 계정 목록 로딩 요청')
+        
+        # Firebase에서 모든 계정 정보 조회
+        accounts = get_all_accounts_from_firebase()
+        
+        if not accounts:
+            return jsonify({
+                'success': True,
+                'accounts': [],
+                'message': '연동된 계정이 없습니다. 먼저 텔레그램 계정을 연동해주세요.'
+            })
+        
+        logger.info(f'✅ 계정 목록 로딩 성공: {len(accounts)}개 계정')
+        
+        return jsonify({
+            'success': True,
+            'accounts': accounts,
+            'message': f'{len(accounts)}개의 연동된 계정을 찾았습니다.'
+        })
+        
+    except Exception as e:
+        logger.error(f'❌ 계정 목록 로딩 실패: {e}')
+        return jsonify({
+            'success': False,
+            'error': f'계정 목록 로딩 실패: {str(e)}'
+        }), 500
+
 # 텔레그램 그룹 로딩 엔드포인트
 @app.route('/api/telegram/load-groups', methods=['POST'])
 def load_telegram_groups():
@@ -841,19 +987,29 @@ def load_telegram_groups():
                 'error': '텔레그램 연결에 실패했습니다. 다시 인증해주세요.'
             }), 500
         
-        # 그룹 로딩 로직 (여기에 실제 그룹 로딩 코드 추가)
+        # 실제 그룹 로딩 로직
         logger.info('✅ 연결 테스트 성공, 그룹 로딩 시작')
         
-        # 임시 그룹 데이터 (실제로는 텔레그램 API에서 가져와야 함)
-        groups = [
-            {'id': 1, 'title': '테스트 그룹 1', 'member_count': 100},
-            {'id': 2, 'title': '테스트 그룹 2', 'member_count': 50}
-        ]
+        # 세션 데이터로 실제 그룹 목록 가져오기
+        groups = load_telegram_groups_with_session(account_info)
+        
+        if groups is None:
+            return jsonify({
+                'success': False,
+                'error': '그룹 로딩에 실패했습니다. 세션이 만료되었을 수 있습니다.'
+            }), 500
         
         return jsonify({
             'success': True,
             'groups': groups,
-            'message': f'{len(groups)}개의 그룹을 로딩했습니다.'
+            'message': f'{len(groups)}개의 그룹을 로딩했습니다.',
+            'account_info': {
+                'user_id': account_info['user_id'],
+                'first_name': account_info['first_name'],
+                'last_name': account_info.get('last_name', ''),
+                'username': account_info.get('username', ''),
+                'phone_number': account_info['phone_number']
+            }
         })
         
     except Exception as error:

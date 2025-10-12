@@ -1210,9 +1210,6 @@ async function completePasswordAuth(password) {
         if (response.ok && result.success) {
             console.log('✅ 2단계 인증 성공!');
             
-            // 성공 메시지 표시
-            alert(`✅ 2단계 인증이 완료되었습니다!\n\n👤 사용자: ${result.user.first_name} ${result.user.last_name || ''}\n📱 전화번호: ${result.account_info.phone_number}\n🆔 사용자 ID: ${result.user.id}`);
-            
             // 입력 필드 초기화 (안전하게)
             if (elements.telegramApiId) elements.telegramApiId.value = '';
             if (elements.telegramApiHash) elements.telegramApiHash.value = '';
@@ -1229,6 +1226,9 @@ async function completePasswordAuth(password) {
             elements.saveTelegramBtn.textContent = 'Register';
             elements.saveTelegramBtn.disabled = false;
             telegramAuthState = 'idle';
+            
+            // status-bar 내리기 애니메이션 후 계정 목록 표시
+            hideStatusBarAndShowAccounts();
             
         } else {
             console.error('❌ 2단계 인증 실패:', result);
@@ -1356,11 +1356,8 @@ async function completeTelegramAuth(verificationCode) {
             
             console.log('텔레그램 인증 완료:', telegramSettings);
             
-            // 성공 메시지 표시
-            showSuccessMessage(authResult.user);
-            
-            // 그룹 목록 불러오기 (일단 주석 처리)
-            // await loadTelegramGroups();
+            // status-bar 내리기 애니메이션 후 계정 목록 표시
+            hideStatusBarAndShowAccounts();
             
         } else {
             throw new Error('인증 결과가 올바르지 않습니다.');
@@ -1511,41 +1508,63 @@ function showSuccessMessage(user) {
 
 // 그룹 목록 기능은 Flood Control 때문에 일단 비활성화
 
-// 텔레그램 연결 테스트
-function handleTestTelegramConnection() {
-    const apiId = elements.telegramApiId?.value.trim();
-    const apiHash = elements.telegramApiHash?.value.trim();
-    const phone = elements.telegramPhone?.value.trim();
-    
-    if (!apiId || !apiHash || !phone) {
-        alert('먼저 모든 필드를 입력하고 저장해주세요.');
-        return;
-    }
-    
+// 텔레그램 연결 테스트 (계정 목록 로드)
+async function handleTestTelegramConnection() {
     // 로드 버튼 상태 변경
     elements.testTelegramBtn.textContent = 'Loading...';
     elements.testTelegramBtn.disabled = true;
     
-    // 실제 텔레그램 연결 테스트
     try {
-        // 간단한 연결 테스트 (실제 API 호출 없이 설정 검증만)
-        if (apiId && apiHash && phone) {
-            elements.testTelegramBtn.textContent = '✓ Loaded';
-            elements.testTelegramBtn.style.background = 'linear-gradient(135deg, #28a745 0%, #1e7e34 100%)';
-            alert('텔레그램 설정이 로드되었습니다!');
+        console.log('🔍 Firebase에서 연동된 계정 목록 로딩 중...');
+        
+        const response = await fetch('/api/telegram/load-accounts', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        const result = await response.json();
+        console.log('🔍 계정 목록 응답:', result);
+        
+        if (response.ok && result.success) {
+            if (result.accounts && result.accounts.length > 0) {
+                console.log(`✅ ${result.accounts.length}개의 연동된 계정을 찾았습니다.`);
+                
+                // 계정 목록 표시
+                showAccountList(result.accounts);
+                
+                elements.testTelegramBtn.textContent = '✓ Loaded';
+                elements.testTelegramBtn.style.background = 'linear-gradient(135deg, #28a745 0%, #1e7e34 100%)';
+                
+                setTimeout(() => {
+                    elements.testTelegramBtn.textContent = 'Load';
+                    elements.testTelegramBtn.style.background = 'linear-gradient(135deg, #28a745 0%, #1e7e34 100%)';
+                    elements.testTelegramBtn.disabled = false;
+                }, 2000);
+            } else {
+                console.log('📭 연동된 계정이 없습니다.');
+                alert('연동된 계정이 없습니다.\n먼저 텔레그램 계정을 연동해주세요.');
+                
+                elements.testTelegramBtn.textContent = 'No Accounts';
+                elements.testTelegramBtn.style.background = 'linear-gradient(135deg, #6c757d 0%, #5a6268 100%)';
+                
+                setTimeout(() => {
+                    elements.testTelegramBtn.textContent = 'Load';
+                    elements.testTelegramBtn.style.background = 'linear-gradient(135deg, #28a745 0%, #1e7e34 100%)';
+                    elements.testTelegramBtn.disabled = false;
+                }, 3000);
+            }
         } else {
-            throw new Error('설정이 불완전합니다.');
+            throw new Error(result.error || '계정 목록 로딩 실패');
         }
         
-        setTimeout(() => {
-            elements.testTelegramBtn.textContent = 'Load';
-            elements.testTelegramBtn.style.background = 'linear-gradient(135deg, #28a745 0%, #1e7e34 100%)';
-            elements.testTelegramBtn.disabled = false;
-        }, 2000);
     } catch (error) {
+        console.error('❌ 계정 목록 로딩 실패:', error);
+        
         elements.testTelegramBtn.textContent = '✗ Failed';
         elements.testTelegramBtn.style.background = 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)';
-        alert('텔레그램 설정 로드 실패. API 정보를 확인해주세요.');
+        alert(`계정 목록 로딩 실패:\n\n${error.message}`);
         
         setTimeout(() => {
             elements.testTelegramBtn.textContent = 'Load';
@@ -1553,6 +1572,551 @@ function handleTestTelegramConnection() {
             elements.testTelegramBtn.disabled = false;
         }, 3000);
     }
+}
+
+// 계정 목록 표시
+function showAccountList(accounts) {
+    console.log('📋 계정 목록 표시 중...', accounts);
+    
+    // 계정 목록을 표시할 모달 생성
+    const modal = document.createElement('div');
+    modal.id = 'accountListModal';
+    modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.8);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 10000;
+        backdrop-filter: blur(5px);
+    `;
+    
+    const modalContent = document.createElement('div');
+    modalContent.style.cssText = `
+        background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+        border-radius: 20px;
+        padding: 30px;
+        max-width: 500px;
+        width: 90%;
+        max-height: 80vh;
+        overflow-y: auto;
+        border: 2px solid #10B981;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+    `;
+    
+    modalContent.innerHTML = `
+        <div style="text-align: center; margin-bottom: 25px;">
+            <h2 style="color: #10B981; margin: 0 0 10px 0; font-size: 24px; font-weight: 600;">
+                📱 연동된 텔레그램 계정
+            </h2>
+            <p style="color: #888; margin: 0; font-size: 14px;">
+                ${accounts.length}개의 계정이 연동되어 있습니다
+            </p>
+        </div>
+        
+        <div id="accountList" style="margin-bottom: 25px;">
+            ${accounts.map((account, index) => `
+                <div class="account-item" style="
+                    background: linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%);
+                    border: 1px solid #444;
+                    border-radius: 12px;
+                    padding: 15px;
+                    margin-bottom: 10px;
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+                    position: relative;
+                " data-user-id="${account.user_id}">
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                        <div style="flex: 1;">
+                            <div style="color: #10B981; font-weight: 600; font-size: 16px; margin-bottom: 5px;">
+                                ${account.first_name} ${account.last_name || ''}
+                            </div>
+                            <div style="color: #888; font-size: 14px; margin-bottom: 3px;">
+                                📱 ${account.phone_number}
+                            </div>
+                            ${account.username ? `
+                                <div style="color: #888; font-size: 14px;">
+                                    @${account.username}
+                                </div>
+                            ` : ''}
+                        </div>
+                        <div style="color: #10B981; font-size: 20px;">
+                            ▶
+                        </div>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+        
+        <div style="text-align: center;">
+            <button id="closeAccountList" style="
+                background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);
+                color: white;
+                border: none;
+                padding: 12px 30px;
+                border-radius: 8px;
+                font-size: 14px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.3s ease;
+            ">닫기</button>
+        </div>
+    `;
+    
+    modal.appendChild(modalContent);
+    document.body.appendChild(modal);
+    
+    // 계정 클릭 이벤트
+    const accountItems = modal.querySelectorAll('.account-item');
+    accountItems.forEach(item => {
+        item.addEventListener('mouseenter', () => {
+            item.style.borderColor = '#10B981';
+            item.style.transform = 'translateY(-2px)';
+            item.style.boxShadow = '0 5px 15px rgba(16, 185, 129, 0.3)';
+        });
+        
+        item.addEventListener('mouseleave', () => {
+            item.style.borderColor = '#444';
+            item.style.transform = 'translateY(0)';
+            item.style.boxShadow = 'none';
+        });
+        
+        item.addEventListener('click', () => {
+            const userId = item.dataset.userId;
+            const account = accounts.find(acc => acc.user_id === userId);
+            
+            console.log('📱 선택된 계정:', account);
+            
+            // 모달 닫기
+            document.body.removeChild(modal);
+            
+            // 선택된 계정으로 그룹 로드
+            loadGroupsForAccount(account);
+        });
+    });
+    
+    // 닫기 버튼 이벤트
+    modal.querySelector('#closeAccountList').addEventListener('click', () => {
+        document.body.removeChild(modal);
+    });
+    
+    // 모달 배경 클릭 시 닫기
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            document.body.removeChild(modal);
+        }
+    });
+}
+
+// 선택된 계정으로 그룹 로드
+async function loadGroupsForAccount(account) {
+    try {
+        console.log('🔍 선택된 계정으로 그룹 로딩 중...', account);
+        
+        const response = await fetch('/api/telegram/load-groups', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                userId: account.user_id
+            })
+        });
+        
+        const result = await response.json();
+        console.log('🔍 그룹 로딩 응답:', result);
+        
+        if (response.ok && result.success) {
+            console.log('✅ 그룹 로딩 성공:', result.groups);
+            
+            // 그룹 목록 표시
+            if (result.groups && result.groups.length > 0) {
+                showGroupList(result.groups, account);
+            } else {
+                alert(`✅ 텔레그램 연결 완료!\n\n👤 계정: ${account.first_name} ${account.last_name || ''}\n📱 전화번호: ${account.phone_number}\n🆔 사용자 ID: ${account.user_id}\n\n📭 참여한 그룹이 없습니다.`);
+            }
+        } else {
+            throw new Error(result.error || '그룹 로딩 실패');
+        }
+        
+    } catch (error) {
+        console.error('❌ 그룹 로딩 실패:', error);
+        alert(`❌ 그룹 로딩 실패:\n\n${error.message}`);
+    }
+}
+
+// 그룹 목록 표시
+function showGroupList(groups, account) {
+    console.log('📋 그룹 목록 표시 중...', groups);
+    
+    // 그룹 목록을 표시할 모달 생성
+    const modal = document.createElement('div');
+    modal.id = 'groupListModal';
+    modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.8);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 10000;
+        backdrop-filter: blur(5px);
+    `;
+    
+    const modalContent = document.createElement('div');
+    modalContent.style.cssText = `
+        background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+        border-radius: 20px;
+        padding: 30px;
+        max-width: 600px;
+        width: 90%;
+        max-height: 80vh;
+        overflow-y: auto;
+        border: 2px solid #10B981;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+    `;
+    
+    modalContent.innerHTML = `
+        <div style="text-align: center; margin-bottom: 25px;">
+            <h2 style="color: #10B981; margin: 0 0 10px 0; font-size: 24px; font-weight: 600;">
+                📱 ${account.first_name}의 텔레그램 그룹
+            </h2>
+            <p style="color: #888; margin: 0; font-size: 14px;">
+                ${groups.length}개의 그룹/채널을 찾았습니다
+            </p>
+        </div>
+        
+        <div id="groupList" style="margin-bottom: 25px;">
+            ${groups.map((group, index) => `
+                <div class="group-item" style="
+                    background: linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%);
+                    border: 1px solid #444;
+                    border-radius: 12px;
+                    padding: 15px;
+                    margin-bottom: 10px;
+                    transition: all 0.3s ease;
+                ">
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                        <div style="flex: 1;">
+                            <div style="color: #10B981; font-weight: 600; font-size: 16px; margin-bottom: 5px;">
+                                ${group.title}
+                            </div>
+                            <div style="color: #888; font-size: 14px; margin-bottom: 3px;">
+                                👥 멤버: ${group.member_count.toLocaleString()}명
+                            </div>
+                            <div style="color: #888; font-size: 14px; margin-bottom: 3px;">
+                                📋 타입: ${group.type === 'supergroup' ? '슈퍼그룹' : '채널'}
+                            </div>
+                            ${group.username ? `
+                                <div style="color: #888; font-size: 14px;">
+                                    @${group.username}
+                                </div>
+                            ` : ''}
+                            ${group.description ? `
+                                <div style="color: #666; font-size: 12px; margin-top: 5px; font-style: italic;">
+                                    ${group.description.length > 100 ? group.description.substring(0, 100) + '...' : group.description}
+                                </div>
+                            ` : ''}
+                        </div>
+                        <div style="color: #10B981; font-size: 20px;">
+                            📱
+                        </div>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+        
+        <div style="text-align: center;">
+            <button id="closeGroupList" style="
+                background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);
+                color: white;
+                border: none;
+                padding: 12px 30px;
+                border-radius: 8px;
+                font-size: 14px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.3s ease;
+            ">닫기</button>
+        </div>
+    `;
+    
+    modal.appendChild(modalContent);
+    document.body.appendChild(modal);
+    
+    // 그룹 아이템 호버 효과
+    const groupItems = modal.querySelectorAll('.group-item');
+    groupItems.forEach(item => {
+        item.addEventListener('mouseenter', () => {
+            item.style.borderColor = '#10B981';
+            item.style.transform = 'translateY(-2px)';
+            item.style.boxShadow = '0 5px 15px rgba(16, 185, 129, 0.3)';
+        });
+        
+        item.addEventListener('mouseleave', () => {
+            item.style.borderColor = '#444';
+            item.style.transform = 'translateY(0)';
+            item.style.boxShadow = 'none';
+        });
+    });
+    
+    // 닫기 버튼 이벤트
+    modal.querySelector('#closeGroupList').addEventListener('click', () => {
+        document.body.removeChild(modal);
+    });
+    
+    // 모달 배경 클릭 시 닫기
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            document.body.removeChild(modal);
+        }
+    });
+}
+
+// status-bar 내리기 애니메이션 후 계정 목록 표시
+async function hideStatusBarAndShowAccounts() {
+    try {
+        console.log('🎬 status-bar 내리기 애니메이션 시작');
+        
+        // status-bar 요소 찾기
+        const statusBar = document.querySelector('.status-bar');
+        if (!statusBar) {
+            console.log('❌ status-bar를 찾을 수 없습니다.');
+            return;
+        }
+        
+        // status-bar 내리기 애니메이션
+        statusBar.style.transition = 'transform 0.5s ease-in-out';
+        statusBar.style.transform = 'translateY(100%)';
+        
+        // 애니메이션 완료 후 계정 목록 로드
+        setTimeout(async () => {
+            console.log('🔍 계정 목록 로딩 시작');
+            
+            try {
+                const response = await fetch('/api/telegram/load-accounts', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                const result = await response.json();
+                console.log('🔍 계정 목록 응답:', result);
+                
+                if (response.ok && result.success) {
+                    if (result.accounts && result.accounts.length > 0) {
+                        console.log(`✅ ${result.accounts.length}개의 연동된 계정을 찾았습니다.`);
+                        
+                        // 계정 목록 표시 (status-bar 위에)
+                        showAccountListAboveStatusBar(result.accounts);
+                    } else {
+                        console.log('📭 연동된 계정이 없습니다.');
+                        // status-bar 다시 올리기
+                        statusBar.style.transform = 'translateY(0)';
+                    }
+                } else {
+                    throw new Error(result.error || '계정 목록 로딩 실패');
+                }
+                
+            } catch (error) {
+                console.error('❌ 계정 목록 로딩 실패:', error);
+                // status-bar 다시 올리기
+                statusBar.style.transform = 'translateY(0)';
+            }
+        }, 500); // 0.5초 후 계정 목록 로드
+        
+    } catch (error) {
+        console.error('❌ status-bar 애니메이션 실패:', error);
+    }
+}
+
+// status-bar 위에 계정 목록 표시
+function showAccountListAboveStatusBar(accounts) {
+    console.log('📋 status-bar 위에 계정 목록 표시 중...', accounts);
+    
+    // 기존 계정 목록 모달이 있으면 제거
+    const existingModal = document.getElementById('accountListModal');
+    if (existingModal) {
+        document.body.removeChild(existingModal);
+    }
+    
+    // 계정 목록을 표시할 컨테이너 생성
+    const accountContainer = document.createElement('div');
+    accountContainer.id = 'accountListContainer';
+    accountContainer.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.9);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 10000;
+        backdrop-filter: blur(10px);
+        animation: fadeIn 0.5s ease-in-out;
+    `;
+    
+    // CSS 애니메이션 추가
+    if (!document.getElementById('accountListAnimation')) {
+        const style = document.createElement('style');
+        style.id = 'accountListAnimation';
+        style.textContent = `
+            @keyframes fadeIn {
+                from { opacity: 0; }
+                to { opacity: 1; }
+            }
+            @keyframes slideUp {
+                from { transform: translateY(50px); opacity: 0; }
+                to { transform: translateY(0); opacity: 1; }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+    
+    const modalContent = document.createElement('div');
+    modalContent.style.cssText = `
+        background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+        border-radius: 20px;
+        padding: 30px;
+        max-width: 500px;
+        width: 90%;
+        max-height: 80vh;
+        overflow-y: auto;
+        border: 2px solid #10B981;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+        animation: slideUp 0.5s ease-out;
+    `;
+    
+    modalContent.innerHTML = `
+        <div style="text-align: center; margin-bottom: 25px;">
+            <h2 style="color: #10B981; margin: 0 0 10px 0; font-size: 24px; font-weight: 600;">
+                📱 연동된 텔레그램 계정
+            </h2>
+            <p style="color: #888; margin: 0; font-size: 14px;">
+                ${accounts.length}개의 계정이 연동되어 있습니다
+            </p>
+        </div>
+        
+        <div id="accountList" style="margin-bottom: 25px;">
+            ${accounts.map((account, index) => `
+                <div class="account-item" style="
+                    background: linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%);
+                    border: 1px solid #444;
+                    border-radius: 12px;
+                    padding: 15px;
+                    margin-bottom: 10px;
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+                    position: relative;
+                " data-user-id="${account.user_id}">
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                        <div style="flex: 1;">
+                            <div style="color: #10B981; font-weight: 600; font-size: 16px; margin-bottom: 5px;">
+                                ${account.first_name} ${account.last_name || ''}
+                            </div>
+                            <div style="color: #888; font-size: 14px; margin-bottom: 3px;">
+                                📱 ${account.phone_number}
+                            </div>
+                            ${account.username ? `
+                                <div style="color: #888; font-size: 14px;">
+                                    @${account.username}
+                                </div>
+                            ` : ''}
+                        </div>
+                        <div style="color: #10B981; font-size: 20px;">
+                            ▶
+                        </div>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+        
+        <div style="text-align: center;">
+            <button id="closeAccountList" style="
+                background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);
+                color: white;
+                border: none;
+                padding: 12px 30px;
+                border-radius: 8px;
+                font-size: 14px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.3s ease;
+            ">닫기</button>
+        </div>
+    `;
+    
+    accountContainer.appendChild(modalContent);
+    document.body.appendChild(accountContainer);
+    
+    // 계정 클릭 이벤트
+    const accountItems = accountContainer.querySelectorAll('.account-item');
+    accountItems.forEach(item => {
+        item.addEventListener('mouseenter', () => {
+            item.style.borderColor = '#10B981';
+            item.style.transform = 'translateY(-2px)';
+            item.style.boxShadow = '0 5px 15px rgba(16, 185, 129, 0.3)';
+        });
+        
+        item.addEventListener('mouseleave', () => {
+            item.style.borderColor = '#444';
+            item.style.transform = 'translateY(0)';
+            item.style.boxShadow = 'none';
+        });
+        
+        item.addEventListener('click', () => {
+            const userId = item.dataset.userId;
+            const account = accounts.find(acc => acc.user_id === userId);
+            
+            console.log('📱 선택된 계정:', account);
+            
+            // 컨테이너 제거
+            document.body.removeChild(accountContainer);
+            
+            // status-bar 다시 올리기
+            const statusBar = document.querySelector('.status-bar');
+            if (statusBar) {
+                statusBar.style.transform = 'translateY(0)';
+            }
+            
+            // 선택된 계정으로 그룹 로드
+            loadGroupsForAccount(account);
+        });
+    });
+    
+    // 닫기 버튼 이벤트
+    accountContainer.querySelector('#closeAccountList').addEventListener('click', () => {
+        document.body.removeChild(accountContainer);
+        
+        // status-bar 다시 올리기
+        const statusBar = document.querySelector('.status-bar');
+        if (statusBar) {
+            statusBar.style.transform = 'translateY(0)';
+        }
+    });
+    
+    // 컨테이너 배경 클릭 시 닫기
+    accountContainer.addEventListener('click', (e) => {
+        if (e.target === accountContainer) {
+            document.body.removeChild(accountContainer);
+            
+            // status-bar 다시 올리기
+            const statusBar = document.querySelector('.status-bar');
+            if (statusBar) {
+                statusBar.style.transform = 'translateY(0)';
+            }
+        }
+    });
 }
 
 // 저장된 텔레그램 설정 로드
