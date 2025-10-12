@@ -728,7 +728,7 @@ def verify_code():
                         
                         # 인증된 계정 정보 저장 (세션 데이터 포함)
                         # 세션 파일을 읽어서 Base64 인코딩
-                        session_file_path = f'{temp_session_file}.session'
+                        session_file_path = f'{session_file}.session'
                         logger.info(f'🔍 일반 인증 세션 파일 경로: {session_file_path}')
                         logger.info(f'🔍 일반 인증 세션 파일 존재 여부: {os.path.exists(session_file_path)}')
                         
