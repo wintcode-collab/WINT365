@@ -165,6 +165,7 @@ def load_telegram_groups_with_session(account_info):
     """세션 데이터를 사용해서 텔레그램 그룹 목록 로드"""
     try:
         logger.info(f'🔍 텔레그램 그룹 로딩 시작: {account_info["user_id"]}')
+        logger.info(f'🔍 계정 정보: {account_info}')
         
         # 임시 세션 파일 생성
         temp_session_file = f'temp_groups_{account_info["user_id"]}'
@@ -175,60 +176,109 @@ def load_telegram_groups_with_session(account_info):
             logger.error('❌ 세션 데이터 없음')
             return None
             
-        session_bytes = base64.b64decode(session_b64)
-        
-        # 임시 세션 파일 생성
-        with open(f'{temp_session_file}.session', 'wb') as f:
-            f.write(session_bytes)
-        
-        # 클라이언트 생성
-        client = TelegramClient(temp_session_file, account_info['api_id'], account_info['api_hash'])
+        logger.info(f'🔍 세션 데이터 길이: {len(session_b64)}')
         
         try:
-            # 연결
-            client.connect()
-            logger.info('✅ 텔레그램 연결 성공')
-            
-            # 그룹 목록 가져오기
-            groups = []
-            
-            # 대화 목록 가져오기 (그룹과 채널만)
-            dialogs = client.get_dialogs()
-            
-            for dialog in dialogs:
-                if hasattr(dialog.entity, 'megagroup') or hasattr(dialog.entity, 'broadcast'):
-                    group_info = {
-                        'id': dialog.entity.id,
-                        'title': dialog.entity.title,
-                        'type': 'supergroup' if hasattr(dialog.entity, 'megagroup') else 'channel',
-                        'member_count': getattr(dialog.entity, 'participants_count', 0),
-                        'username': getattr(dialog.entity, 'username', ''),
-                        'description': getattr(dialog.entity, 'about', '')
-                    }
-                    groups.append(group_info)
-            
-            logger.info(f'✅ {len(groups)}개의 그룹/채널을 찾았습니다.')
-            return groups
-            
+            session_bytes = base64.b64decode(session_b64)
+            logger.info(f'🔍 세션 바이트 길이: {len(session_bytes)}')
         except Exception as e:
-            logger.error(f'❌ 그룹 로딩 실패: {e}')
+            logger.error(f'❌ 세션 데이터 디코딩 실패: {e}')
             return None
-            
-        finally:
-            # 연결 해제 및 임시 파일 정리
+        
+        # 임시 세션 파일 생성
+        try:
+            with open(f'{temp_session_file}.session', 'wb') as f:
+                f.write(session_bytes)
+            logger.info(f'🔍 임시 세션 파일 생성 완료: {temp_session_file}.session')
+        except Exception as e:
+            logger.error(f'❌ 임시 세션 파일 생성 실패: {e}')
+            return None
+        
+        # 비동기 그룹 로딩 함수
+        async def load_groups_async():
             try:
-                if client.is_connected():
-                    client.disconnect()
-            except:
-                pass
+                # 클라이언트 생성
+                client = TelegramClient(temp_session_file, account_info['api_id'], account_info['api_hash'])
+                logger.info('🔍 텔레그램 클라이언트 생성 완료')
                 
+                # 연결
+                await client.connect()
+                logger.info('✅ 텔레그램 연결 성공')
+                
+                # 연결 상태 확인
+                if not client.is_connected():
+                    logger.error('❌ 클라이언트 연결 실패')
+                    return None
+                
+                # 그룹 목록 가져오기
+                groups = []
+                
+                # 대화 목록 가져오기 (그룹과 채널만)
+                logger.info('🔍 대화 목록 가져오는 중...')
+                dialogs = await client.get_dialogs()
+                logger.info(f'🔍 총 {len(dialogs)}개의 대화를 찾았습니다.')
+                
+                for dialog in dialogs:
+                    try:
+                        entity = dialog.entity
+                        logger.info(f'🔍 대화 엔티티 타입: {type(entity)}')
+                        
+                        # 그룹이나 채널인지 확인
+                        is_group = hasattr(entity, 'megagroup') and entity.megagroup
+                        is_channel = hasattr(entity, 'broadcast') and entity.broadcast
+                        
+                        if is_group or is_channel:
+                            group_info = {
+                                'id': entity.id,
+                                'title': getattr(entity, 'title', 'Unknown'),
+                                'type': 'supergroup' if is_group else 'channel',
+                                'member_count': getattr(entity, 'participants_count', 0),
+                                'username': getattr(entity, 'username', ''),
+                                'description': getattr(entity, 'about', '')
+                            }
+                            groups.append(group_info)
+                            logger.info(f'✅ 그룹 추가: {group_info["title"]} ({group_info["type"]})')
+                    except Exception as e:
+                        logger.error(f'❌ 대화 처리 중 에러: {e}')
+                        continue
+                
+                logger.info(f'✅ {len(groups)}개의 그룹/채널을 찾았습니다.')
+                return groups
+                
+            except Exception as e:
+                logger.error(f'❌ 그룹 로딩 실패: {e}')
+                logger.error(f'❌ 에러 타입: {type(e)}')
+                return None
+                
+            finally:
+                # 연결 해제
+                try:
+                    if client.is_connected():
+                        await client.disconnect()
+                        logger.info('🔍 클라이언트 연결 해제 완료')
+                except Exception as e:
+                    logger.error(f'❌ 클라이언트 연결 해제 실패: {e}')
+        
+        # 새 이벤트 루프에서 실행
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        try:
+            result = loop.run_until_complete(load_groups_async())
+            return result
+        finally:
+            loop.close()
+            
+            # 임시 파일 정리
             try:
                 os.remove(f'{temp_session_file}.session')
-            except:
-                pass
+                logger.info('🔍 임시 세션 파일 정리 완료')
+            except Exception as e:
+                logger.error(f'❌ 임시 파일 정리 실패: {e}')
             
     except Exception as e:
         logger.error(f'❌ 그룹 로딩 에러: {e}')
+        logger.error(f'❌ 에러 타입: {type(e)}')
         return None
 
 def get_all_accounts_from_firebase():
@@ -1029,12 +1079,15 @@ def load_telegram_groups():
         logger.info('✅ 그룹 로딩 시작')
         
         # 세션 데이터로 실제 그룹 목록 가져오기
+        logger.info('🔍 그룹 로딩 함수 호출 중...')
         groups = load_telegram_groups_with_session(account_info)
+        logger.info(f'🔍 그룹 로딩 결과: {groups}')
         
         if groups is None:
+            logger.error('❌ 그룹 로딩 실패 - groups가 None')
             return jsonify({
                 'success': False,
-                'error': '그룹 로딩에 실패했습니다. 세션이 만료되었을 수 있습니다.'
+                'error': '그룹 로딩에 실패했습니다. 세션이 만료되었거나 연결에 문제가 있을 수 있습니다.'
             }), 500
         
         return jsonify({
