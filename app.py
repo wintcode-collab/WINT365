@@ -232,7 +232,6 @@ def load_telegram_groups_with_session(account_info):
                                 'id': entity.id,
                                 'title': getattr(entity, 'title', 'Unknown'),
                                 'type': 'supergroup' if is_group else 'channel',
-                                'member_count': getattr(entity, 'participants_count', 0),
                                 'username': getattr(entity, 'username', ''),
                                 'description': getattr(entity, 'about', '')
                             }

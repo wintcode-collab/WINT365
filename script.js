@@ -1791,7 +1791,7 @@ function showTelegramGroupsWindow(groups, account) {
         // 그룹 목록 렌더링
         renderGroupsList(groups);
         
-        // 창 표시
+        // 창 표시 (제일 위로 올라오기)
         groupsWindow.style.display = 'flex';
         setTimeout(() => {
             groupsWindow.classList.add('show');
@@ -1810,9 +1810,6 @@ function renderGroupsList(groups) {
         <div class="group-item" data-group-id="${group.id}" data-group-index="${index}">
             <div class="group-name">${group.title}</div>
             <div class="group-info">
-                <div class="group-members">
-                    👥 ${group.member_count.toLocaleString()}명
-                </div>
                 <div class="group-type">
                     ${group.type === 'supergroup' ? '슈퍼그룹' : '채널'}
                 </div>
@@ -1848,7 +1845,7 @@ function selectGroup(group, groupElement) {
     
     // 선택된 그룹 정보 표시
     document.getElementById('selectedGroupName').textContent = group.title;
-    document.getElementById('selectedGroupMembers').textContent = `👥 ${group.member_count.toLocaleString()}명`;
+    document.getElementById('selectedGroupMembers').textContent = `${group.type === 'supergroup' ? '슈퍼그룹' : '채널'}`;
     
     // 메시지 전송 섹션 표시
     const messageSection = document.getElementById('messageSendingSection');
