@@ -1229,12 +1229,14 @@ async function completeTelegramAuth(verificationCode) {
             let errorMessage = '인증에 실패했습니다.';
             let errorDetails = '';
             
+            console.error('인증 실패 상세 정보:', error);
+            
             if (error.message.includes('PHONE_CODE_INVALID')) {
                 errorMessage = '인증코드가 올바르지 않습니다.';
-                errorDetails = '텔레그램 앱에서 받은 코드를 정확히 입력해주세요.';
+                errorDetails = '텔레그램 앱에서 받은 5자리 코드를 정확히 입력해주세요.\n\n💡 팁: 인증코드는 보통 5자리 숫자입니다.';
             } else if (error.message.includes('PHONE_CODE_EXPIRED')) {
                 errorMessage = '인증코드가 만료되었습니다.';
-                errorDetails = '새로운 인증코드를 요청해주세요.';
+                errorDetails = '인증코드는 5분간만 유효합니다.\n새로운 인증코드를 요청해주세요.';
             } else if (error.message.includes('SESSION_PASSWORD_NEEDED')) {
                 errorMessage = '2단계 인증이 필요합니다.';
                 errorDetails = '텔레그램에서 2단계 인증 비밀번호를 입력해주세요.';
@@ -1244,6 +1246,12 @@ async function completeTelegramAuth(verificationCode) {
             } else if (error.message.includes('FLOOD_WAIT')) {
                 errorMessage = '요청이 너무 많습니다.';
                 errorDetails = '잠시 후 다시 시도해주세요.';
+            } else if (error.message.includes('클라이언트 데이터를 찾을 수 없습니다')) {
+                errorMessage = '세션이 만료되었습니다.';
+                errorDetails = '인증코드를 다시 요청해주세요.';
+            } else {
+                errorMessage = `인증 실패: ${error.message}`;
+                errorDetails = '서버 로그를 확인하거나 다시 시도해주세요.';
             }
             
             const fullErrorMessage = errorDetails ? 
