@@ -2154,29 +2154,36 @@ async def get_custom_emojis_async(account_info):
                         'emojis': []
                     }
                     
-                    # 각 팩의 이모지들 가져오기 (더 간단한 방법)
+                    # 각 팩의 이모지들 가져오기 (올바른 방법)
                     try:
-                        # 스티커셋에서 메시지들 가져오기
+                        # 스티커셋 정보 가져오기
+                        from telethon.tl.functions.messages import GetStickerSetRequest
                         from telethon.tl.types import InputStickerSetID
+                        
                         input_sticker_set = InputStickerSetID(
                             id=sticker_set.id,
                             access_hash=sticker_set.access_hash
                         )
                         
-                        stickers = await client.get_messages(input_sticker_set, limit=50)
+                        # 스티커셋의 상세 정보 가져오기
+                        sticker_set_info = await client(GetStickerSetRequest(
+                            stickerset=input_sticker_set,
+                            hash=0
+                        ))
                         
-                        for sticker in stickers:
-                            if hasattr(sticker, 'document') and sticker.document:
+                        # 스티커셋의 문서들 처리
+                        for document in sticker_set_info.documents:
+                            if hasattr(document, 'id') and document.id:
                                 emoji_info = {
-                                    'document_id': sticker.document.id,
-                                    'access_hash': sticker.document.access_hash,
-                                    'mime_type': sticker.document.mime_type,
-                                    'size': sticker.document.size,
+                                    'document_id': document.id,
+                                    'access_hash': document.access_hash,
+                                    'mime_type': document.mime_type,
+                                    'size': document.size,
                                     'alt': '😀'  # 기본값
                                 }
                                 
                                 # 문서 속성들에서 alt 텍스트 찾기
-                                for attr in sticker.document.attributes:
+                                for attr in document.attributes:
                                     if hasattr(attr, 'alt') and attr.alt:
                                         emoji_info['alt'] = attr.alt
                                         break
