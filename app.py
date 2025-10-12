@@ -36,12 +36,10 @@ clients = {}
 FIREBASE_URL = "https://wint365-date-default-rtdb.asia-southeast1.firebasedatabase.app"
 
 # Firebase 세션 관리 함수
-def save_session_to_firebase(client_id, session_data, phone_code_hash, api_id, api_hash, phone_number):
+def save_session_to_firebase(client_id, session_b64, phone_code_hash, api_id, api_hash, phone_number):
     """Firebase에 텔레그램 세션 데이터 저장"""
     try:
-        # 세션 데이터를 Base64로 인코딩
-        session_bytes = session_data.getvalue()
-        session_b64 = base64.b64encode(session_bytes).decode('utf-8')
+        # 이미 Base64로 인코딩된 세션 데이터 사용
         
         session_info = {
             'clientId': client_id,
@@ -166,10 +164,14 @@ def test_telegram_connection(account_info):
             return False
             
         session_bytes = base64.b64decode(session_b64)
-        session_data = io.BytesIO(session_bytes)
+        temp_session_file = f'temp_test_{account_info["user_id"]}'
+        
+        # 임시 세션 파일 생성
+        with open(f'{temp_session_file}.session', 'wb') as f:
+            f.write(session_bytes)
         
         # 클라이언트 생성 및 연결 테스트
-        client = TelegramClient(session_data, account_info['api_id'], account_info['api_hash'])
+        client = TelegramClient(temp_session_file, account_info['api_id'], account_info['api_hash'])
         
         # 연결 테스트
         client.connect()
@@ -179,14 +181,35 @@ def test_telegram_connection(account_info):
             me = client.get_me()
             logger.info(f'✅ 연결 테스트 성공: {me.first_name}')
             client.disconnect()
+            
+            # 임시 파일 정리
+            try:
+                os.remove(f'{temp_session_file}.session')
+            except:
+                pass
+                
             return True
         else:
             logger.error('❌ 연결 테스트 실패')
             client.disconnect()
+            
+            # 임시 파일 정리
+            try:
+                os.remove(f'{temp_session_file}.session')
+            except:
+                pass
+                
             return False
             
     except Exception as e:
         logger.error(f'❌ 연결 테스트 에러: {e}')
+        
+        # 임시 파일 정리
+        try:
+            os.remove(f'{temp_session_file}.session')
+        except:
+            pass
+            
         return False
 
 # 동기 방식으로 처리하므로 run_async 함수 불필요
@@ -283,11 +306,11 @@ def send_code():
                 asyncio.set_event_loop(loop)
                 
                 async def send_code_async():
-                    # Telethon 클라이언트 생성 (메모리 세션 사용)
+                    # Telethon 클라이언트 생성 (임시 파일 세션 사용)
                     logger.info('🔧 Telethon 클라이언트 생성 중...')
-                    session_data = io.BytesIO()
-                    logger.info('📁 메모리 세션 사용 (웹 환경 최적화)')
-                    client = TelegramClient(session_data, api_id, api_hash)
+                    session_file = f'temp_session_{client_id}'
+                    logger.info(f'📁 임시 세션 파일: {session_file}')
+                    client = TelegramClient(session_file, api_id, api_hash)
                     logger.info('✅ Telethon 클라이언트 생성 완료')
                 
                     try:
@@ -336,35 +359,43 @@ def send_code():
                         # 전체 결과 객체 로깅
                         logger.info(f'📋 전체 결과: {result}')
                         
-                        return client, result, session_data
+                        return client, result, session_file
                     finally:
-                        # 연결 해제 (메모리 세션은 자동으로 관리됨)
+                        # 연결 해제
                         logger.info('🔌 클라이언트 연결 해제')
                         await client.disconnect()
                         logger.info('✅ 연결 해제 완료')
                 
                 try:
-                    client, result, session_data = loop.run_until_complete(send_code_async())
-                    return client, result, session_data
+                    client, result, session_file = loop.run_until_complete(send_code_async())
+                    return client, result, session_file
                 finally:
                     loop.close()
             
             # 새 스레드에서 실행
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 future = executor.submit(run_telethon_complete)
-                client, result, session_data = future.result()
+                client, result, session_file = future.result()
             
             
-            # Firebase에 세션 데이터 저장
+            # 세션 파일을 읽어서 Firebase에 저장
             logger.info('🔥 Firebase에 세션 데이터 저장 중...')
-            firebase_saved = save_session_to_firebase(
-                client_id, 
-                session_data, 
-                result.phone_code_hash, 
-                api_id, 
-                api_hash, 
-                phone_number
-            )
+            try:
+                with open(f'{session_file}.session', 'rb') as f:
+                    session_data = f.read()
+                session_b64 = base64.b64encode(session_data).decode('utf-8')
+                
+                firebase_saved = save_session_to_firebase(
+                    client_id, 
+                    session_b64, 
+                    result.phone_code_hash, 
+                    api_id, 
+                    api_hash, 
+                    phone_number
+                )
+            except Exception as e:
+                logger.error(f'❌ 세션 파일 읽기 실패: {e}')
+                firebase_saved = False
             
             if firebase_saved:
                 logger.info('🔥 Firebase 세션 저장 성공')
@@ -373,7 +404,7 @@ def send_code():
             
             # 클라이언트 데이터 저장 (Firebase 저장 여부 포함)
             clients[client_id] = {
-                'session_data': session_data,
+                'session_file': session_file,
                 'api_id': api_id,
                 'api_hash': api_hash,
                 'phone_number': phone_number,
@@ -487,13 +518,16 @@ def verify_code():
                     
                     if firebase_session:
                         logger.info('🔥 Firebase 세션 데이터 발견, 복원 중...')
-                        # Base64 디코딩하여 세션 데이터 복원
+                        # Base64 디코딩하여 임시 세션 파일 생성
                         session_b64 = firebase_session['sessionData']
                         session_bytes = base64.b64decode(session_b64)
-                        session_data = io.BytesIO(session_bytes)
+                        temp_session_file = f'temp_verify_{client_id}'
+                        
+                        with open(f'{temp_session_file}.session', 'wb') as f:
+                            f.write(session_bytes)
                         
                         # Firebase 세션 데이터로 클라이언트 생성
-                        client = TelegramClient(session_data, client_data['api_id'], client_data['api_hash'])
+                        client = TelegramClient(temp_session_file, client_data['api_id'], client_data['api_hash'])
                         logger.info('✅ Firebase 세션으로 클라이언트 생성 완료')
                     else:
                         logger.info('🔥 Firebase 세션 없음, 새 클라이언트 생성...')
@@ -525,8 +559,14 @@ def verify_code():
                         logger.info('🔥 인증 성공, 계정 정보 저장 중...')
                         
                         # 인증된 계정 정보 저장 (세션 데이터 포함)
-                        session_bytes = session_data.getvalue()
-                        session_b64 = base64.b64encode(session_bytes).decode('utf-8')
+                        # 세션 파일을 읽어서 Base64 인코딩
+                        try:
+                            with open(f'{temp_session_file}.session', 'rb') as f:
+                                session_bytes = f.read()
+                            session_b64 = base64.b64encode(session_bytes).decode('utf-8')
+                        except:
+                            # 세션 파일이 없으면 빈 문자열
+                            session_b64 = ""
                         
                         account_info = {
                             'user_id': result.id,
