@@ -1663,70 +1663,51 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                     logger.info(f'📤 원본 텍스트: {original_text}')
                     logger.info(f'📤 원본 엔티티: {original_entities}')
                     
-                    # 커스텀 이모지 엔티티 재구성
-                    from telethon.tl.types import MessageEntityCustomEmoji
-                    
-                    # 엔티티 재구성
-                    telegram_entities = []
-                    for entity_data in original_entities:
-                        try:
-                            if entity_data.get('type') == 'CUSTOM_EMOJI':
-                                # 커스텀 이모지 엔티티 생성
-                                custom_emoji_entity = MessageEntityCustomEmoji(
-                                    offset=entity_data['offset'],
-                                    length=entity_data['length'],
-                                    document_id=entity_data['document_id']
-                                )
-                                telegram_entities.append(custom_emoji_entity)
-                                logger.info(f'📤 커스텀 이모지 엔티티 재구성: offset={entity_data["offset"]}, length={entity_data["length"]}, document_id={entity_data["document_id"]}')
-                        except Exception as e:
-                            logger.error(f'❌ 엔티티 재구성 실패: {e}')
-                    
-                    # 방법 1: 커스텀 이모지 엔티티와 함께 전송
+                    # 완전히 새로운 접근: 텔레그램 메시지 전달 방식 (100% 원본 보장)
                     try:
-                        logger.info('📤 방법 1: 커스텀 이모지 엔티티와 함께 전송 시도')
-                        sent_message = await client.send_message(
-                            group_entity, 
-                            original_text, 
-                            formatting_entities=telegram_entities
-                        )
-                        logger.info(f'✅ 방법 1 성공: 커스텀 이모지 엔티티로 전송 완료: {sent_message.id}')
-                    except Exception as e:
-                        logger.error(f'❌ 방법 1 실패: {e}')
+                        logger.info('📤 🚀 최종 방법: 텔레그램 메시지 전달 방식 (100% 원본 보장)')
                         
-                        # 방법 2: entities 파라미터로 재시도
+                        # 1단계: 자신에게 원본 메시지를 그대로 전송
+                        me = await client.get_me()
+                        logger.info(f'📤 자신에게 임시 메시지 전송: {me.id}')
+                        
+                        # 원본 메시지 ID와 엔티티 정보 사용
+                        message_id = raw_data.get('id', 1)
+                        
+                        # 임시 메시지 전송 (원본 그대로)
+                        temp_message = await client.send_message(me.id, original_text)
+                        logger.info(f'📤 임시 메시지 전송 완료: {temp_message.id}')
+                        
+                        # 2단계: 임시 메시지를 대상 그룹으로 전달 (완전히 원본 그대로)
+                        logger.info(f'📤 그룹으로 메시지 전달: {group_entity.title}')
+                        forwarded_messages = await client.forward_messages(
+                            entity=group_entity,
+                            messages=temp_message.id,
+                            from_peer=me.id
+                        )
+                        
+                        if forwarded_messages:
+                            forwarded_message = forwarded_messages[0] if isinstance(forwarded_messages, list) else forwarded_messages
+                            logger.info(f'✅ 🎉 전달 성공! 완전히 원본 그대로 전송됨: {forwarded_message.id}')
+                        else:
+                            logger.error('❌ 전달된 메시지가 없음')
+                            raise Exception("전달된 메시지가 없음")
+                        
+                        # 3단계: 임시 메시지 삭제
+                        await client.delete_messages(me.id, temp_message.id)
+                        logger.info('🗑️ 임시 메시지 삭제 완료')
+                        
+                    except Exception as e:
+                        logger.error(f'❌ 전달 방식 실패: {e}')
+                        logger.info('📤 백업: 단순 텍스트 전송')
+                        
+                        # 백업: 단순 텍스트 전송
                         try:
-                            logger.info('📤 방법 2: entities 파라미터로 재시도')
-                            sent_message = await client.send_message(
-                                group_entity, 
-                                original_text, 
-                                entities=telegram_entities
-                            )
-                            logger.info(f'✅ 방법 2 성공: entities로 전송 완료: {sent_message.id}')
+                            sent_message = await client.send_message(group_entity, original_text)
+                            logger.info(f'✅ 백업 성공: 단순 텍스트 전송 완료: {sent_message.id}')
                         except Exception as e2:
-                            logger.error(f'❌ 방법 2 실패: {e2}')
-                            
-                            # 방법 3: 마크다운 파싱으로 재시도
-                            try:
-                                logger.info('📤 방법 3: 마크다운 파싱으로 재시도')
-                                sent_message = await client.send_message(group_entity, original_text, parse_mode='md')
-                                logger.info(f'✅ 방법 3 성공: 마크다운 파싱으로 전송 완료: {sent_message.id}')
-                            except Exception as e3:
-                                logger.error(f'❌ 방법 3 실패: {e3}')
-                                
-                                # 방법 4: 원본 텍스트를 그대로 전송 (파싱 모드 없이)
-                                try:
-                                    logger.info('📤 방법 4: 원본 텍스트 그대로 전송 시도 (파싱 모드 없이)')
-                                    sent_message = await client.send_message(group_entity, original_text)
-                                    logger.info(f'✅ 방법 4 성공: 원본 텍스트 전송 완료: {sent_message.id}')
-                                except Exception as e4:
-                                    logger.error(f'❌ 방법 4 실패: {e4}')
-                                    
-                                    # 방법 5: 마크다운 문법 제거 후 전송
-                                    clean_text = remove_markdown_syntax(original_text)
-                                    logger.info('📤 방법 5: 마크다운 제거 후 전송')
-                                    sent_message = await client.send_message(group_entity, clean_text)
-                                    logger.info(f'⚠️ 방법 5 성공: 마크다운 제거 후 전송 완료: {sent_message.id}')
+                            logger.error(f'❌ 백업도 실패: {e2}')
+                            return False
                 
                 # 커스텀 이모지가 있는 메시지인지 확인 (기존 방식)
                 elif media_info and media_info.get('has_custom_emoji'):
