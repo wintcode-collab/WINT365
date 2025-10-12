@@ -1325,12 +1325,26 @@ def get_telegram_saved_messages_with_session(account_info):
 
                     for message in messages:
                         try:
+                            # 커스텀 이모지 엔티티 정보 추출
+                            custom_emoji_entities = []
+                            if message.entities:
+                                for entity in message.entities:
+                                    if hasattr(entity, 'type') and entity.type.name == 'CUSTOM_EMOJI':
+                                        custom_emoji_entities.append({
+                                            'offset': entity.offset,
+                                            'length': entity.length,
+                                            'document_id': entity.document_id
+                                        })
+                            
                             message_info = {
                                 'id': message.id,
                                 'date': message.date.isoformat() if message.date else '',
                                 'text': message.text or '',
                                 'media_type': None,
-                                'media_url': None
+                                'media_url': None,
+                                'has_custom_emoji': len(custom_emoji_entities) > 0,
+                                'custom_emoji_entities': custom_emoji_entities,
+                                'entities': [{'offset': e.offset, 'length': e.length, 'type': e.type.name} for e in message.entities] if message.entities else []
                             }
 
                             # 미디어 처리
@@ -1341,6 +1355,7 @@ def get_telegram_saved_messages_with_session(account_info):
                                     photo_path = await client.download_media(message.photo, file=f'temp_photos/photo_{message.id}.jpg')
                                     message_info['media_url'] = f'/api/telegram/media/photo_{message.id}.jpg'
                                     message_info['media_path'] = photo_path
+                                    logger.info(f'💾 사진 다운로드 성공: {photo_path}')
                                 except Exception as e:
                                     logger.error(f'❌ 사진 다운로드 실패: {e}')
                                     message_info['media_url'] = None
@@ -1515,22 +1530,58 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                 # 메시지 전송 (미디어 포함)
                 logger.info(f'📤 메시지 전송 중: 그룹={group_entity.title}, 메시지={message[:50]}...')
                 
-                if media_info and media_info.get('media_path'):
+                # 커스텀 이모지가 있는 메시지인지 확인
+                if media_info and media_info.get('has_custom_emoji'):
+                    # 커스텀 이모지가 포함된 메시지 전송
+                    logger.info('📤 커스텀 이모지 포함 메시지 전송')
+                    
+                    # 엔티티 정보를 사용하여 메시지 전송
+                    entities = media_info.get('entities', [])
+                    if entities:
+                        # 엔티티 정보를 텔레그램 형식으로 변환
+                        from telethon.tl.types import MessageEntityCustomEmoji
+                        telegram_entities = []
+                        
+                        for entity in entities:
+                            if entity['type'] == 'CUSTOM_EMOJI':
+                                # 커스텀 이모지 엔티티 찾기
+                                custom_emoji = next((ce for ce in media_info.get('custom_emoji_entities', []) 
+                                                   if ce['offset'] == entity['offset'] and ce['length'] == entity['length']), None)
+                                if custom_emoji:
+                                    telegram_entities.append(MessageEntityCustomEmoji(
+                                        offset=entity['offset'],
+                                        length=entity['length'],
+                                        document_id=custom_emoji['document_id']
+                                    ))
+                        
+                        await client.send_message(group_entity, message, formatting_entities=telegram_entities)
+                    else:
+                        await client.send_message(group_entity, message)
+                    
+                elif media_info and media_info.get('media_path'):
                     # 미디어와 함께 메시지 전송
                     media_path = media_info['media_path']
                     media_type = media_info.get('media_type')
                     
                     logger.info(f'📤 미디어 전송: 타입={media_type}, 경로={media_path}')
                     
-                    if media_type == 'photo':
-                        await client.send_file(group_entity, media_path, caption=message)
-                    elif media_type == 'video':
-                        await client.send_file(group_entity, media_path, caption=message)
-                    elif media_type == 'document':
-                        await client.send_file(group_entity, media_path, caption=message)
-                    elif media_type == 'voice':
-                        await client.send_file(group_entity, media_path, caption=message)
+                    # 미디어 파일 존재 확인
+                    if os.path.exists(media_path):
+                        logger.info(f'📤 미디어 파일 존재 확인: {media_path}')
+                        
+                        if media_type == 'photo':
+                            await client.send_file(group_entity, media_path, caption=message)
+                        elif media_type == 'video':
+                            await client.send_file(group_entity, media_path, caption=message)
+                        elif media_type == 'document':
+                            await client.send_file(group_entity, media_path, caption=message)
+                        elif media_type == 'voice':
+                            await client.send_file(group_entity, media_path, caption=message)
+                        else:
+                            await client.send_message(group_entity, message)
                     else:
+                        logger.error(f'❌ 미디어 파일이 존재하지 않음: {media_path}')
+                        # 파일이 없으면 텍스트만 전송
                         await client.send_message(group_entity, message)
                 else:
                     # 텍스트만 전송
