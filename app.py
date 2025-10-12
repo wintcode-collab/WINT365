@@ -945,46 +945,60 @@ def test_firebase():
     """Firebase 연결 테스트"""
     try:
         logger.info('🔥 Firebase 연결 테스트 시작')
+        logger.info(f'🔥 Firebase URL: {FIREBASE_URL}')
         
         # 테스트 데이터
         test_data = {
             'test': True,
             'timestamp': datetime.now().isoformat(),
-            'message': 'Firebase 연결 테스트'
+            'message': 'Firebase 연결 테스트',
+            'server': 'WINT365'
         }
         
         # Firebase에 테스트 데이터 저장
         url = f"{FIREBASE_URL}/test.json"
         logger.info(f'🔥 테스트 URL: {url}')
         
+        # PUT 요청으로 데이터 저장
         response = requests.put(url, json=test_data, timeout=10)
-        logger.info(f'🔥 테스트 응답 상태: {response.status_code}')
-        logger.info(f'🔥 테스트 응답 내용: {response.text}')
+        logger.info(f'🔥 PUT 응답 상태: {response.status_code}')
+        logger.info(f'🔥 PUT 응답 내용: {response.text}')
         
         if response.status_code == 200:
             # 테스트 데이터 읽기
             read_response = requests.get(url, timeout=10)
-            logger.info(f'🔥 읽기 응답 상태: {read_response.status_code}')
-            logger.info(f'🔥 읽기 응답 내용: {read_response.text}')
+            logger.info(f'🔥 GET 응답 상태: {read_response.status_code}')
+            logger.info(f'🔥 GET 응답 내용: {read_response.text}')
+            
+            # authenticated_accounts 테스트
+            auth_url = f"{FIREBASE_URL}/authenticated_accounts.json"
+            auth_response = requests.get(auth_url, timeout=10)
+            logger.info(f'🔥 AUTH GET 응답 상태: {auth_response.status_code}')
+            logger.info(f'🔥 AUTH GET 응답 내용: {auth_response.text}')
             
             return jsonify({
                 'success': True,
                 'message': 'Firebase 연결 성공',
                 'write_status': response.status_code,
-                'read_status': read_response.status_code
+                'read_status': read_response.status_code,
+                'auth_read_status': auth_response.status_code,
+                'firebase_url': FIREBASE_URL
             })
         else:
             return jsonify({
                 'success': False,
                 'error': f'Firebase 연결 실패: {response.status_code}',
-                'response': response.text
+                'response': response.text,
+                'firebase_url': FIREBASE_URL
             }), 500
             
     except Exception as e:
         logger.error(f'❌ Firebase 테스트 실패: {e}')
+        logger.error(f'❌ 에러 타입: {type(e)}')
         return jsonify({
             'success': False,
-            'error': f'Firebase 테스트 실패: {str(e)}'
+            'error': f'Firebase 테스트 실패: {str(e)}',
+            'firebase_url': FIREBASE_URL
         }), 500
 
 @app.route('/api/telegram/load-accounts', methods=['GET'])

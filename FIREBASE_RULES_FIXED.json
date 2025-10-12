@@ -1,0 +1,30 @@
+{
+  "rules": {
+    "signups": {
+      ".read": true,
+      ".write": true
+    },
+    "invite_codes": {
+      ".read": true,
+      ".write": true
+    },
+    "test": {
+      ".read": true,
+      ".write": true
+    },
+    "users": {
+      ".read": true,
+      ".write": true
+    },
+    "telegram_sessions": {
+      ".read": true,
+      ".write": true
+    },
+    "authenticated_accounts": {
+      ".read": true,
+      ".write": true
+    },
+    ".read": false,
+    ".write": false
+  }
+}

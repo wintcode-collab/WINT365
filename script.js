@@ -1228,6 +1228,7 @@ async function completePasswordAuth(password) {
             telegramAuthState = 'idle';
             
             // status-bar 내리기 애니메이션 후 계정 목록 표시
+            console.log('🎬 2단계 인증 성공! status-bar 애니메이션 시작');
             hideStatusBarAndShowAccounts();
             
         } else {
@@ -1357,6 +1358,7 @@ async function completeTelegramAuth(verificationCode) {
             console.log('텔레그램 인증 완료:', telegramSettings);
             
             // status-bar 내리기 애니메이션 후 계정 목록 표시
+            console.log('🎬 일반 인증 성공! status-bar 애니메이션 시작');
             hideStatusBarAndShowAccounts();
             
         } else {
@@ -1923,14 +1925,28 @@ async function hideStatusBarAndShowAccounts() {
         
         // status-bar 요소 찾기
         const statusBar = document.querySelector('.status-bar');
+        console.log('🔍 status-bar 요소:', statusBar);
+        
         if (!statusBar) {
-            console.log('❌ status-bar를 찾을 수 없습니다.');
+            console.log('❌ status-bar를 찾을 수 없습니다. DOM 구조를 확인합니다.');
+            
+            // DOM 구조 확인
+            const allElements = document.querySelectorAll('*');
+            console.log('🔍 DOM 요소들:', allElements);
+            
+            // status-bar 관련 요소들 찾기
+            const statusElements = document.querySelectorAll('[class*="status"]');
+            console.log('🔍 status 관련 요소들:', statusElements);
+            
             return;
         }
+        
+        console.log('✅ status-bar 요소 찾음:', statusBar);
         
         // status-bar 내리기 애니메이션
         statusBar.style.transition = 'transform 0.5s ease-in-out';
         statusBar.style.transform = 'translateY(100%)';
+        console.log('🎬 status-bar 애니메이션 시작: translateY(100%)');
         
         // 애니메이션 완료 후 계정 목록 로드
         setTimeout(async () => {
@@ -1946,19 +1962,29 @@ async function hideStatusBarAndShowAccounts() {
                 
                 const result = await response.json();
                 console.log('🔍 계정 목록 응답:', result);
+                console.log('🔍 응답 상태:', response.status);
+                console.log('🔍 계정 개수:', result.accounts ? result.accounts.length : 0);
                 
                 if (response.ok && result.success) {
                     if (result.accounts && result.accounts.length > 0) {
                         console.log(`✅ ${result.accounts.length}개의 연동된 계정을 찾았습니다.`);
+                        console.log('📋 계정 목록:', result.accounts);
                         
                         // 계정 목록 표시 (status-bar 위에)
                         showAccountListAboveStatusBar(result.accounts);
                     } else {
                         console.log('📭 연동된 계정이 없습니다.');
+                        console.log('📭 Firebase에 계정이 저장되지 않았을 수 있습니다.');
+                        
+                        // Firebase 테스트 실행
+                        await testFirebaseConnection();
+                        
                         // status-bar 다시 올리기
                         statusBar.style.transform = 'translateY(0)';
+                        console.log('🔄 status-bar 복원');
                     }
                 } else {
+                    console.error('❌ 계정 목록 로딩 실패:', result);
                     throw new Error(result.error || '계정 목록 로딩 실패');
                 }
                 
@@ -1966,6 +1992,7 @@ async function hideStatusBarAndShowAccounts() {
                 console.error('❌ 계정 목록 로딩 실패:', error);
                 // status-bar 다시 올리기
                 statusBar.style.transform = 'translateY(0)';
+                console.log('🔄 status-bar 복원 (에러)');
             }
         }, 500); // 0.5초 후 계정 목록 로드
         
