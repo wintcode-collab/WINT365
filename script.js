@@ -1726,6 +1726,9 @@ async function loadGroupsForAccount(account) {
     try {
         console.log('🔍 선택된 계정으로 그룹 로딩 중...', account);
         
+        // 현재 선택된 계정 정보 저장
+        window.currentSelectedAccount = account;
+        
         const response = await fetch('/api/telegram/load-groups', {
             method: 'POST',
             headers: {
@@ -1899,6 +1902,18 @@ function setupTelegramGroupsEventListeners() {
     const closeSavedMessagesBtn = document.getElementById('closeSavedMessagesBtn');
     if (closeSavedMessagesBtn) {
         closeSavedMessagesBtn.addEventListener('click', closeSavedMessages);
+    }
+    
+    // 이모지 선택 버튼
+    const emojiPickerBtn = document.getElementById('emojiPickerBtn');
+    if (emojiPickerBtn) {
+        emojiPickerBtn.addEventListener('click', showEmojiPicker);
+    }
+    
+    // 이모지 선택 모달 닫기 버튼
+    const closeEmojiPickerBtn = document.getElementById('closeEmojiPickerBtn');
+    if (closeEmojiPickerBtn) {
+        closeEmojiPickerBtn.addEventListener('click', closeEmojiPicker);
     }
 }
 
@@ -2098,7 +2113,12 @@ async function sendMessageToGroup() {
                         userId: account.user_id,
                         groupId: groupId,
                         message: message,
+<<<<<<< HEAD
                         mediaInfo: mediaInfo
+=======
+                        mediaInfo: window.selectedMediaInfo,
+                        customEmojis: window.selectedEmojis || []
+>>>>>>> 083a9fc7307c04835efa5e4d408ec4fdf6c9862d
                     })
                 });
                 
@@ -2495,6 +2515,200 @@ function closeSavedMessages() {
     console.log('💾 저장된 메시지 모달 닫기');
     
     const modal = document.getElementById('savedMessagesModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+// 이모지 선택 모달 표시
+async function showEmojiPicker() {
+    try {
+        console.log('😀 이모지 선택 모달 표시');
+        
+        // 현재 선택된 계정 정보 가져오기
+        const accountInfo = window.currentSelectedAccount;
+        if (!accountInfo) {
+            alert('계정을 선택해주세요.');
+            return;
+        }
+        
+        console.log('😀 선택된 계정:', accountInfo);
+        
+        // 이모지 선택 모달 표시
+        const modal = document.getElementById('emojiPickerModal');
+        if (modal) {
+            modal.style.display = 'flex';
+        }
+        
+        // 커스텀 이모지 가져오기
+        await loadCustomEmojis(accountInfo);
+        
+    } catch (error) {
+        console.error('❌ 이모지 선택 모달 표시 오류:', error);
+        alert('❌ 이모지 선택 중 오류가 발생했습니다.');
+    }
+}
+
+// 커스텀 이모지 가져오기
+async function loadCustomEmojis(accountInfo) {
+    try {
+        console.log('😀 커스텀 이모지 가져오기 시작');
+        
+        const response = await fetch('/api/telegram/get-custom-emojis', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                userId: accountInfo.user_id
+            })
+        });
+        
+        const result = await response.json();
+        console.log('😀 커스텀 이모지 가져오기 결과:', result);
+        
+        if (result.success) {
+            displayCustomEmojis(result.emojis);
+        } else {
+            console.error('😀 커스텀 이모지 가져오기 실패:', result.error);
+            alert(`❌ 커스텀 이모지 가져오기 실패: ${result.error}`);
+        }
+        
+    } catch (error) {
+        console.error('❌ 커스텀 이모지 가져오기 오류:', error);
+        alert('❌ 커스텀 이모지 가져오기 중 오류가 발생했습니다.');
+    }
+}
+
+// 커스텀 이모지 표시
+function displayCustomEmojis(emojiPacks) {
+    const emojiList = document.getElementById('emojiPickerList');
+    if (!emojiList) return;
+    
+    emojiList.innerHTML = '';
+    
+    if (!emojiPacks || emojiPacks.length === 0) {
+        emojiList.innerHTML = '<p style="color: #888; text-align: center; padding: 20px;">커스텀 이모지가 없습니다.</p>';
+        return;
+    }
+    
+    emojiPacks.forEach(pack => {
+        const packElement = document.createElement('div');
+        packElement.className = 'emoji-pack';
+        
+        const packTitle = document.createElement('div');
+        packTitle.className = 'emoji-pack-title';
+        packTitle.textContent = pack.title;
+        
+        const emojiGrid = document.createElement('div');
+        emojiGrid.className = 'emoji-grid';
+        
+        pack.emojis.forEach(emoji => {
+            const emojiElement = document.createElement('div');
+            emojiElement.className = 'emoji-item';
+            emojiElement.onclick = () => insertEmoji(emoji);
+            
+            // 커스텀 이모지 미리보기 (텔레그램 커스텀 이모지용)
+            const preview = document.createElement('div');
+            preview.className = 'emoji-preview';
+            preview.style.width = '48px';
+            preview.style.height = '48px';
+            preview.style.display = 'flex';
+            preview.style.alignItems = 'center';
+            preview.style.justifyContent = 'center';
+            preview.style.border = '1px solid #333';
+            preview.style.borderRadius = '8px';
+            preview.style.backgroundColor = '#f0f0f0';
+            preview.style.margin = '2px';
+            
+            // 커스텀 이모지 표시를 위한 특별한 처리
+            if (emoji.alt && emoji.alt !== '😀' && !emoji.alt.startsWith('[커스텀_') && !emoji.alt.startsWith('[이모지_')) {
+                // 실제 alt 텍스트가 있으면 그것을 표시
+                preview.textContent = emoji.alt;
+                preview.style.fontSize = '20px';
+            } else {
+                // 커스텀 이모지임을 나타내는 표시
+                preview.innerHTML = `
+                    <div style="text-align: center; font-size: 10px; color: #666;">
+                        <div style="font-size: 14px;">🎨</div>
+                        <div>커스텀</div>
+                        <div style="font-size: 8px; color: #999;">${emoji.document_id}</div>
+                    </div>
+                `;
+            }
+            
+            const altText = document.createElement('div');
+            altText.className = 'emoji-alt';
+            altText.textContent = emoji.alt || '이모지';
+            
+            emojiElement.appendChild(preview);
+            emojiElement.appendChild(altText);
+            emojiGrid.appendChild(emojiElement);
+        });
+        
+        packElement.appendChild(packTitle);
+        packElement.appendChild(emojiGrid);
+        emojiList.appendChild(packElement);
+    });
+}
+
+// 이모지를 메시지 입력칸에 삽입
+function insertEmoji(emoji) {
+    try {
+        console.log('😀 이모지 삽입:', emoji);
+        
+        const messageInput = document.querySelector('.message-input');
+        if (!messageInput) {
+            console.error('❌ 메시지 입력칸을 찾을 수 없습니다.');
+            return;
+        }
+        
+        // 커스텀 이모지 정보를 저장
+        if (!window.selectedEmojis) {
+            window.selectedEmojis = [];
+        }
+        
+        // 이모지 정보 저장
+        const emojiInfo = {
+            document_id: emoji.document_id,
+            access_hash: emoji.access_hash,
+            alt: emoji.alt,
+            offset: messageInput.value.length,
+            length: 1
+        };
+        
+        window.selectedEmojis.push(emojiInfo);
+        
+        // 메시지 입력칸에 이모지 표시 (커스텀 이모지 표시)
+        let emojiText;
+        if (emoji.alt && emoji.alt !== '😀' && !emoji.alt.startsWith('[커스텀_') && !emoji.alt.startsWith('[이모지_')) {
+            // 실제 alt 텍스트가 있으면 그것을 사용
+            emojiText = emoji.alt;
+        } else {
+            // 커스텀 이모지임을 나타내는 표시 (document_id 포함)
+            emojiText = `🎨[${emoji.document_id}]`;
+        }
+        messageInput.value += emojiText;
+        
+        // 커서를 끝으로 이동
+        messageInput.focus();
+        messageInput.setSelectionRange(messageInput.value.length, messageInput.value.length);
+        
+        console.log('😀 이모지 삽입 완료:', emojiInfo);
+        
+        // 이모지 선택 후 창 닫기
+        closeEmojiPicker();
+        
+    } catch (error) {
+        console.error('❌ 이모지 삽입 오류:', error);
+    }
+}
+
+// 이모지 선택 모달 닫기
+function closeEmojiPicker() {
+    console.log('😀 이모지 선택 모달 닫기');
+    
+    const modal = document.getElementById('emojiPickerModal');
     if (modal) {
         modal.style.display = 'none';
     }
