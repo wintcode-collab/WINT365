@@ -1476,69 +1476,25 @@ def get_telegram_saved_messages_with_session(account_info):
                             logger.info(f'💾 원본 메시지 타입: {type(message)}')
                             logger.info(f'💾 원본 메시지 속성: {dir(message)}')
                             
-                            # 완전히 새로운 접근: 텔레그램의 원본 메시지 포맷 그대로 보존
-                            logger.info(f'💾 🚀 새로운 방법: 원본 메시지 포맷 그대로 보존')
+                            # 🚀 최종 해결책: 원본 텍스트를 그대로 보존 (복잡한 변환 없이)
+                            logger.info(f'💾 🚀 최종 해결책: 원본 텍스트 그대로 보존')
                             
-                            # 방법 1: 텔레그램의 원본 포맷팅을 그대로 사용
+                            # 가장 간단한 방법: 원본 텍스트를 그대로 사용
                             original_text = message.text or ''
+                            logger.info(f'💾 원본 텍스트: {original_text[:100]}...')
                             
-                            # 텔레그램의 원본 포맷팅을 마크다운으로 변환 (더 정확한 방법)
+                            # 엔티티 정보만 저장 (복잡한 변환은 하지 않음)
                             if message.entities:
-                                logger.info(f'💾 엔티티 기반 원본 포맷팅 복원 시작')
-                                try:
-                                    from telethon.tl.types import MessageEntityBold, MessageEntityItalic, MessageEntityCode, MessageEntityPre, MessageEntityTextUrl, MessageEntityCustomEmoji
-                                    
-                                    # 텍스트를 문자 배열로 변환
-                                    text_chars = list(original_text)
-                                    
-                                    # 엔티티를 offset 기준으로 정렬 (역순으로 - 뒤에서부터 삽입)
-                                    sorted_entities = sorted(message.entities, key=lambda x: x.offset, reverse=True)
-                                    
-                                    for entity in sorted_entities:
-                                        start = entity.offset
-                                        end = entity.offset + entity.length
-                                        
-                                        # 엔티티 타입에 따라 마크다운 문법 추가
-                                        if isinstance(entity, MessageEntityBold):
-                                            text_chars.insert(end, '**')
-                                            text_chars.insert(start, '**')
-                                            logger.info(f'💾 Bold 엔티티 적용: {start}-{end}')
-                                        elif isinstance(entity, MessageEntityItalic):
-                                            text_chars.insert(end, '*')
-                                            text_chars.insert(start, '*')
-                                            logger.info(f'💾 Italic 엔티티 적용: {start}-{end}')
-                                        elif isinstance(entity, MessageEntityCode):
-                                            text_chars.insert(end, '`')
-                                            text_chars.insert(start, '`')
-                                            logger.info(f'💾 Code 엔티티 적용: {start}-{end}')
-                                        elif isinstance(entity, MessageEntityPre):
-                                            text_chars.insert(end, '```')
-                                            text_chars.insert(start, '```')
-                                            logger.info(f'💾 Pre 엔티티 적용: {start}-{end}')
-                                        elif isinstance(entity, MessageEntityTextUrl):
-                                            url = entity.url
-                                            text_chars.insert(end, f']({url})')
-                                            text_chars.insert(start, '[')
-                                            logger.info(f'💾 URL 엔티티 적용: {start}-{end}, URL={url}')
-                                        elif isinstance(entity, MessageEntityCustomEmoji):
-                                            # 커스텀 이모지는 그대로 유지 (이미 텍스트에 포함됨)
-                                            logger.info(f'💾 커스텀 이모지 엔티티: {start}-{end}, document_id={entity.document_id}')
-                                    
-                                    # 복원된 텍스트
-                                    restored_text = ''.join(text_chars)
-                                    logger.info(f'💾 ✅ 복원된 텍스트: {restored_text[:100]}...')
-                                    original_text = restored_text
-                                    
-                                except Exception as e:
-                                    logger.error(f'❌ 원본 텍스트 복원 실패: {e}')
-                                    logger.info(f'💾 원본 텍스트 그대로 사용: {original_text[:100]}...')
+                                logger.info(f'💾 엔티티 개수: {len(message.entities)}')
+                                # 엔티티 정보는 나중에 전송할 때 사용
                             else:
-                                logger.info(f'💾 엔티티 없음, 원본 텍스트 그대로 사용: {original_text[:100]}...')
+                                logger.info(f'💾 엔티티 없음')
                             
+                            # 🚀 최종 해결책: 원본 메시지 객체를 그대로 저장
                             message_info = {
                                 'id': message.id,
                                 'date': message.date.isoformat() if message.date else '',
-                                'text': original_text,  # 복원된 원본 텍스트 사용
+                                'text': original_text,  # 원본 텍스트 그대로 사용
                                 'media_type': None,
                                 'media_url': None,
                                 'media_path': None,
@@ -1547,11 +1503,11 @@ def get_telegram_saved_messages_with_session(account_info):
                                 'entities': [],
                                 'raw_message_data': {
                                     'id': message.id,
-                                    'text': original_text,  # 복원된 원본 텍스트 사용
+                                    'text': original_text,  # 원본 텍스트 그대로 사용
                                     'entities': [],
                                     'original_message': {
                                         'id': message.id,
-                                        'text': original_text,  # 복원된 원본 텍스트 사용
+                                        'text': original_text,  # 원본 텍스트 그대로 사용
                                         'entities': [],  # JSON 직렬화 문제로 빈 배열로 설정
                                         'date': message.date.isoformat() if message.date else None,
                                         'from_id': str(getattr(message, 'from_id', None)) if getattr(message, 'from_id', None) else None,
@@ -1559,6 +1515,10 @@ def get_telegram_saved_messages_with_session(account_info):
                                     }
                                 }
                             }
+                            
+                            # 🚀 핵심: 원본 메시지의 모든 정보를 그대로 보존
+                            logger.info(f'💾 원본 메시지 정보 저장 완료: ID={message.id}')
+                            logger.info(f'💾 저장된 텍스트: {original_text[:100]}...')
                             
                             # 텔레그램 이모지 엔티티 정보 추출 (JSON 직렬화 가능한 형태로)
                             if message.entities:
@@ -1791,9 +1751,9 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                     logger.info(f'📤 원본 텍스트: {original_text}')
                     logger.info(f'📤 원본 엔티티: {original_entities}')
                     
-                    # 완전히 새로운 접근: 텔레그램의 원본 메시지를 직접 전달
+                    # 🚀 최종 해결책: 가장 간단하고 확실한 방법
                     try:
-                        logger.info('📤 🚀 최종 방법: 텔레그램 원본 메시지 직접 전달')
+                        logger.info('📤 🚀 최종 해결책: 가장 간단하고 확실한 방법')
                         
                         # 원본 메시지 ID 사용
                         original_message_id = raw_data.get('id', 1)
@@ -1819,40 +1779,11 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                         
                     except Exception as e:
                         logger.error(f'❌ 원본 메시지 직접 전달 실패: {e}')
-                        logger.info('📤 백업: 임시 메시지 전달 방식')
+                        logger.info('📤 백업: 단순 텍스트 전송')
                         
-                        # 백업: 임시 메시지 전달 방식
-                        try:
-                            me = await client.get_me()
-                            
-                            # 임시 메시지 전송 (원본 그대로)
-                            temp_message = await client.send_message(me.id, original_text)
-                            logger.info(f'📤 임시 메시지 전송 완료: {temp_message.id}')
-                            
-                            # 임시 메시지를 대상 그룹으로 전달
-                            forwarded_messages = await client.forward_messages(
-                                entity=group_entity,
-                                messages=temp_message.id,
-                                from_peer=me.id
-                            )
-                            
-                            if forwarded_messages:
-                                forwarded_message = forwarded_messages[0] if isinstance(forwarded_messages, list) else forwarded_messages
-                                logger.info(f'✅ 백업 성공: 임시 메시지 전달 완료: {forwarded_message.id}')
-                            else:
-                                raise Exception("백업 전달도 실패")
-                            
-                            # 임시 메시지 삭제
-                            await client.delete_messages(me.id, temp_message.id)
-                            logger.info('🗑️ 임시 메시지 삭제 완료')
-                            
-                        except Exception as e2:
-                            logger.error(f'❌ 백업도 실패: {e2}')
-                            logger.info('📤 최종 백업: 단순 텍스트 전송')
-                            
-                            # 최종 백업: 단순 텍스트 전송
-                            sent_message = await client.send_message(group_entity, original_text)
-                            logger.info(f'✅ 최종 백업 성공: 단순 텍스트 전송 완료: {sent_message.id}')
+                        # 백업: 단순 텍스트 전송
+                        sent_message = await client.send_message(group_entity, original_text)
+                        logger.info(f'✅ 백업 성공: 단순 텍스트 전송 완료: {sent_message.id}')
                 
                 # 커스텀 이모지가 있는 메시지인지 확인 (기존 방식)
                 elif media_info and media_info.get('has_custom_emoji'):
