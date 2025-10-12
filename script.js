@@ -879,6 +879,7 @@ async function handleSaveTelegramSettings() {
     const apiHash = elements.telegramApiHash?.value.trim();
     const phone = elements.telegramPhone?.value.trim();
     const verificationCode = elements.telegramVerificationCode?.value.trim();
+    const password = document.getElementById('telegramPassword')?.value.trim();
     
     // 유효성 검사
     if (!apiId || !apiHash || !phone) {
@@ -910,8 +911,15 @@ async function handleSaveTelegramSettings() {
         // 인증코드 입력 후 - 인증 완료
         console.log('인증코드 검증 시작...');
         await completeTelegramAuth(verificationCode);
+    } else if (telegramAuthState === 'password_needed' && password) {
+        // 2단계 인증 비밀번호 입력 후 - 비밀번호 검증
+        console.log('2단계 인증 비밀번호 검증 시작...');
+        await completePasswordAuth(password);
     } else if (telegramAuthState === 'code_sent' && !verificationCode) {
         alert('인증코드를 입력해주세요.');
+        return;
+    } else if (telegramAuthState === 'password_needed' && !password) {
+        alert('2단계 인증 비밀번호를 입력해주세요.');
         return;
     } else {
         console.log('알 수 없는 인증 상태:', telegramAuthState);
@@ -1116,6 +1124,100 @@ function showVerificationCodeInput() {
     }
 }
 
+// 2단계 인증 비밀번호 입력칸 표시
+function showPasswordInput() {
+    const passwordGroup = document.getElementById('passwordGroup');
+    if (passwordGroup) {
+        passwordGroup.style.display = 'block';
+        passwordGroup.style.opacity = '0';
+        passwordGroup.style.transform = 'translateY(20px)';
+        
+        // 애니메이션으로 표시
+        setTimeout(() => {
+            passwordGroup.style.transition = 'all 0.3s ease';
+            passwordGroup.style.opacity = '1';
+            passwordGroup.style.transform = 'translateY(0)';
+        }, 100);
+        
+        // 비밀번호 입력 필드에 포커스
+        const passwordInput = document.getElementById('telegramPassword');
+        if (passwordInput) {
+            setTimeout(() => {
+                passwordInput.focus();
+            }, 400);
+        }
+        
+        // 버튼 텍스트 변경
+        const saveBtn = document.getElementById('saveTelegramBtn');
+        if (saveBtn) {
+            saveBtn.textContent = 'Enter Password';
+        }
+    }
+}
+
+// 2단계 인증 비밀번호 처리
+async function completePasswordAuth(password) {
+    try {
+        telegramAuthState = 'requesting';
+        elements.saveTelegramBtn.textContent = 'Verifying Password...';
+        elements.saveTelegramBtn.disabled = true;
+        
+        console.log('🔐 2단계 인증 비밀번호 전송 중...', {
+            client_id: telegramClientId,
+            password_length: password.length
+        });
+        
+        const response = await fetch('/api/telegram/verify-password', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                client_id: telegramClientId,
+                password: password
+            })
+        });
+        
+        const result = await response.json();
+        console.log('🔐 2단계 인증 응답:', result);
+        
+        if (response.ok && result.success) {
+            console.log('✅ 2단계 인증 성공!');
+            
+            // 성공 메시지 표시
+            alert(`✅ 2단계 인증이 완료되었습니다!\n\n👤 사용자: ${result.user.first_name} ${result.user.last_name || ''}\n📱 전화번호: ${result.account_info.phone_number}\n🆔 사용자 ID: ${result.user.id}`);
+            
+            // 입력 필드 초기화
+            elements.telegramApiId.value = '';
+            elements.telegramApiHash.value = '';
+            elements.telegramPhone.value = '';
+            elements.telegramVerificationCode.value = '';
+            elements.telegramPassword.value = '';
+            
+            // 입력칸 숨기기
+            document.getElementById('verificationCodeGroup').style.display = 'none';
+            document.getElementById('passwordGroup').style.display = 'none';
+            
+            // 버튼 상태 초기화
+            elements.saveTelegramBtn.textContent = 'Register';
+            elements.saveTelegramBtn.disabled = false;
+            telegramAuthState = 'idle';
+            
+        } else {
+            console.error('❌ 2단계 인증 실패:', result);
+            throw new Error(result.error || '2단계 인증에 실패했습니다.');
+        }
+        
+    } catch (error) {
+        console.error('❌ 2단계 인증 실패:', error);
+        alert(`❌ 2단계 인증에 실패했습니다:\n\n${error.message}`);
+        
+        telegramAuthState = 'idle';
+        elements.saveTelegramBtn.textContent = 'Enter Password';
+        elements.saveTelegramBtn.disabled = false;
+    }
+}
+
 // 텔레그램 인증 완료
 async function completeTelegramAuth(verificationCode) {
     try {
@@ -1242,6 +1344,12 @@ async function completeTelegramAuth(verificationCode) {
             } else if (error.message.includes('SESSION_PASSWORD_NEEDED')) {
                 errorMessage = '2단계 인증이 필요합니다.';
                 errorDetails = '텔레그램에서 2단계 인증 비밀번호를 입력해주세요.';
+                
+                // 2단계 인증 비밀번호 입력칸 표시
+                showPasswordInput();
+                
+                // 인증 상태를 password_needed로 변경
+                telegramAuthState = 'password_needed';
             } else if (error.message.includes('PHONE_NUMBER_UNOCCUPIED')) {
                 errorMessage = '등록되지 않은 전화번호입니다.';
                 errorDetails = '텔레그램에 등록된 전화번호를 사용해주세요.';

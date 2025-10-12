@@ -646,11 +646,12 @@ def verify_code():
             
         except SessionPasswordNeededError:
             logger.error('❌ 2단계 인증이 필요합니다.')
-            if client_id in clients:
-                del clients[client_id]
+            # 2단계 인증이 필요한 경우 클라이언트 데이터 유지
+            logger.info('🔐 2단계 인증 대기 중 - 클라이언트 데이터 유지')
             return jsonify({
                 'success': False,
-                'error': '2단계 인증이 필요합니다. 비밀번호를 입력해주세요.'
+                'error': 'SESSION_PASSWORD_NEEDED',
+                'message': '2단계 인증이 필요합니다. 비밀번호를 입력해주세요.'
             }), 400
             
         except Exception as api_error:
@@ -702,6 +703,98 @@ def verify_code():
         return jsonify({
             'success': False,
             'error': f'서버 오류: {str(error)}'
+        }), 500
+
+# 2단계 인증 비밀번호 처리
+@app.route('/api/telegram/verify-password', methods=['POST'])
+def verify_password():
+    try:
+        data = request.get_json()
+        client_id = data.get('client_id')
+        password = data.get('password')
+        
+        if not client_id or not password:
+            return jsonify({
+                'success': False,
+                'error': '클라이언트 ID와 비밀번호가 필요합니다.'
+            }), 400
+        
+        if client_id not in clients:
+            return jsonify({
+                'success': False,
+                'error': '클라이언트 데이터를 찾을 수 없습니다. 다시 인증코드를 요청해주세요.'
+            }), 400
+        
+        client_data = clients[client_id]
+        
+        def run_telethon_password():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
+            async def verify_password_async():
+                # 세션 파일을 사용하여 클라이언트 생성
+                session_file = client_data.get('session_file')
+                if session_file:
+                    client = TelegramClient(session_file, client_data['api_id'], client_data['api_hash'])
+                else:
+                    client = TelegramClient(f'session_password_{client_id}', client_data['api_id'], client_data['api_hash'])
+                
+                try:
+                    await client.connect()
+                    logger.info('🔐 2단계 인증 비밀번호 확인 중...')
+                    
+                    # 2단계 인증 비밀번호로 로그인
+                    result = await client.sign_in(password=password)
+                    logger.info('✅ 2단계 인증 성공!')
+                    
+                    # 계정 정보 수집
+                    account_info = {
+                        'user_id': result.id,
+                        'first_name': result.first_name,
+                        'last_name': result.last_name,
+                        'username': result.username,
+                        'phone_number': client_data.get('phone_number'),
+                        'api_id': client_data['api_id'],
+                        'api_hash': client_data['api_hash'],
+                        'session_file': session_file
+                    }
+                    
+                    # Firebase에 계정 정보 저장
+                    save_account_to_firebase(account_info)
+                    
+                    return result, account_info
+                    
+                finally:
+                    await client.disconnect()
+            
+            return loop.run_until_complete(verify_password_async())
+        
+        # 새 스레드에서 실행
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(run_telethon_password)
+            result, account_info = future.result()
+        
+        # 클라이언트 정리
+        if client_id in clients:
+            del clients[client_id]
+        
+        return jsonify({
+            'success': True,
+            'user': {
+                'id': result.id,
+                'first_name': result.first_name,
+                'last_name': result.last_name,
+                'username': result.username
+            },
+            'account_info': account_info,
+            'message': '2단계 인증이 완료되었습니다!'
+        })
+        
+    except Exception as error:
+        logger.error(f'2단계 인증 실패: {error}')
+        return jsonify({
+            'success': False,
+            'error': f'2단계 인증 실패: {str(error)}'
         }), 500
 
 # 헬스체크 엔드포인트

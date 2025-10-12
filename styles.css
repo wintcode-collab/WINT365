@@ -776,6 +776,44 @@ input:focus, button:focus, textarea:focus, select:focus {
     font-weight: 500;
 }
 
+/* 2단계 인증 비밀번호 입력칸 스타일 */
+#passwordGroup {
+    opacity: 0;
+    transform: translateY(-20px);
+    transition: all 0.3s ease-in-out;
+}
+
+#passwordGroup.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+#passwordGroup .telegram-input-field {
+    background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+    border: 2px solid #ff9800;
+    color: #ff9800;
+    font-weight: 600;
+    text-align: center;
+    letter-spacing: 1px;
+    font-size: 16px;
+}
+
+#passwordGroup .telegram-input-field:focus {
+    border-color: #f57c00;
+    box-shadow: 0 0 20px rgba(255, 152, 0, 0.3);
+    background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
+}
+
+#passwordGroup .telegram-input-icon {
+    color: #ff9800;
+    font-size: 18px;
+}
+
+#passwordGroup .telegram-placeholder {
+    color: #ff9800;
+    font-weight: 500;
+}
+
 /* 반응형 디자인 */
 @media (max-width: 900px) {
     .main-app-window {
