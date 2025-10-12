@@ -2340,20 +2340,43 @@ function selectTelegramSavedMessage(messageIndex, savedMessages) {
         const message = savedMessages[messageIndex];
         const messageInput = document.querySelector('.message-input');
         
+        console.log('💾 선택된 메시지 정보:', {
+            text: message.text,
+            has_custom_emoji: message.has_custom_emoji,
+            custom_emoji_entities: message.custom_emoji_entities,
+            entities: message.entities,
+            media_type: message.media_type
+        });
+        
         if (messageInput) {
             // 텍스트 입력
             messageInput.value = message.text || '';
             messageInput.focus();
+            console.log('💾 메시지 입력칸에 텍스트 설정 완료:', messageInput.value);
         }
         
-        // 미디어 정보 저장 (전역 변수에)
+        // 미디어 정보 및 커스텀 이모지 정보 저장 (전역 변수에)
         if (message.media_type && message.media_path) {
             window.selectedMediaInfo = {
                 media_type: message.media_type,
                 media_path: message.media_path,
-                media_url: message.media_url
+                media_url: message.media_url,
+                has_custom_emoji: message.has_custom_emoji || false,
+                custom_emoji_entities: message.custom_emoji_entities || [],
+                entities: message.entities || []
             };
             console.log('💾 미디어 정보 저장:', window.selectedMediaInfo);
+        } else if (message.has_custom_emoji) {
+            // 텍스트만 있지만 커스텀 이모지가 있는 경우
+            window.selectedMediaInfo = {
+                media_type: null,
+                media_path: null,
+                media_url: null,
+                has_custom_emoji: message.has_custom_emoji,
+                custom_emoji_entities: message.custom_emoji_entities || [],
+                entities: message.entities || []
+            };
+            console.log('💾 커스텀 이모지 정보 저장:', window.selectedMediaInfo);
         } else {
             window.selectedMediaInfo = null;
         }
