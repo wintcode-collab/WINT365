@@ -1374,24 +1374,79 @@ def get_telegram_saved_messages_with_session(account_info):
                     from telethon.tl.types import InputPeerSelf
                     
                     try:
-                        # 저장된 메시지 가져오기 (원본 그대로) - 더 상세한 정보 포함
+                        # 완전히 새로운 접근: 텔레그램의 원본 메시지 데이터를 직접 가져오기
+                        logger.info('💾 🚀 최종 방법: 텔레그램 원본 메시지 데이터 직접 가져오기')
+                        
+                        # 방법 1: get_messages로 원본 데이터 가져오기
                         messages = await client.get_messages(InputPeerSelf(), limit=100)
                         logger.info(f'💾 저장된 메시지 {len(messages)}개를 찾았습니다.')
                         
-                        # 원본 메시지 데이터를 더 상세하게 가져오기
+                        # 원본 메시지 데이터를 더 상세하게 분석
                         if messages:
                             logger.info('💾 원본 메시지 데이터 상세 분석 시작')
                             for msg in messages[:3]:  # 처음 3개만 상세 분석
                                 logger.info(f'💾 메시지 ID: {msg.id}')
-                                logger.info(f'💾 원본 텍스트: {repr(msg.text)}')
+                                logger.info(f'💾 원본 텍스트 (repr): {repr(msg.text)}')
+                                logger.info(f'💾 원본 텍스트 (str): {msg.text}')
                                 logger.info(f'💾 엔티티 개수: {len(msg.entities) if msg.entities else 0}')
+                                
+                                # 원본 메시지의 모든 속성 확인
+                                logger.info(f'💾 메시지 속성들: {[attr for attr in dir(msg) if not attr.startswith("_")]}')
+                                
                                 if msg.entities:
-                                    for i, entity in enumerate(msg.entities[:5]):  # 처음 5개 엔티티만
-                                        logger.info(f'💾 엔티티 {i}: {type(entity).__name__} - offset={entity.offset}, length={entity.length}')
+                                    for i, entity in enumerate(msg.entities[:10]):  # 처음 10개 엔티티
+                                        logger.info(f'💾 엔티티 {i}: {type(entity).__name__}')
+                                        logger.info(f'💾   - offset: {entity.offset}, length: {entity.length}')
                                         if hasattr(entity, 'type'):
-                                            logger.info(f'💾 엔티티 타입: {entity.type}')
+                                            logger.info(f'💾   - type: {entity.type}')
                                         if hasattr(entity, 'document_id'):
-                                            logger.info(f'💾 문서 ID: {entity.document_id}')
+                                            logger.info(f'💾   - document_id: {entity.document_id}')
+                                        if hasattr(entity, 'url'):
+                                            logger.info(f'💾   - url: {entity.url}')
+                                
+                                # 원본 메시지의 raw 데이터 확인
+                                logger.info(f'💾 원본 메시지 raw 데이터: {msg}')
+                                
+                                # 텔레그램의 원본 포맷팅을 그대로 사용해보기
+                                if msg.entities:
+                                    logger.info('💾 원본 포맷팅을 그대로 사용 시도')
+                                    try:
+                                        # 텔레그램의 원본 포맷팅을 마크다운으로 변환
+                                        from telethon.tl.types import MessageEntityBold, MessageEntityItalic, MessageEntityCode, MessageEntityPre, MessageEntityTextUrl, MessageEntityCustomEmoji
+                                        
+                                        # 텍스트를 문자 배열로 변환
+                                        text_chars = list(msg.text or '')
+                                        
+                                        # 엔티티를 offset 기준으로 정렬 (역순으로)
+                                        sorted_entities = sorted(msg.entities, key=lambda x: x.offset, reverse=True)
+                                        
+                                        for entity in sorted_entities:
+                                            start = entity.offset
+                                            end = entity.offset + entity.length
+                                            
+                                            if isinstance(entity, MessageEntityBold):
+                                                text_chars.insert(end, '**')
+                                                text_chars.insert(start, '**')
+                                            elif isinstance(entity, MessageEntityItalic):
+                                                text_chars.insert(end, '*')
+                                                text_chars.insert(start, '*')
+                                            elif isinstance(entity, MessageEntityCode):
+                                                text_chars.insert(end, '`')
+                                                text_chars.insert(start, '`')
+                                            elif isinstance(entity, MessageEntityPre):
+                                                text_chars.insert(end, '```')
+                                                text_chars.insert(start, '```')
+                                            elif isinstance(entity, MessageEntityTextUrl):
+                                                url = entity.url
+                                                text_chars.insert(end, f']({url})')
+                                                text_chars.insert(start, '[')
+                                        
+                                        # 복원된 텍스트
+                                        restored_text = ''.join(text_chars)
+                                        logger.info(f'💾 ✅ 복원된 텍스트: {restored_text[:100]}...')
+                                        
+                                    except Exception as e:
+                                        logger.error(f'❌ 원본 포맷팅 복원 실패: {e}')
                         
                         if len(messages) == 0:
                             # 대화 목록에서 자신과의 대화 찾기
@@ -1736,51 +1791,68 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                     logger.info(f'📤 원본 텍스트: {original_text}')
                     logger.info(f'📤 원본 엔티티: {original_entities}')
                     
-                    # 완전히 새로운 접근: 텔레그램 메시지 전달 방식 (100% 원본 보장)
+                    # 완전히 새로운 접근: 텔레그램의 원본 메시지를 직접 전달
                     try:
-                        logger.info('📤 🚀 최종 방법: 텔레그램 메시지 전달 방식 (100% 원본 보장)')
+                        logger.info('📤 🚀 최종 방법: 텔레그램 원본 메시지 직접 전달')
                         
-                        # 1단계: 자신에게 원본 메시지를 그대로 전송
+                        # 원본 메시지 ID 사용
+                        original_message_id = raw_data.get('id', 1)
+                        logger.info(f'📤 원본 메시지 ID: {original_message_id}')
+                        
+                        # 자신의 저장된 메시지에서 원본 메시지를 직접 전달
                         me = await client.get_me()
-                        logger.info(f'📤 자신에게 임시 메시지 전송: {me.id}')
+                        logger.info(f'📤 자신의 저장된 메시지에서 전달: {me.id}')
                         
-                        # 원본 메시지 ID와 엔티티 정보 사용
-                        message_id = raw_data.get('id', 1)
-                        
-                        # 임시 메시지 전송 (원본 그대로)
-                        temp_message = await client.send_message(me.id, original_text)
-                        logger.info(f'📤 임시 메시지 전송 완료: {temp_message.id}')
-                        
-                        # 2단계: 임시 메시지를 대상 그룹으로 전달 (완전히 원본 그대로)
-                        logger.info(f'📤 그룹으로 메시지 전달: {group_entity.title}')
+                        # 원본 메시지를 직접 전달 (완전히 원본 그대로)
                         forwarded_messages = await client.forward_messages(
                             entity=group_entity,
-                            messages=temp_message.id,
-                            from_peer=me.id
+                            messages=original_message_id,
+                            from_peer=InputPeerSelf()
                         )
                         
                         if forwarded_messages:
                             forwarded_message = forwarded_messages[0] if isinstance(forwarded_messages, list) else forwarded_messages
-                            logger.info(f'✅ 🎉 전달 성공! 완전히 원본 그대로 전송됨: {forwarded_message.id}')
+                            logger.info(f'✅ 🎉 원본 메시지 직접 전달 성공! 완전히 원본 그대로: {forwarded_message.id}')
                         else:
                             logger.error('❌ 전달된 메시지가 없음')
                             raise Exception("전달된 메시지가 없음")
                         
-                        # 3단계: 임시 메시지 삭제
-                        await client.delete_messages(me.id, temp_message.id)
-                        logger.info('🗑️ 임시 메시지 삭제 완료')
-                        
                     except Exception as e:
-                        logger.error(f'❌ 전달 방식 실패: {e}')
-                        logger.info('📤 백업: 단순 텍스트 전송')
+                        logger.error(f'❌ 원본 메시지 직접 전달 실패: {e}')
+                        logger.info('📤 백업: 임시 메시지 전달 방식')
                         
-                        # 백업: 단순 텍스트 전송
+                        # 백업: 임시 메시지 전달 방식
                         try:
-                            sent_message = await client.send_message(group_entity, original_text)
-                            logger.info(f'✅ 백업 성공: 단순 텍스트 전송 완료: {sent_message.id}')
+                            me = await client.get_me()
+                            
+                            # 임시 메시지 전송 (원본 그대로)
+                            temp_message = await client.send_message(me.id, original_text)
+                            logger.info(f'📤 임시 메시지 전송 완료: {temp_message.id}')
+                            
+                            # 임시 메시지를 대상 그룹으로 전달
+                            forwarded_messages = await client.forward_messages(
+                                entity=group_entity,
+                                messages=temp_message.id,
+                                from_peer=me.id
+                            )
+                            
+                            if forwarded_messages:
+                                forwarded_message = forwarded_messages[0] if isinstance(forwarded_messages, list) else forwarded_messages
+                                logger.info(f'✅ 백업 성공: 임시 메시지 전달 완료: {forwarded_message.id}')
+                            else:
+                                raise Exception("백업 전달도 실패")
+                            
+                            # 임시 메시지 삭제
+                            await client.delete_messages(me.id, temp_message.id)
+                            logger.info('🗑️ 임시 메시지 삭제 완료')
+                            
                         except Exception as e2:
                             logger.error(f'❌ 백업도 실패: {e2}')
-                            return False
+                            logger.info('📤 최종 백업: 단순 텍스트 전송')
+                            
+                            # 최종 백업: 단순 텍스트 전송
+                            sent_message = await client.send_message(group_entity, original_text)
+                            logger.info(f'✅ 최종 백업 성공: 단순 텍스트 전송 완료: {sent_message.id}')
                 
                 # 커스텀 이모지가 있는 메시지인지 확인 (기존 방식)
                 elif media_info and media_info.get('has_custom_emoji'):
