@@ -346,9 +346,15 @@ def send_code():
                         logger.info(f'📋 결과 타입: {type(result)}')
                         logger.info(f'📋 결과 속성: {dir(result)}')
                         
-                        # 인증코드 발송 후 추가 대기 (실제 전달 확인)
-                        logger.info('⏳ 인증코드 전달 확인을 위한 추가 대기 (3초)...')
-                        await asyncio.sleep(3)
+                        # 인증코드 발송 후 세션 저장 및 추가 대기
+                        logger.info('💾 세션 저장 중...')
+                        await client.disconnect()  # 세션 저장을 위해 연결 해제
+                        await asyncio.sleep(2)     # 세션 저장 완료 대기
+                        logger.info('✅ 세션 저장 완료')
+                        
+                        # 인증코드 전달 확인을 위한 추가 대기
+                        logger.info('⏳ 인증코드 전달 확인을 위한 추가 대기 (5초)...')
+                        await asyncio.sleep(5)
                         logger.info('✅ 인증코드 전달 대기 완료')
                         
                         # 결과 상세 정보 로깅
@@ -366,8 +372,8 @@ def send_code():
                         
                         return client, result, session_file
                     finally:
-                        # 연결 유지 (세션 보존을 위해)
-                        logger.info('🔌 클라이언트 연결 유지 (세션 보존)')
+                        # 세션 저장 완료
+                        logger.info('🔌 세션 저장 완료')
                 
                 try:
                     client, result, session_file = loop.run_until_complete(send_code_async())
@@ -504,15 +510,16 @@ def verify_code():
                 asyncio.set_event_loop(loop)
                 
                 async def verify_code_async():
-                    # 원래 클라이언트 재사용 (세션 정보 보존)
-                    logger.info('🔧 원래 클라이언트 재사용 중...')
-                    original_client = client_data.get('client')
+                    # 세션 파일을 사용하여 클라이언트 재생성
+                    logger.info('🔧 세션 파일로 클라이언트 재생성 중...')
+                    session_file = client_data.get('session_file')
                     
-                    if original_client and hasattr(original_client, 'is_connected'):
-                        logger.info('✅ 원래 클라이언트 발견, 재사용')
-                        client = original_client
+                    if session_file:
+                        logger.info(f'✅ 세션 파일 발견: {session_file}')
+                        client = TelegramClient(session_file, client_data['api_id'], client_data['api_hash'])
+                        logger.info('✅ 세션 파일로 클라이언트 재생성 완료')
                     else:
-                        logger.info('⚠️ 원래 클라이언트 없음, 새 클라이언트 생성...')
+                        logger.info('⚠️ 세션 파일 없음, 새 클라이언트 생성...')
                         # 새로운 클라이언트 생성 (asyncio 문제 방지)
                         client = TelegramClient(f'session_verify_{client_id}', client_data['api_id'], client_data['api_hash'])
                         logger.info('✅ 새로운 클라이언트 생성 완료')
