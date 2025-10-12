@@ -723,6 +723,301 @@ input:focus, button:focus, textarea:focus, select:focus {
     color: #888888;
 }
 
+/* 텔레그램 그룹 관리 창 */
+.telegram-groups-window {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 400px;
+    background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+    border-top: 2px solid #10B981;
+    border-radius: 20px 20px 0 0;
+    transform: translateY(100%);
+    transition: transform 0.5s ease-in-out;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.5);
+}
+
+.telegram-groups-window.show {
+    transform: translateY(0);
+}
+
+.groups-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 30px;
+    border-bottom: 1px solid rgba(16, 185, 129, 0.3);
+    background: rgba(16, 185, 129, 0.1);
+}
+
+.groups-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.groups-icon {
+    font-size: 20px;
+}
+
+.groups-title-text {
+    font-size: 18px;
+    font-weight: 600;
+    color: #10B981;
+}
+
+.groups-close-btn {
+    background: none;
+    border: none;
+    color: #888;
+    font-size: 24px;
+    cursor: pointer;
+    padding: 5px;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.groups-close-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+}
+
+.groups-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 20px 30px;
+    overflow: hidden;
+}
+
+.groups-account-info {
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    border-radius: 10px;
+    padding: 15px;
+    margin-bottom: 20px;
+}
+
+.account-name {
+    font-size: 16px;
+    font-weight: 600;
+    color: #10B981;
+    margin-bottom: 5px;
+}
+
+.account-phone {
+    font-size: 14px;
+    color: #888;
+}
+
+.groups-list-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.groups-list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.groups-count {
+    font-size: 14px;
+    color: #10B981;
+    font-weight: 600;
+}
+
+.refresh-groups-btn {
+    background: rgba(16, 185, 129, 0.2);
+    border: 1px solid #10B981;
+    color: #10B981;
+    padding: 8px 15px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.refresh-groups-btn:hover {
+    background: #10B981;
+    color: #fff;
+}
+
+.groups-list {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-right: 5px;
+}
+
+.groups-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.groups-list::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+}
+
+.groups-list::-webkit-scrollbar-thumb {
+    background: #10B981;
+    border-radius: 3px;
+}
+
+.group-item {
+    background: linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%);
+    border: 1px solid #444;
+    border-radius: 10px;
+    padding: 15px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.group-item:hover {
+    border-color: #10B981;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(16, 185, 129, 0.3);
+}
+
+.group-item.selected {
+    border-color: #10B981;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(16, 185, 129, 0.1) 100%);
+}
+
+.group-name {
+    font-size: 16px;
+    font-weight: 600;
+    color: #10B981;
+    margin-bottom: 5px;
+}
+
+.group-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 14px;
+    color: #888;
+}
+
+.group-members {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.group-type {
+    background: rgba(16, 185, 129, 0.2);
+    color: #10B981;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.message-sending-section {
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    border-radius: 10px;
+    padding: 20px;
+    margin-top: 20px;
+}
+
+.selected-group-info {
+    margin-bottom: 15px;
+}
+
+.selected-group-name {
+    font-size: 16px;
+    font-weight: 600;
+    color: #10B981;
+    display: block;
+    margin-bottom: 5px;
+}
+
+.selected-group-members {
+    font-size: 14px;
+    color: #888;
+}
+
+.message-input-container {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.message-input {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid #444;
+    border-radius: 8px;
+    padding: 15px;
+    color: #fff;
+    font-size: 14px;
+    font-family: inherit;
+    resize: vertical;
+    min-height: 80px;
+    transition: border-color 0.3s ease;
+}
+
+.message-input:focus {
+    outline: none;
+    border-color: #10B981;
+}
+
+.message-input::placeholder {
+    color: #666;
+}
+
+.message-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
+.send-message-btn, .cancel-message-btn {
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: none;
+}
+
+.send-message-btn {
+    background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+    color: #fff;
+}
+
+.send-message-btn:hover {
+    background: linear-gradient(135deg, #059669 0%, #047857 100%);
+    transform: translateY(-1px);
+}
+
+.cancel-message-btn {
+    background: rgba(255, 255, 255, 0.1);
+    color: #888;
+    border: 1px solid #444;
+}
+
+.cancel-message-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
+}
+
 /* 화면 전환 애니메이션 */
 .screen-transition {
     transition: opacity 0.3s ease-in-out;

@@ -123,6 +123,9 @@ function setupEventListeners() {
         elements.testTelegramBtn.addEventListener('click', handleTestTelegramConnection);
     }
     
+    // 텔레그램 그룹 관리 창 이벤트 리스너들
+    setupTelegramGroupsEventListeners();
+    
     // Enter 키 이벤트
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Enter') {
@@ -1755,134 +1758,353 @@ async function loadGroupsForAccount(account) {
     }
 }
 
-// 그룹 목록 표시
+// 그룹 목록 표시 (새로운 그룹 관리 창 사용)
 function showGroupList(groups, account) {
     console.log('📋 그룹 목록 표시 중...', groups);
     
-    // 그룹 목록을 표시할 모달 생성
-    const modal = document.createElement('div');
-    modal.id = 'groupListModal';
-    modal.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0, 0, 0, 0.8);
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        z-index: 10000;
-        backdrop-filter: blur(5px);
-    `;
+    // status-bar 애니메이션과 그룹 관리 창 표시
+    showTelegramGroupsWindow(groups, account);
+}
+
+// 텔레그램 그룹 관리 창 표시
+function showTelegramGroupsWindow(groups, account) {
+    console.log('🎬 텔레그램 그룹 관리 창 표시 시작');
     
-    const modalContent = document.createElement('div');
-    modalContent.style.cssText = `
-        background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
-        border-radius: 20px;
-        padding: 30px;
-        max-width: 600px;
-        width: 90%;
-        max-height: 80vh;
-        overflow-y: auto;
-        border: 2px solid #10B981;
-        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
-    `;
+    // status-bar 내리기 애니메이션
+    const statusBar = document.querySelector('.status-bar');
+    if (statusBar) {
+        statusBar.style.transition = 'transform 0.5s ease-in-out';
+        statusBar.style.transform = 'translateY(100%)';
+        console.log('🎬 status-bar 내리기 애니메이션 시작');
+    }
     
-    modalContent.innerHTML = `
-        <div style="text-align: center; margin-bottom: 25px;">
-            <h2 style="color: #10B981; margin: 0 0 10px 0; font-size: 24px; font-weight: 600;">
-                📱 ${account.first_name}의 텔레그램 그룹
-            </h2>
-            <p style="color: #888; margin: 0; font-size: 14px;">
-                ${groups.length}개의 그룹/채널을 찾았습니다
-            </p>
-        </div>
+    // 그룹 관리 창 표시
+    const groupsWindow = document.getElementById('telegramGroupsWindow');
+    if (groupsWindow) {
+        // 계정 정보 설정
+        document.getElementById('selectedAccountName').textContent = `${account.first_name} ${account.last_name || ''}`;
+        document.getElementById('selectedAccountPhone').textContent = `📱 ${account.phone_number}`;
         
-        <div id="groupList" style="margin-bottom: 25px;">
-            ${groups.map((group, index) => `
-                <div class="group-item" style="
-                    background: linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%);
-                    border: 1px solid #444;
-                    border-radius: 12px;
-                    padding: 15px;
-                    margin-bottom: 10px;
-                    transition: all 0.3s ease;
-                ">
-                    <div style="display: flex; align-items: center; justify-content: space-between;">
-                        <div style="flex: 1;">
-                            <div style="color: #10B981; font-weight: 600; font-size: 16px; margin-bottom: 5px;">
-                                ${group.title}
-                            </div>
-                            <div style="color: #888; font-size: 14px; margin-bottom: 3px;">
-                                👥 멤버: ${group.member_count.toLocaleString()}명
-                            </div>
-                            <div style="color: #888; font-size: 14px; margin-bottom: 3px;">
-                                📋 타입: ${group.type === 'supergroup' ? '슈퍼그룹' : '채널'}
-                            </div>
-                            ${group.username ? `
-                                <div style="color: #888; font-size: 14px;">
-                                    @${group.username}
-                                </div>
-                            ` : ''}
-                            ${group.description ? `
-                                <div style="color: #666; font-size: 12px; margin-top: 5px; font-style: italic;">
-                                    ${group.description.length > 100 ? group.description.substring(0, 100) + '...' : group.description}
-                                </div>
-                            ` : ''}
-                        </div>
-                        <div style="color: #10B981; font-size: 20px;">
-                            📱
-                        </div>
-                    </div>
+        // 그룹 개수 설정
+        document.getElementById('groupsCount').textContent = `${groups.length}개의 그룹`;
+        
+        // 그룹 목록 렌더링
+        renderGroupsList(groups);
+        
+        // 창 표시
+        groupsWindow.style.display = 'flex';
+        setTimeout(() => {
+            groupsWindow.classList.add('show');
+        }, 100);
+        
+        console.log('✅ 텔레그램 그룹 관리 창 표시 완료');
+    }
+}
+
+// 그룹 목록 렌더링
+function renderGroupsList(groups) {
+    const groupsList = document.getElementById('groupsList');
+    if (!groupsList) return;
+    
+    groupsList.innerHTML = groups.map((group, index) => `
+        <div class="group-item" data-group-id="${group.id}" data-group-index="${index}">
+            <div class="group-name">${group.title}</div>
+            <div class="group-info">
+                <div class="group-members">
+                    👥 ${group.member_count.toLocaleString()}명
                 </div>
-            `).join('')}
+                <div class="group-type">
+                    ${group.type === 'supergroup' ? '슈퍼그룹' : '채널'}
+                </div>
+            </div>
         </div>
-        
-        <div style="text-align: center;">
-            <button id="closeGroupList" style="
-                background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);
-                color: white;
-                border: none;
-                padding: 12px 30px;
-                border-radius: 8px;
-                font-size: 14px;
-                font-weight: 600;
-                cursor: pointer;
-                transition: all 0.3s ease;
-            ">닫기</button>
-        </div>
-    `;
+    `).join('');
     
-    modal.appendChild(modalContent);
-    document.body.appendChild(modal);
-    
-    // 그룹 아이템 호버 효과
-    const groupItems = modal.querySelectorAll('.group-item');
+    // 그룹 아이템 클릭 이벤트 추가
+    const groupItems = groupsList.querySelectorAll('.group-item');
     groupItems.forEach(item => {
-        item.addEventListener('mouseenter', () => {
-            item.style.borderColor = '#10B981';
-            item.style.transform = 'translateY(-2px)';
-            item.style.boxShadow = '0 5px 15px rgba(16, 185, 129, 0.3)';
+        item.addEventListener('click', () => {
+            const groupId = item.dataset.groupId;
+            const groupIndex = parseInt(item.dataset.groupIndex);
+            const group = groups[groupIndex];
+            
+            // 선택된 그룹 표시
+            selectGroup(group, item);
+        });
+    });
+}
+
+// 그룹 선택
+function selectGroup(group, groupElement) {
+    console.log('📱 그룹 선택:', group);
+    
+    // 모든 그룹 아이템에서 선택 상태 제거
+    document.querySelectorAll('.group-item').forEach(item => {
+        item.classList.remove('selected');
+    });
+    
+    // 선택된 그룹에 선택 상태 추가
+    groupElement.classList.add('selected');
+    
+    // 선택된 그룹 정보 표시
+    document.getElementById('selectedGroupName').textContent = group.title;
+    document.getElementById('selectedGroupMembers').textContent = `👥 ${group.member_count.toLocaleString()}명`;
+    
+    // 메시지 전송 섹션 표시
+    const messageSection = document.getElementById('messageSendingSection');
+    if (messageSection) {
+        messageSection.style.display = 'block';
+    }
+    
+    // 메시지 입력 필드 포커스
+    const messageInput = document.getElementById('messageInput');
+    if (messageInput) {
+        messageInput.focus();
+    }
+}
+
+// 텔레그램 그룹 관리 창 이벤트 리스너 설정
+function setupTelegramGroupsEventListeners() {
+    // 그룹 관리 창 닫기 버튼
+    const groupsCloseBtn = document.getElementById('groupsCloseBtn');
+    if (groupsCloseBtn) {
+        groupsCloseBtn.addEventListener('click', closeTelegramGroupsWindow);
+    }
+    
+    // 새로고침 버튼
+    const refreshGroupsBtn = document.getElementById('refreshGroupsBtn');
+    if (refreshGroupsBtn) {
+        refreshGroupsBtn.addEventListener('click', refreshGroups);
+    }
+    
+    // 메시지 전송 버튼
+    const sendMessageBtn = document.getElementById('sendMessageBtn');
+    if (sendMessageBtn) {
+        sendMessageBtn.addEventListener('click', sendMessageToGroup);
+    }
+    
+    // 메시지 취소 버튼
+    const cancelMessageBtn = document.getElementById('cancelMessageBtn');
+    if (cancelMessageBtn) {
+        cancelMessageBtn.addEventListener('click', cancelMessage);
+    }
+    
+    // 메시지 입력 필드 Enter 키 이벤트
+    const messageInput = document.getElementById('messageInput');
+    if (messageInput) {
+        messageInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && e.ctrlKey) {
+                sendMessageToGroup();
+            }
+        });
+    }
+}
+
+// 그룹 관리 창 닫기
+function closeTelegramGroupsWindow() {
+    console.log('🎬 텔레그램 그룹 관리 창 닫기');
+    
+    const groupsWindow = document.getElementById('telegramGroupsWindow');
+    const statusBar = document.querySelector('.status-bar');
+    
+    if (groupsWindow) {
+        groupsWindow.classList.remove('show');
+        setTimeout(() => {
+            groupsWindow.style.display = 'none';
+        }, 500);
+    }
+    
+    if (statusBar) {
+        statusBar.style.transform = 'translateY(0)';
+    }
+    
+    // 메시지 전송 섹션 숨기기
+    const messageSection = document.getElementById('messageSendingSection');
+    if (messageSection) {
+        messageSection.style.display = 'none';
+    }
+    
+    // 메시지 입력 필드 초기화
+    const messageInput = document.getElementById('messageInput');
+    if (messageInput) {
+        messageInput.value = '';
+    }
+    
+    // 선택된 그룹 상태 초기화
+    document.querySelectorAll('.group-item').forEach(item => {
+        item.classList.remove('selected');
+    });
+}
+
+// 그룹 목록 새로고침
+async function refreshGroups() {
+    console.log('🔄 그룹 목록 새로고침');
+    
+    const refreshBtn = document.getElementById('refreshGroupsBtn');
+    if (refreshBtn) {
+        refreshBtn.textContent = '🔄 새로고침 중...';
+        refreshBtn.disabled = true;
+    }
+    
+    try {
+        // 현재 선택된 계정 정보 가져오기
+        const accountName = document.getElementById('selectedAccountName').textContent;
+        const accountPhone = document.getElementById('selectedAccountPhone').textContent;
+        
+        if (!accountName || !accountPhone) {
+            throw new Error('계정 정보를 찾을 수 없습니다.');
+        }
+        
+        // 계정 목록에서 해당 계정 찾기
+        const response = await fetch('/api/telegram/load-accounts', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            }
         });
         
-        item.addEventListener('mouseleave', () => {
-            item.style.borderColor = '#444';
-            item.style.transform = 'translateY(0)';
-            item.style.boxShadow = 'none';
-        });
-    });
-    
-    // 닫기 버튼 이벤트
-    modal.querySelector('#closeGroupList').addEventListener('click', () => {
-        document.body.removeChild(modal);
-    });
-    
-    // 모달 배경 클릭 시 닫기
-    modal.addEventListener('click', (e) => {
-        if (e.target === modal) {
-            document.body.removeChild(modal);
+        const result = await response.json();
+        if (response.ok && result.success && result.accounts) {
+            const account = result.accounts.find(acc => 
+                `${acc.first_name} ${acc.last_name || ''}`.trim() === accountName.trim()
+            );
+            
+            if (account) {
+                // 그룹 다시 로드
+                await loadGroupsForAccount(account);
+            } else {
+                throw new Error('계정을 찾을 수 없습니다.');
+            }
+        } else {
+            throw new Error(result.error || '계정 목록 로딩 실패');
         }
+        
+    } catch (error) {
+        console.error('❌ 그룹 새로고침 실패:', error);
+        alert(`❌ 그룹 새로고침 실패:\n\n${error.message}`);
+    } finally {
+        if (refreshBtn) {
+            refreshBtn.textContent = '🔄 새로고침';
+            refreshBtn.disabled = false;
+        }
+    }
+}
+
+// 그룹에 메시지 전송
+async function sendMessageToGroup() {
+    console.log('📤 그룹에 메시지 전송');
+    
+    const messageInput = document.getElementById('messageInput');
+    const sendBtn = document.getElementById('sendMessageBtn');
+    const selectedGroupName = document.getElementById('selectedGroupName').textContent;
+    
+    if (!messageInput || !messageInput.value.trim()) {
+        alert('전송할 메시지를 입력해주세요.');
+        messageInput?.focus();
+        return;
+    }
+    
+    if (!selectedGroupName) {
+        alert('전송할 그룹을 선택해주세요.');
+        return;
+    }
+    
+    const message = messageInput.value.trim();
+    
+    // 버튼 상태 변경
+    if (sendBtn) {
+        sendBtn.textContent = '📤 전송 중...';
+        sendBtn.disabled = true;
+    }
+    
+    try {
+        // 선택된 그룹 정보 가져오기
+        const selectedGroupElement = document.querySelector('.group-item.selected');
+        if (!selectedGroupElement) {
+            throw new Error('선택된 그룹을 찾을 수 없습니다.');
+        }
+        
+        const groupId = selectedGroupElement.dataset.groupId;
+        const groupIndex = parseInt(selectedGroupElement.dataset.groupIndex);
+        
+        // 현재 계정 정보 가져오기
+        const accountName = document.getElementById('selectedAccountName').textContent;
+        const accountPhone = document.getElementById('selectedAccountPhone').textContent;
+        
+        // 계정 목록에서 해당 계정 찾기
+        const response = await fetch('/api/telegram/load-accounts', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        const result = await response.json();
+        if (!response.ok || !result.success || !result.accounts) {
+            throw new Error(result.error || '계정 목록 로딩 실패');
+        }
+        
+        const account = result.accounts.find(acc => 
+            `${acc.first_name} ${acc.last_name || ''}`.trim() === accountName.trim()
+        );
+        
+        if (!account) {
+            throw new Error('계정을 찾을 수 없습니다.');
+        }
+        
+        // 메시지 전송 API 호출 (백엔드에서 구현 필요)
+        const sendResponse = await fetch('/api/telegram/send-message', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                userId: account.user_id,
+                groupId: groupId,
+                message: message
+            })
+        });
+        
+        const sendResult = await sendResponse.json();
+        
+        if (sendResponse.ok && sendResult.success) {
+            alert(`✅ 메시지 전송 성공!\n\n그룹: ${selectedGroupName}\n메시지: ${message}`);
+            
+            // 메시지 입력 필드 초기화
+            messageInput.value = '';
+        } else {
+            throw new Error(sendResult.error || '메시지 전송 실패');
+        }
+        
+    } catch (error) {
+        console.error('❌ 메시지 전송 실패:', error);
+        alert(`❌ 메시지 전송 실패:\n\n${error.message}`);
+    } finally {
+        if (sendBtn) {
+            sendBtn.textContent = '📤 전송';
+            sendBtn.disabled = false;
+        }
+    }
+}
+
+// 메시지 전송 취소
+function cancelMessage() {
+    console.log('❌ 메시지 전송 취소');
+    
+    const messageInput = document.getElementById('messageInput');
+    const messageSection = document.getElementById('messageSendingSection');
+    
+    if (messageInput) {
+        messageInput.value = '';
+    }
+    
+    if (messageSection) {
+        messageSection.style.display = 'none';
+    }
+    
+    // 선택된 그룹 상태 초기화
+    document.querySelectorAll('.group-item').forEach(item => {
+        item.classList.remove('selected');
     });
 }
 

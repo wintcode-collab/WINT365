@@ -1127,6 +1127,141 @@ def load_telegram_groups():
             'error': f'그룹 로딩 실패: {str(error)}'
         }), 500
 
+# 텔레그램 메시지 전송 엔드포인트
+@app.route('/api/telegram/send-message', methods=['POST'])
+def send_telegram_message():
+    """인증된 계정으로 텔레그램 그룹에 메시지 전송"""
+    try:
+        data = request.get_json()
+        user_id = data.get('userId')
+        group_id = data.get('groupId')
+        message = data.get('message')
+        
+        if not user_id or not group_id or not message:
+            return jsonify({
+                'success': False,
+                'error': '사용자 ID, 그룹 ID, 메시지가 모두 필요합니다.'
+            }), 400
+        
+        logger.info(f'📤 메시지 전송 요청: 사용자={user_id}, 그룹={group_id}, 메시지={message[:50]}...')
+        
+        # Firebase에서 계정 정보 조회
+        account_info = get_account_from_firebase(user_id)
+        if not account_info:
+            return jsonify({
+                'success': False,
+                'error': '인증된 계정 정보를 찾을 수 없습니다. 다시 인증해주세요.'
+            }), 404
+        
+        # 메시지 전송 실행
+        result = send_message_to_telegram_group(account_info, group_id, message)
+        
+        if result:
+            logger.info(f'✅ 메시지 전송 성공: 그룹={group_id}')
+            return jsonify({
+                'success': True,
+                'message': '메시지가 성공적으로 전송되었습니다.',
+                'group_id': group_id,
+                'message_preview': message[:100] + ('...' if len(message) > 100 else '')
+            })
+        else:
+            logger.error(f'❌ 메시지 전송 실패: 그룹={group_id}')
+            return jsonify({
+                'success': False,
+                'error': '메시지 전송에 실패했습니다. 그룹 ID를 확인하거나 권한을 확인해주세요.'
+            }), 500
+        
+    except Exception as error:
+        logger.error(f'❌ 메시지 전송 실패: {error}')
+        return jsonify({
+            'success': False,
+            'error': f'메시지 전송 실패: {str(error)}'
+        }), 500
+
+def send_message_to_telegram_group(account_info, group_id, message):
+    """텔레그램 그룹에 메시지 전송"""
+    try:
+        logger.info(f'📤 텔레그램 메시지 전송 시작: {account_info["user_id"]} -> {group_id}')
+        
+        # 세션 데이터 복원
+        session_b64 = account_info.get('session_data')
+        if not session_b64:
+            logger.error('❌ 세션 데이터 없음')
+            return False
+            
+        session_bytes = base64.b64decode(session_b64)
+        temp_session_file = f'temp_message_{account_info["user_id"]}'
+        
+        # 임시 세션 파일 생성
+        with open(f'{temp_session_file}.session', 'wb') as f:
+            f.write(session_bytes)
+        
+        # 비동기 메시지 전송 함수
+        async def send_message_async():
+            try:
+                # 클라이언트 생성
+                client = TelegramClient(temp_session_file, account_info['api_id'], account_info['api_hash'])
+                logger.info('🔍 텔레그램 클라이언트 생성 완료')
+                
+                # 연결
+                await client.connect()
+                logger.info('✅ 텔레그램 연결 성공')
+                
+                # 연결 상태 확인
+                if not client.is_connected():
+                    logger.error('❌ 클라이언트 연결 실패')
+                    return False
+                
+                # 그룹 ID를 정수로 변환
+                try:
+                    group_id_int = int(group_id)
+                except ValueError:
+                    logger.error(f'❌ 잘못된 그룹 ID 형식: {group_id}')
+                    return False
+                
+                # 메시지 전송
+                logger.info(f'📤 메시지 전송 중: 그룹={group_id_int}, 메시지={message[:50]}...')
+                await client.send_message(group_id_int, message)
+                logger.info('✅ 메시지 전송 성공')
+                
+                return True
+                
+            except Exception as e:
+                logger.error(f'❌ 메시지 전송 실패: {e}')
+                logger.error(f'❌ 에러 타입: {type(e)}')
+                return False
+                
+            finally:
+                # 연결 해제
+                try:
+                    if client.is_connected():
+                        await client.disconnect()
+                        logger.info('🔍 클라이언트 연결 해제 완료')
+                except Exception as e:
+                    logger.error(f'❌ 클라이언트 연결 해제 실패: {e}')
+        
+        # 새 이벤트 루프에서 실행
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        try:
+            result = loop.run_until_complete(send_message_async())
+            return result
+        finally:
+            loop.close()
+            
+            # 임시 파일 정리
+            try:
+                os.remove(f'{temp_session_file}.session')
+                logger.info('🔍 임시 세션 파일 정리 완료')
+            except Exception as e:
+                logger.error(f'❌ 임시 파일 정리 실패: {e}')
+                
+    except Exception as e:
+        logger.error(f'❌ 메시지 전송 에러: {e}')
+        logger.error(f'❌ 에러 타입: {type(e)}')
+        return False
+
 def delete_account_from_firebase(user_id):
     """Firebase에서 계정 정보 삭제"""
     try:
