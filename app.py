@@ -132,13 +132,24 @@ def send_code():
                         await client.connect()
                         logger.info('✅ Telegram 서버 연결 성공')
                         
+                        # 연결 안정화 대기
+                        await asyncio.sleep(2)
+                        logger.info('⏳ 연결 안정화 대기 완료')
+                        
                         logger.info('📱 인증코드 발송 요청 중...')
                         logger.info(f'📋 전화번호 형식: {phone_number}')
                         logger.info(f'📋 API ID: {api_id}')
                         logger.info(f'📋 API Hash: ***{api_hash[-4:]}')
                         
-                        # 텔레그램 앱으로 인증코드 요청
-                        result = await client.send_code_request(phone_number)
+                        # 텔레그램 앱으로 인증코드 요청 (타임아웃 추가)
+                        try:
+                            result = await asyncio.wait_for(
+                                client.send_code_request(phone_number), 
+                                timeout=30.0
+                            )
+                        except asyncio.TimeoutError:
+                            logger.error('❌ 인증코드 요청 타임아웃 (30초)')
+                            raise Exception('인증코드 요청이 시간 초과되었습니다. 네트워크 연결을 확인하고 다시 시도해주세요.')
                         logger.info(f'✅ 인증코드 발송 성공: phone_code_hash=***{result.phone_code_hash[-4:]}')
                         logger.info(f'📋 결과 타입: {type(result)}')
                         logger.info(f'📋 결과 속성: {dir(result)}')
