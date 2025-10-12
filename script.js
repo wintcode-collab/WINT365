@@ -2018,14 +2018,17 @@ async function sendMessageToGroup() {
     
     // 원본 메시지 데이터가 있으면 우선 사용, 없으면 입력칸의 텍스트 사용
     let message;
-    if (window.selectedMediaInfo && window.selectedMediaInfo.raw_message_data) {
-        message = window.selectedMediaInfo.raw_message_data.text || messageInput.value.trim();
-        console.log('📤 원본 메시지 데이터 사용:', message);
-        console.log('📤 원본 데이터:', window.selectedMediaInfo.raw_message_data);
-    } else if (window.selectedMediaInfo && window.selectedMediaInfo.has_custom_emoji) {
-        // 커스텀 이모지가 있는 경우 원본 텍스트 사용
-        message = window.selectedMediaInfo.raw_message_data?.text || messageInput.value.trim();
-        console.log('📤 커스텀 이모지 원본 텍스트 사용:', message);
+    let mediaInfo = null;
+    
+    if (window.selectedMediaInfo) {
+        // 저장된 메시지가 선택된 경우 원본 데이터 사용
+        mediaInfo = window.selectedMediaInfo;
+        message = window.selectedMediaInfo.text || messageInput.value.trim();
+        console.log('📤 저장된 메시지 원본 데이터 사용:', message);
+        console.log('📤 미디어 정보:', mediaInfo);
+        console.log('📤 커스텀 이모지 여부:', mediaInfo.has_custom_emoji);
+        console.log('📤 커스텀 이모지 엔티티:', mediaInfo.custom_emoji_entities);
+        console.log('📤 원본 메시지 데이터:', mediaInfo.raw_message_data);
     } else {
         message = messageInput.value.trim();
         console.log('📤 입력칸 텍스트 사용:', message);
@@ -2095,7 +2098,7 @@ async function sendMessageToGroup() {
                         userId: account.user_id,
                         groupId: groupId,
                         message: message,
-                        mediaInfo: window.selectedMediaInfo
+                        mediaInfo: mediaInfo
                     })
                 });
                 
@@ -2287,6 +2290,18 @@ function displayTelegramSavedMessages(savedMessages) {
         const date = new Date(message.date).toLocaleString('ko-KR');
         const mediaIcon = message.media_type ? getMediaIcon(message.media_type) : '';
         
+        // 커스텀 이모지가 있는 경우 원본 텍스트 표시
+        let displayText = message.text || '';
+        if (message.has_custom_emoji && message.custom_emoji_entities && message.custom_emoji_entities.length > 0) {
+            // 커스텀 이모지가 있는 경우 원본 텍스트를 그대로 표시
+            displayText = message.text || '';
+            console.log('💾 커스텀 이모지 메시지 표시:', {
+                text: displayText,
+                custom_emoji_entities: message.custom_emoji_entities,
+                has_custom_emoji: message.has_custom_emoji
+            });
+        }
+        
         // 미디어 미리보기 생성
         let mediaPreview = '';
         if (message.media_type && message.media_url) {
@@ -2313,11 +2328,15 @@ function displayTelegramSavedMessages(savedMessages) {
             }
         }
         
+        // 커스텀 이모지 표시를 위한 스타일 추가
+        const customEmojiStyle = message.has_custom_emoji ? 'style="font-family: \'Segoe UI Emoji\', \'Apple Color Emoji\', \'Noto Color Emoji\', sans-serif;"' : '';
+        
         return `
             <div class="saved-message-item" data-message-index="${index}">
-                <div class="saved-message-content">
-                    ${message.text ? message.text : ''}
+                <div class="saved-message-content" ${customEmojiStyle}>
+                    ${displayText}
                     ${mediaPreview}
+                    ${message.has_custom_emoji ? '<div style="margin-top: 5px; font-size: 12px; color: #10B981;">🎨 커스텀 이모지 포함</div>' : ''}
                 </div>
                 <div class="saved-message-meta">
                     <span>${date}</span>
@@ -2396,32 +2415,20 @@ function selectTelegramSavedMessage(messageIndex, savedMessages) {
         }
         
         // 미디어 정보 및 커스텀 이모지 정보 저장 (전역 변수에)
-        if (message.media_type && message.media_path) {
-            window.selectedMediaInfo = {
-                media_type: message.media_type,
-                media_path: message.media_path,
-                media_url: message.media_url,
-                has_custom_emoji: message.has_custom_emoji || false,
-                custom_emoji_entities: message.custom_emoji_entities || [],
-                entities: message.entities || [],
-                raw_message_data: message.raw_message_data || null
-            };
-            console.log('💾 미디어 정보 저장:', window.selectedMediaInfo);
-        } else if (message.has_custom_emoji || message.raw_message_data) {
-            // 텍스트만 있지만 커스텀 이모지가 있거나 원본 데이터가 있는 경우
-            window.selectedMediaInfo = {
-                media_type: null,
-                media_path: null,
-                media_url: null,
-                has_custom_emoji: message.has_custom_emoji || false,
-                custom_emoji_entities: message.custom_emoji_entities || [],
-                entities: message.entities || [],
-                raw_message_data: message.raw_message_data || null
-            };
-            console.log('💾 커스텀 이모지/원본 데이터 정보 저장:', window.selectedMediaInfo);
-        } else {
-            window.selectedMediaInfo = null;
-        }
+        // 항상 원본 메시지 데이터를 저장하도록 수정
+        window.selectedMediaInfo = {
+            media_type: message.media_type || null,
+            media_path: message.media_path || null,
+            media_url: message.media_url || null,
+            has_custom_emoji: message.has_custom_emoji || false,
+            custom_emoji_entities: message.custom_emoji_entities || [],
+            entities: message.entities || [],
+            raw_message_data: message.raw_message_data || message, // 원본 메시지 전체를 저장
+            text: message.text || '',
+            message_id: message.message_id || null,
+            date: message.date || null
+        };
+        console.log('💾 저장된 메시지 정보 저장:', window.selectedMediaInfo);
         
         // 모달 닫기
         closeSavedMessages();
