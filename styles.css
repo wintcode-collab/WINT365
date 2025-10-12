@@ -1018,22 +1018,6 @@ input:focus, button:focus, textarea:focus, select:focus {
     color: #000;
 }
 
-.save-message-btn {
-    background: rgba(40, 167, 69, 0.2);
-    border: 1px solid #28a745;
-    color: #28a745;
-    padding: 10px 20px;
-    border-radius: 6px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.save-message-btn:hover {
-    background: #28a745;
-    color: #fff;
-}
 
 /* 저장된 메시지 모달 */
 .saved-messages-modal {
@@ -1154,26 +1138,6 @@ input:focus, button:focus, textarea:focus, select:focus {
     color: #fff;
 }
 
-.saved-messages-actions {
-    text-align: center;
-}
-
-.delete-all-messages-btn {
-    background: rgba(220, 53, 69, 0.2);
-    border: 1px solid #dc3545;
-    color: #dc3545;
-    padding: 10px 20px;
-    border-radius: 6px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.delete-all-messages-btn:hover {
-    background: #dc3545;
-    color: #fff;
-}
 
 .message-input {
     background: rgba(0, 0, 0, 0.3);

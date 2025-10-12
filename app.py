@@ -1127,6 +1127,52 @@ def load_telegram_groups():
         }), 500
 
 # 텔레그램 메시지 전송 엔드포인트
+@app.route('/api/telegram/saved-messages', methods=['POST'])
+def get_telegram_saved_messages():
+    """인증된 계정의 텔레그램 저장된 메시지 가져오기"""
+    try:
+        data = request.get_json()
+        user_id = data.get('userId')
+
+        if not user_id:
+            return jsonify({
+                'success': False,
+                'error': '사용자 ID가 필요합니다.'
+            }), 400
+
+        logger.info(f'💾 저장된 메시지 요청: {user_id}')
+
+        # Firebase에서 계정 정보 조회
+        account_info = get_account_from_firebase(user_id)
+        if not account_info:
+            return jsonify({
+                'success': False,
+                'error': '인증된 계정 정보를 찾을 수 없습니다. 다시 인증해주세요.'
+            }), 404
+
+        # 저장된 메시지 가져오기
+        saved_messages = get_telegram_saved_messages_with_session(account_info)
+
+        if saved_messages is None:
+            logger.error('❌ 저장된 메시지 가져오기 실패')
+            return jsonify({
+                'success': False,
+                'error': '저장된 메시지 가져오기에 실패했습니다. 세션이 만료되었거나 연결에 문제가 있을 수 있습니다.'
+            }), 500
+
+        return jsonify({
+            'success': True,
+            'saved_messages': saved_messages,
+            'message': f'{len(saved_messages)}개의 저장된 메시지를 찾았습니다.'
+        })
+
+    except Exception as error:
+        logger.error(f'❌ 저장된 메시지 가져오기 실패: {error}')
+        return jsonify({
+            'success': False,
+            'error': f'저장된 메시지 가져오기 실패: {str(error)}'
+        }), 500
+
 @app.route('/api/telegram/send-message', methods=['POST'])
 def send_telegram_message():
     """인증된 계정으로 텔레그램 그룹에 메시지 전송"""
@@ -1176,6 +1222,144 @@ def send_telegram_message():
             'success': False,
             'error': f'메시지 전송 실패: {str(error)}'
         }), 500
+
+def get_telegram_saved_messages_with_session(account_info):
+    """세션 데이터를 사용해서 텔레그램 저장된 메시지 목록 가져오기"""
+    try:
+        logger.info(f'💾 텔레그램 저장된 메시지 가져오기 시작: {account_info["user_id"]}')
+        logger.info(f'💾 계정 정보: {account_info}')
+
+        # 임시 세션 파일 생성
+        temp_session_file = f'temp_saved_messages_{account_info["user_id"]}'
+
+        # 세션 데이터 복원
+        session_b64 = account_info.get('session_data')
+        if not session_b64:
+            logger.error('❌ 세션 데이터 없음')
+            return None
+
+        logger.info(f'💾 세션 데이터 길이: {len(session_b64)}')
+
+        try:
+            session_bytes = base64.b64decode(session_b64)
+            logger.info(f'💾 세션 바이트 길이: {len(session_bytes)}')
+        except Exception as e:
+            logger.error(f'❌ 세션 데이터 디코딩 실패: {e}')
+            return None
+
+        # 임시 세션 파일 생성
+        try:
+            with open(f'{temp_session_file}.session', 'wb') as f:
+                f.write(session_bytes)
+            logger.info(f'💾 임시 세션 파일 생성 완료: {temp_session_file}.session')
+        except Exception as e:
+            logger.error(f'❌ 임시 세션 파일 생성 실패: {e}')
+            return None
+
+        # 비동기 저장된 메시지 가져오기 함수
+        async def get_saved_messages_async():
+            try:
+                # 클라이언트 생성
+                client = TelegramClient(temp_session_file, account_info['api_id'], account_info['api_hash'])
+                logger.info('💾 텔레그램 클라이언트 생성 완료')
+
+                # 연결
+                await client.connect()
+                logger.info('✅ 텔레그램 연결 성공')
+
+                # 연결 상태 확인
+                if not client.is_connected():
+                    logger.error('❌ 클라이언트 연결 실패')
+                    return None
+
+                # 저장된 메시지 가져오기
+                saved_messages = []
+
+                try:
+                    # "Saved Messages" 채팅 찾기
+                    me = await client.get_me()
+                    saved_messages_entity = await client.get_entity(me.id)
+                    
+                    logger.info('💾 저장된 메시지 채팅 찾기 완료')
+
+                    # 저장된 메시지 목록 가져오기 (최근 50개)
+                    messages = await client.get_messages(saved_messages_entity, limit=50)
+                    logger.info(f'💾 {len(messages)}개의 저장된 메시지를 찾았습니다.')
+
+                    for message in messages:
+                        try:
+                            message_info = {
+                                'id': message.id,
+                                'date': message.date.isoformat() if message.date else '',
+                                'text': message.text or '',
+                                'media_type': None,
+                                'media_url': None
+                            }
+
+                            # 미디어 처리
+                            if message.photo:
+                                message_info['media_type'] = 'photo'
+                                # 사진 다운로드 URL 생성 (실제로는 다운로드해야 함)
+                                message_info['media_url'] = f'photo_{message.id}'
+                            elif message.video:
+                                message_info['media_type'] = 'video'
+                                message_info['media_url'] = f'video_{message.id}'
+                            elif message.document:
+                                message_info['media_type'] = 'document'
+                                message_info['media_url'] = f'document_{message.id}'
+                            elif message.voice:
+                                message_info['media_type'] = 'voice'
+                                message_info['media_url'] = f'voice_{message.id}'
+
+                            saved_messages.append(message_info)
+                            logger.info(f'✅ 저장된 메시지 추가: {message.id} - {message_info["text"][:50]}...')
+
+                        except Exception as e:
+                            logger.error(f'❌ 메시지 처리 중 에러: {e}')
+                            continue
+
+                except Exception as e:
+                    logger.error(f'❌ 저장된 메시지 가져오기 실패: {e}')
+                    return None
+
+                logger.info(f'✅ {len(saved_messages)}개의 저장된 메시지를 가져왔습니다.')
+                return saved_messages
+
+            except Exception as e:
+                logger.error(f'❌ 저장된 메시지 가져오기 실패: {e}')
+                logger.error(f'❌ 에러 타입: {type(e)}')
+                return None
+
+            finally:
+                # 연결 해제
+                try:
+                    if client.is_connected():
+                        await client.disconnect()
+                        logger.info('💾 클라이언트 연결 해제 완료')
+                except Exception as e:
+                    logger.error(f'❌ 클라이언트 연결 해제 실패: {e}')
+
+        # 새 이벤트 루프에서 실행
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        try:
+            result = loop.run_until_complete(get_saved_messages_async())
+            return result
+        finally:
+            loop.close()
+
+            # 임시 파일 정리
+            try:
+                os.remove(f'{temp_session_file}.session')
+                logger.info('💾 임시 세션 파일 정리 완료')
+            except Exception as e:
+                logger.error(f'❌ 임시 파일 정리 실패: {e}')
+
+    except Exception as e:
+        logger.error(f'❌ 저장된 메시지 가져오기 에러: {e}')
+        logger.error(f'❌ 에러 타입: {type(e)}')
+        return None
 
 def send_message_to_telegram_group(account_info, group_id, message):
     """텔레그램 그룹에 메시지 전송"""

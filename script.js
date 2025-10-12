@@ -1895,22 +1895,10 @@ function setupTelegramGroupsEventListeners() {
         savedMessagesBtn.addEventListener('click', showSavedMessages);
     }
     
-    // 메시지 저장 버튼
-    const saveMessageBtn = document.getElementById('saveMessageBtn');
-    if (saveMessageBtn) {
-        saveMessageBtn.addEventListener('click', saveCurrentMessage);
-    }
-    
     // 저장된 메시지 모달 닫기 버튼
     const closeSavedMessagesBtn = document.getElementById('closeSavedMessagesBtn');
     if (closeSavedMessagesBtn) {
         closeSavedMessagesBtn.addEventListener('click', closeSavedMessages);
-    }
-    
-    // 전체 삭제 버튼
-    const deleteAllMessagesBtn = document.getElementById('deleteAllMessagesBtn');
-    if (deleteAllMessagesBtn) {
-        deleteAllMessagesBtn.addEventListener('click', deleteAllSavedMessages);
     }
 }
 
@@ -2145,17 +2133,27 @@ function clearMessage() {
 }
 
 // 저장된 메시지 표시
-function showSavedMessages() {
-    console.log('💾 저장된 메시지 표시');
+async function showSavedMessages() {
+    console.log('💾 텔레그램 저장된 메시지 표시');
     
     const modal = document.getElementById('savedMessagesModal');
     if (!modal) return;
     
-    // 저장된 메시지 목록 로드
-    loadSavedMessages();
-    
     // 모달 표시
     modal.style.display = 'flex';
+    
+    // 로딩 표시
+    const messagesList = document.getElementById('savedMessagesList');
+    if (messagesList) {
+        messagesList.innerHTML = `
+            <div style="text-align: center; color: #888; padding: 20px;">
+                텔레그램 저장된 메시지를 불러오는 중...
+            </div>
+        `;
+    }
+    
+    // 텔레그램 저장된 메시지 로드
+    await loadTelegramSavedMessages();
     
     // 모달 배경 클릭 시 닫기
     modal.addEventListener('click', (e) => {
@@ -2165,152 +2163,145 @@ function showSavedMessages() {
     });
 }
 
-// 저장된 메시지 목록 로드
-function loadSavedMessages() {
-    console.log('💾 저장된 메시지 목록 로드');
+// 텔레그램 저장된 메시지 로드
+async function loadTelegramSavedMessages() {
+    console.log('💾 텔레그램 저장된 메시지 로드');
     
-    const savedMessages = getSavedMessages();
+    try {
+        // 현재 계정 정보 가져오기
+        const accountName = document.getElementById('selectedAccountName').textContent;
+        const accountPhone = document.getElementById('selectedAccountPhone').textContent;
+        
+        // 계정 목록에서 해당 계정 찾기
+        const response = await fetch('/api/telegram/load-accounts', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        const result = await response.json();
+        if (!response.ok || !result.success || !result.accounts) {
+            throw new Error(result.error || '계정 목록 로딩 실패');
+        }
+        
+        const account = result.accounts.find(acc =>
+            `${acc.first_name} ${acc.last_name || ''}`.trim() === accountName.trim()
+        );
+        
+        if (!account) {
+            throw new Error('계정을 찾을 수 없습니다.');
+        }
+        
+        // 텔레그램 저장된 메시지 가져오기
+        const savedResponse = await fetch('/api/telegram/saved-messages', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                userId: account.user_id
+            })
+        });
+        
+        const savedResult = await savedResponse.json();
+        console.log('💾 저장된 메시지 응답:', savedResult);
+        
+        if (savedResponse.ok && savedResult.success) {
+            displayTelegramSavedMessages(savedResult.saved_messages);
+        } else {
+            throw new Error(savedResult.error || '저장된 메시지 로딩 실패');
+        }
+        
+    } catch (error) {
+        console.error('❌ 텔레그램 저장된 메시지 로딩 실패:', error);
+        
+        const messagesList = document.getElementById('savedMessagesList');
+        if (messagesList) {
+            messagesList.innerHTML = `
+                <div style="text-align: center; color: #dc3545; padding: 20px;">
+                    저장된 메시지 로딩 실패<br>
+                    ${error.message}
+                </div>
+            `;
+        }
+    }
+}
+
+// 텔레그램 저장된 메시지 표시
+function displayTelegramSavedMessages(savedMessages) {
+    console.log('💾 텔레그램 저장된 메시지 표시:', savedMessages);
+    
     const messagesList = document.getElementById('savedMessagesList');
-    
     if (!messagesList) return;
     
     if (savedMessages.length === 0) {
         messagesList.innerHTML = `
             <div style="text-align: center; color: #888; padding: 20px;">
-                저장된 메시지가 없습니다.<br>
-                메시지를 입력하고 "메시지 저장" 버튼을 눌러보세요.
+                텔레그램에 저장된 메시지가 없습니다.<br>
+                텔레그램 앱에서 메시지를 저장해보세요.
             </div>
         `;
         return;
     }
     
-    messagesList.innerHTML = savedMessages.map((message, index) => `
-        <div class="saved-message-item" data-message-index="${index}">
-            <div class="saved-message-content">${message.content}</div>
-            <div class="saved-message-meta">
-                <span>저장일: ${message.savedAt}</span>
-                <button class="saved-message-delete" onclick="deleteSavedMessage(${index})">삭제</button>
+    messagesList.innerHTML = savedMessages.map((message, index) => {
+        const date = new Date(message.date).toLocaleString('ko-KR');
+        const mediaIcon = message.media_type ? getMediaIcon(message.media_type) : '';
+        
+        return `
+            <div class="saved-message-item" data-message-index="${index}">
+                <div class="saved-message-content">
+                    ${message.text ? message.text : ''}
+                    ${message.media_type ? `<div style="margin-top: 8px; color: #10B981;">${mediaIcon} ${message.media_type}</div>` : ''}
+                </div>
+                <div class="saved-message-meta">
+                    <span>${date}</span>
+                </div>
             </div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
     
     // 메시지 아이템 클릭 이벤트 추가
     const messageItems = messagesList.querySelectorAll('.saved-message-item');
     messageItems.forEach(item => {
-        item.addEventListener('click', (e) => {
-            // 삭제 버튼 클릭이 아닌 경우에만 메시지 선택
-            if (!e.target.classList.contains('saved-message-delete')) {
-                const messageIndex = parseInt(item.dataset.messageIndex);
-                selectSavedMessage(messageIndex);
-            }
+        item.addEventListener('click', () => {
+            const messageIndex = parseInt(item.dataset.messageIndex);
+            selectTelegramSavedMessage(messageIndex, savedMessages);
         });
     });
 }
 
-// 저장된 메시지 선택
-function selectSavedMessage(messageIndex) {
-    console.log('💾 저장된 메시지 선택:', messageIndex);
+// 미디어 타입 아이콘 가져오기
+function getMediaIcon(mediaType) {
+    switch (mediaType) {
+        case 'photo': return '📷';
+        case 'video': return '🎥';
+        case 'document': return '📄';
+        case 'voice': return '🎤';
+        default: return '📎';
+    }
+}
+
+// 텔레그램 저장된 메시지 선택
+function selectTelegramSavedMessage(messageIndex, savedMessages) {
+    console.log('💾 텔레그램 저장된 메시지 선택:', messageIndex);
     
-    const savedMessages = getSavedMessages();
     if (messageIndex >= 0 && messageIndex < savedMessages.length) {
         const message = savedMessages[messageIndex];
         const messageInput = document.querySelector('.message-input');
         
         if (messageInput) {
-            messageInput.value = message.content;
+            // 텍스트만 입력 필드에 넣기 (미디어는 별도 처리 필요)
+            messageInput.value = message.text || '';
             messageInput.focus();
         }
         
         // 모달 닫기
         closeSavedMessages();
-    }
-}
-
-// 현재 메시지 저장
-function saveCurrentMessage() {
-    console.log('💾 현재 메시지 저장');
-    
-    const messageInput = document.querySelector('.message-input');
-    if (!messageInput || !messageInput.value.trim()) {
-        alert('저장할 메시지를 입력해주세요.');
-        messageInput?.focus();
-        return;
-    }
-    
-    const message = messageInput.value.trim();
-    const savedMessages = getSavedMessages();
-    
-    // 중복 메시지 확인
-    const isDuplicate = savedMessages.some(saved => saved.content === message);
-    if (isDuplicate) {
-        alert('이미 저장된 메시지입니다.');
-        return;
-    }
-    
-    // 새 메시지 추가
-    const newMessage = {
-        content: message,
-        savedAt: new Date().toLocaleString('ko-KR')
-    };
-    
-    savedMessages.unshift(newMessage); // 최신 메시지를 맨 위에
-    
-    // 최대 50개까지만 저장
-    if (savedMessages.length > 50) {
-        savedMessages.splice(50);
-    }
-    
-    // 로컬 스토리지에 저장
-    localStorage.setItem('savedMessages', JSON.stringify(savedMessages));
-    
-    alert('메시지가 저장되었습니다!');
-    console.log('✅ 메시지 저장 완료:', newMessage);
-}
-
-// 저장된 메시지 가져오기
-function getSavedMessages() {
-    try {
-        const saved = localStorage.getItem('savedMessages');
-        return saved ? JSON.parse(saved) : [];
-    } catch (error) {
-        console.error('❌ 저장된 메시지 로드 실패:', error);
-        return [];
-    }
-}
-
-// 저장된 메시지 삭제
-function deleteSavedMessage(messageIndex) {
-    console.log('🗑️ 저장된 메시지 삭제:', messageIndex);
-    
-    if (!confirm('이 메시지를 삭제하시겠습니까?')) {
-        return;
-    }
-    
-    const savedMessages = getSavedMessages();
-    if (messageIndex >= 0 && messageIndex < savedMessages.length) {
-        savedMessages.splice(messageIndex, 1);
-        localStorage.setItem('savedMessages', JSON.stringify(savedMessages));
         
-        // 목록 다시 로드
-        loadSavedMessages();
-        
-        console.log('✅ 메시지 삭제 완료');
+        console.log('✅ 텔레그램 저장된 메시지 선택 완료:', message.text?.substring(0, 50) + '...');
     }
-}
-
-// 모든 저장된 메시지 삭제
-function deleteAllSavedMessages() {
-    console.log('🗑️ 모든 저장된 메시지 삭제');
-    
-    if (!confirm('모든 저장된 메시지를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) {
-        return;
-    }
-    
-    localStorage.removeItem('savedMessages');
-    loadSavedMessages();
-    
-    alert('모든 저장된 메시지가 삭제되었습니다.');
-    console.log('✅ 모든 메시지 삭제 완료');
 }
 
 // 저장된 메시지 모달 닫기
