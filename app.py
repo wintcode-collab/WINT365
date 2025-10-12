@@ -1272,6 +1272,10 @@ def send_telegram_message():
         media_info = data.get('mediaInfo')
         logger.info(f'📤 미디어 정보: {media_info}')
         
+        # 커스텀 이모지 정보 가져오기
+        custom_emojis = data.get('customEmojis', [])
+        logger.info(f'😀 커스텀 이모지 개수: {len(custom_emojis)}')
+        
         # Firebase에서 계정 정보 조회
         account_info = get_account_from_firebase(user_id)
         if not account_info:
@@ -1283,8 +1287,8 @@ def send_telegram_message():
         
         logger.info(f'📤 계정 정보 조회 성공: {account_info.get("first_name", "Unknown")}')
         
-        # 메시지 전송 실행 (미디어 정보 포함)
-        result = send_message_to_telegram_group(account_info, group_id, message, media_info)
+        # 메시지 전송 실행 (미디어 정보 및 커스텀 이모지 포함)
+        result = send_message_to_telegram_group(account_info, group_id, message, media_info, custom_emojis)
         
         if result:
             logger.info(f'✅ 메시지 전송 성공: 그룹={group_id}')
@@ -1644,12 +1648,13 @@ def get_telegram_saved_messages_with_session(account_info):
         logger.error(f'❌ 에러 타입: {type(e)}')
         return None
 
-def send_message_to_telegram_group(account_info, group_id, message, media_info=None):
+def send_message_to_telegram_group(account_info, group_id, message, media_info=None, custom_emojis=None):
     """텔레그램 그룹에 메시지 전송"""
     try:
         logger.info(f'📤 텔레그램 메시지 전송 시작: {account_info["user_id"]} -> {group_id}')
         logger.info(f'📤 메시지 내용: {message[:100]}...')
         logger.info(f'📤 미디어 정보: {media_info}')
+        logger.info(f'😀 커스텀 이모지 개수: {len(custom_emojis) if custom_emojis else 0}')
         
         # 세션 데이터 복원
         session_b64 = account_info.get('session_data')
@@ -1737,8 +1742,48 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                 # 메시지 전송 (미디어 포함)
                 logger.info(f'📤 메시지 전송 중: 그룹={group_entity.title}, 메시지={message[:50]}...')
                 
+                # 커스텀 이모지가 있는 경우 처리
+                if custom_emojis and len(custom_emojis) > 0:
+                    logger.info('😀 커스텀 이모지 포함 메시지 전송')
+                    
+                    # 커스텀 이모지 엔티티 생성
+                    from telethon.tl.types import MessageEntityCustomEmoji
+                    
+                    telegram_entities = []
+                    for emoji_info in custom_emojis:
+                        try:
+                            custom_emoji_entity = MessageEntityCustomEmoji(
+                                offset=emoji_info['offset'],
+                                length=emoji_info['length'],
+                                document_id=emoji_info['document_id']
+                            )
+                            telegram_entities.append(custom_emoji_entity)
+                            logger.info(f'😀 커스텀 이모지 엔티티 생성: offset={emoji_info["offset"]}, length={emoji_info["length"]}, document_id={emoji_info["document_id"]}')
+                        except Exception as e:
+                            logger.error(f'❌ 커스텀 이모지 엔티티 생성 실패: {e}')
+                    
+                    # 커스텀 이모지와 함께 메시지 전송
+                    try:
+                        logger.info('😀 커스텀 이모지와 함께 메시지 전송 시도')
+                        sent_message = await client.send_message(
+                            group_entity, 
+                            message, 
+                            formatting_entities=telegram_entities
+                        )
+                        logger.info(f'✅ 커스텀 이모지 메시지 전송 성공: {sent_message.id}')
+                    except Exception as e:
+                        logger.error(f'❌ 커스텀 이모지 메시지 전송 실패: {e}')
+                        
+                        # 백업: 일반 메시지 전송
+                        try:
+                            sent_message = await client.send_message(group_entity, message)
+                            logger.info(f'✅ 백업 메시지 전송 성공: {sent_message.id}')
+                        except Exception as e2:
+                            logger.error(f'❌ 백업 메시지 전송도 실패: {e2}')
+                            return False
+                
                 # 원본 메시지 데이터가 있는지 확인
-                if media_info and media_info.get('raw_message_data'):
+                elif media_info and media_info.get('raw_message_data'):
                     # 원본 메시지 데이터로 전송
                     raw_data = media_info.get('raw_message_data')
                     logger.info('📤 원본 메시지 데이터로 전송')
@@ -2039,15 +2084,15 @@ def delete_account_from_firebase(user_id):
         logger.error(f'🔥 Firebase 계정 정보 삭제 에러: {e}')
         return False
 
-def run_telethon_send_latest_saved_message(account_info, group_ids):
-    """최상단 저장된 메시지를 그룹에 전송 (원본 그대로)"""
+def run_telethon_get_custom_emojis(account_info):
+    """연동된 계정의 커스텀 이모지 가져오기"""
     try:
         # 새로운 이벤트 루프 생성
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         
         # 비동기 함수 실행
-        result = loop.run_until_complete(send_latest_saved_message_async(account_info, group_ids))
+        result = loop.run_until_complete(get_custom_emojis_async(account_info))
         
         # 이벤트 루프 정리
         loop.close()
@@ -2055,11 +2100,11 @@ def run_telethon_send_latest_saved_message(account_info, group_ids):
         return result
         
     except Exception as e:
-        logger.error(f'❌ 최상단 저장된 메시지 전송 실패: {e}')
-        return False
+        logger.error(f'❌ 커스텀 이모지 가져오기 실패: {e}')
+        return None
 
-async def send_latest_saved_message_async(account_info, group_ids):
-    """최상단 저장된 메시지를 그룹에 전송 (원본 그대로)"""
+async def get_custom_emojis_async(account_info):
+    """연동된 계정의 커스텀 이모지 가져오기"""
     temp_session_file = None
     
     try:
@@ -2070,7 +2115,7 @@ async def send_latest_saved_message_async(account_info, group_ids):
         with open(temp_session_file, 'wb') as f:
             f.write(session_data)
         
-        logger.info(f'📤 세션 데이터 길이: {len(session_data)}')
+        logger.info(f'😀 세션 데이터 길이: {len(session_data)}')
         
         # 클라이언트 생성
         client = TelegramClient(temp_session_file, account_info['api_id'], account_info['api_hash'])
@@ -2083,74 +2128,76 @@ async def send_latest_saved_message_async(account_info, group_ids):
         # 연결 상태 확인
         if not client.is_connected():
             logger.error('❌ 클라이언트 연결 실패')
-            return False
+            return None
         
         logger.info('✅ 클라이언트 연결 상태 확인 완료')
         
-        # 최상단 저장된 메시지 가져오기
-        from telethon.tl.types import InputPeerSelf
-        messages = await client.get_messages(InputPeerSelf(), limit=1)
-        
-        if not messages:
-            logger.error('❌ 저장된 메시지가 없습니다.')
-            return False
-        
-        latest_message = messages[0]
-        logger.info(f'📤 최상단 저장된 메시지: ID={latest_message.id}, 텍스트={latest_message.text[:50] if latest_message.text else "None"}...')
-        
-        # 각 그룹에 메시지 전달
-        success_count = 0
-        for group_id in group_ids:
-            try:
-                logger.info(f'📤 그룹 {group_id}에 메시지 전달 중...')
+        # 커스텀 이모지 팩들 가져오기
+        try:
+            # 텔레그램의 커스텀 이모지 팩들 가져오기
+            from telethon.tl.functions.messages import GetEmojiStickersRequest
+            from telethon.tl.types import InputStickerSetEmpty
+            
+            # 빈 스티커셋으로 요청하여 모든 커스텀 이모지 팩 가져오기
+            result = await client(GetEmojiStickersRequest(
+                hash=0
+            ))
+            
+            logger.info(f'😀 커스텀 이모지 팩 개수: {len(result.sets)}')
+            
+            emoji_packs = []
+            for sticker_set in result.sets:
+                try:
+                    pack_info = {
+                        'id': sticker_set.id,
+                        'title': sticker_set.title,
+                        'short_name': sticker_set.short_name,
+                        'emojis': []
+                    }
+                    
+                    # 각 팩의 이모지들 가져오기
+                    stickers = await client.get_messages(sticker_set, limit=100)
+                    for sticker in stickers:
+                        if hasattr(sticker, 'document') and sticker.document:
+                            emoji_info = {
+                                'document_id': sticker.document.id,
+                                'access_hash': sticker.document.access_hash,
+                                'file_reference': sticker.document.file_reference.hex() if sticker.document.file_reference else None,
+                                'mime_type': sticker.document.mime_type,
+                                'size': sticker.document.size,
+                                'attributes': []
+                            }
+                            
+                            # 문서 속성들 저장
+                            for attr in sticker.document.attributes:
+                                if hasattr(attr, 'alt'):
+                                    emoji_info['alt'] = attr.alt
+                                if hasattr(attr, 'stickerset'):
+                                    emoji_info['stickerset'] = {
+                                        'id': attr.stickerset.id,
+                                        'access_hash': attr.stickerset.access_hash
+                                    }
+                            
+                            pack_info['emojis'].append(emoji_info)
+                    
+                    if pack_info['emojis']:
+                        emoji_packs.append(pack_info)
+                        logger.info(f'😀 팩 "{pack_info["title"]}" - 이모지 {len(pack_info["emojis"])}개')
                 
-                # 그룹 엔티티 가져오기
-                group_entity = None
-                group_id_int = int(group_id)
-                
-                # 4단계 그룹 ID 변환 시도
-                for attempt, converted_id in enumerate([
-                    group_id_int,           # 원본 ID
-                    -group_id_int,          # 음수 ID
-                    group_id_int + 1000000000000,  # 채널 ID
-                    -(group_id_int + 1000000000000)  # 음수 채널 ID
-                ], 1):
-                    try:
-                        group_entity = await client.get_entity(converted_id)
-                        logger.info(f'📤 그룹 엔티티 가져오기 성공 (시도 {attempt}): {group_entity.title}')
-                        break
-                    except Exception as e:
-                        logger.error(f'❌ 그룹 엔티티 가져오기 실패 (시도 {attempt}): {e}')
-                        continue
-                
-                if not group_entity:
-                    logger.error(f'❌ 모든 ID 형식으로 엔티티 가져오기 실패: {group_id}')
+                except Exception as e:
+                    logger.error(f'❌ 이모지 팩 처리 실패: {e}')
                     continue
-                
-                # 원본 메시지를 직접 전달 (완전히 원본 그대로)
-                forwarded_messages = await client.forward_messages(
-                    entity=group_entity,
-                    messages=latest_message.id,
-                    from_peer=InputPeerSelf()
-                )
-                
-                if forwarded_messages:
-                    forwarded_message = forwarded_messages[0] if isinstance(forwarded_messages, list) else forwarded_messages
-                    logger.info(f'✅ 🎉 그룹 {group_id}에 원본 메시지 직접 전달 성공! 완전히 원본 그대로: {forwarded_message.id}')
-                    success_count += 1
-                else:
-                    logger.error(f'❌ 그룹 {group_id}에 전달된 메시지가 없음')
-                
-            except Exception as e:
-                logger.error(f'❌ 그룹 {group_id}에 메시지 전달 실패: {e}')
-                continue
-        
-        logger.info(f'📤 전송 완료: {success_count}/{len(group_ids)}개 그룹에 성공')
-        return success_count > 0
+            
+            logger.info(f'😀 총 {len(emoji_packs)}개 팩에서 {sum(len(pack["emojis"]) for pack in emoji_packs)}개 이모지 수집')
+            return emoji_packs
+            
+        except Exception as e:
+            logger.error(f'❌ 커스텀 이모지 팩 가져오기 실패: {e}')
+            return None
         
     except Exception as e:
-        logger.error(f'❌ 최상단 저장된 메시지 전송 실패: {e}')
-        return False
+        logger.error(f'❌ 커스텀 이모지 가져오기 실패: {e}')
+        return None
         
     finally:
         # 클라이언트 연결 해제
@@ -2166,25 +2213,17 @@ async def send_latest_saved_message_async(account_info, group_ids):
 # 그룹 목록 API는 Flood Control 때문에 일단 비활성화
 
 # Keep-Alive 엔드포인트 (Render Free Plan용)
-@app.route('/ping')
-def ping():
-    return jsonify({
-        'status': 'alive',
-        'timestamp': datetime.now().isoformat()
-    })
-
-@app.route('/api/telegram/send-latest-saved-message', methods=['POST'])
-def send_latest_saved_message():
-    """최상단 저장된 메시지를 그룹에 전송 (원본 그대로)"""
+@app.route('/api/telegram/get-custom-emojis', methods=['POST'])
+def get_custom_emojis():
+    """연동된 계정의 커스텀 이모지 가져오기"""
     try:
         data = request.get_json()
         user_id = data.get('userId')
-        group_ids = data.get('groupIds', [])
         
-        logger.info(f'📤 최상단 저장된 메시지 전송 요청: 사용자={user_id}, 그룹={group_ids}')
+        logger.info(f'😀 커스텀 이모지 가져오기 요청: 사용자={user_id}')
         
-        if not user_id or not group_ids:
-            return jsonify({'success': False, 'error': '사용자 ID와 그룹 ID가 필요합니다.'}), 400
+        if not user_id:
+            return jsonify({'success': False, 'error': '사용자 ID가 필요합니다.'}), 400
         
         # Firebase에서 계정 정보 가져오기
         account_info = get_account_from_firebase(user_id)
@@ -2192,21 +2231,28 @@ def send_latest_saved_message():
             logger.error(f'❌ 계정 정보를 찾을 수 없습니다: {user_id}')
             return jsonify({'success': False, 'error': '계정 정보를 찾을 수 없습니다.'}), 404
         
-        logger.info(f'📤 계정 정보 조회 성공: {account_info.get("first_name", "Unknown")}')
+        logger.info(f'😀 계정 정보 조회 성공: {account_info.get("first_name", "Unknown")}')
         
-        # 최상단 저장된 메시지 전송 실행
+        # 커스텀 이모지 가져오기 실행
         with ThreadPoolExecutor() as executor:
-            future = executor.submit(run_telethon_send_latest_saved_message, account_info, group_ids)
+            future = executor.submit(run_telethon_get_custom_emojis, account_info)
             result = future.result(timeout=60)
         
         if result:
-            return jsonify({'success': True, 'message': '최상단 저장된 메시지 전송 완료'})
+            return jsonify({'success': True, 'emojis': result})
         else:
-            return jsonify({'success': False, 'error': '최상단 저장된 메시지 전송 실패'}), 500
+            return jsonify({'success': False, 'error': '커스텀 이모지 가져오기 실패'}), 500
             
     except Exception as e:
-        logger.error(f'❌ 최상단 저장된 메시지 전송 오류: {e}')
+        logger.error(f'❌ 커스텀 이모지 가져오기 오류: {e}')
         return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/ping')
+def ping():
+    return jsonify({
+        'status': 'alive',
+        'timestamp': datetime.now().isoformat()
+    })
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 3000))

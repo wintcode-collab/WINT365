@@ -303,7 +303,8 @@
                                     </div>
                                 </div>
                                 <div class="message-actions">
-                                    <button class="saved-messages-btn" id="savedMessagesBtn">📤 최상단 메시지 전송</button>
+                                    <button class="emoji-picker-btn" id="emojiPickerBtn">😀 이모지</button>
+                                    <button class="saved-messages-btn" id="savedMessagesBtn">💾 저장된 메시지</button>
                                     <button class="send-message-btn" id="sendMessageBtn">📤 선택된 그룹에 전송</button>
                                     <button class="clear-message-btn" id="clearMessageBtn">🗑️ 메시지 지우기</button>
                                 </div>
@@ -324,6 +325,19 @@
             </div>
             <div class="saved-messages-list" id="savedMessagesList">
                 <!-- 텔레그램 저장된 메시지 목록이 여기에 동적으로 추가됩니다 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 이모지 선택 모달 -->
+    <div class="emoji-picker-modal" id="emojiPickerModal" style="display: none;">
+        <div class="emoji-picker-content">
+            <div class="emoji-picker-header">
+                <h3>😀 커스텀 이모지</h3>
+                <button class="close-emoji-picker-btn" id="closeEmojiPickerBtn">×</button>
+            </div>
+            <div class="emoji-picker-list" id="emojiPickerList">
+                <!-- 커스텀 이모지들이 여기에 표시됩니다 -->
             </div>
         </div>
     </div>
