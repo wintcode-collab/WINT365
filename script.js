@@ -1096,6 +1096,20 @@ function showVerificationCodeInput() {
                 value = value.substring(0, 5); // 5자리로 제한
             }
             e.target.value = value;
+            
+            // 5자리가 입력되면 자동으로 검증 시도
+            if (value.length === 5) {
+                console.log('5자리 인증코드 입력 완료:', value);
+                // 자동 검증은 하지 않고 사용자가 버튼을 누르도록 함
+            }
+        });
+        
+        // 키보드 이벤트로 숫자만 입력 허용
+        elements.telegramVerificationCode.addEventListener('keypress', (e) => {
+            // 숫자(0-9)만 허용
+            if (!/[0-9]/.test(e.key) && !['Backspace', 'Delete', 'Tab', 'Enter'].includes(e.key)) {
+                e.preventDefault();
+            }
         });
     }
 }
@@ -1118,8 +1132,14 @@ async function completeTelegramAuth(verificationCode) {
             console.log('인증코드 검증 요청 중...', {
                 clientId: telegramClient.clientId,
                 phoneCode: verificationCode,
+                phoneCodeLength: verificationCode ? verificationCode.length : 0,
                 phoneCodeHash: telegramClient.phoneCodeHash ? '***' : 'undefined'
             });
+            
+            // 인증코드 형식 검증
+            if (!verificationCode || verificationCode.length !== 5 || !/^\d{5}$/.test(verificationCode)) {
+                throw new Error('인증코드는 5자리 숫자여야 합니다.');
+            }
             
             const response = await fetch('/api/telegram/verify-code', {
                 method: 'POST',

@@ -256,12 +256,18 @@ def verify_code():
             }), 400
         
         if not client_id or client_id not in clients:
+            logger.error(f'❌ 클라이언트 ID를 찾을 수 없음: {client_id}')
+            logger.error(f'📋 현재 저장된 클라이언트들: {list(clients.keys())}')
             return jsonify({
                 'success': False,
                 'error': '클라이언트 데이터를 찾을 수 없습니다. 인증코드를 다시 요청해주세요.'
             }), 400
         
         client_data = clients[client_id]
+        logger.info(f'📋 클라이언트 데이터 확인: {client_id}')
+        logger.info(f'📋 클라이언트 데이터 키들: {list(client_data.keys())}')
+        logger.info(f'📋 phone_code_hash 존재: {bool(client_data.get("phone_code_hash"))}')
+        logger.info(f'📋 클라이언트 연결 상태: {client_data.get("client").is_connected() if client_data.get("client") else "N/A"}')
         
         # 실제 Telegram MTProto API로 인증 검증
         try:
@@ -289,10 +295,29 @@ def verify_code():
                     logger.error('❌ phone_code_hash가 없습니다!')
                     raise Exception('phone_code_hash가 없습니다')
                 
+                # 클라이언트 연결 상태 재확인
+                if not client.is_connected():
+                    logger.info('🔌 클라이언트 재연결 중...')
+                    await client.connect()
+                    logger.info('✅ 클라이언트 재연결 완료')
+                
+                # 인증코드 형식 검증
+                if not phone_code or len(phone_code) != 5 or not phone_code.isdigit():
+                    logger.error(f'❌ 잘못된 인증코드 형식: {phone_code}')
+                    raise ValueError(f'인증코드는 5자리 숫자여야 합니다: {phone_code}')
+                
                 # Telethon의 올바른 sign_in 사용법
                 logger.info('🔐 sign_in 메서드 호출 중...')
-                result = await client.sign_in(phone_code, phone_code_hash=phone_code_hash)
-                logger.info(f'✅ 인증 성공: userId={result.id}, firstName={result.first_name}')
+                logger.info(f'📋 sign_in 파라미터: phone_code={phone_code}, phone_code_hash={phone_code_hash}')
+                
+                try:
+                    result = await client.sign_in(phone_code, phone_code_hash=phone_code_hash)
+                    logger.info(f'✅ 인증 성공: userId={result.id}, firstName={result.first_name}')
+                except Exception as sign_in_error:
+                    logger.error(f'❌ sign_in 실패: {sign_in_error}')
+                    logger.error(f'  - 에러 타입: {type(sign_in_error).__name__}')
+                    logger.error(f'  - 에러 메시지: {str(sign_in_error)}')
+                    raise sign_in_error
                 
                 return result
             
