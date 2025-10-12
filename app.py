@@ -122,9 +122,12 @@ def send_code():
                 asyncio.set_event_loop(loop)
                 
                 async def send_code_async():
-                    # Telethon 클라이언트 생성 (이벤트 루프 내에서)
+                    # Telethon 클라이언트 생성 (메모리 세션 사용)
                     logger.info('🔧 Telethon 클라이언트 생성 중...')
-                    client = TelegramClient(f'session_{client_id}', api_id, api_hash)
+                    import io
+                    session_data = io.BytesIO()
+                    logger.info('📁 메모리 세션 사용')
+                    client = TelegramClient(session_data, api_id, api_hash)
                     logger.info('✅ Telethon 클라이언트 생성 완료')
                 
                     try:
@@ -275,38 +278,48 @@ def verify_code():
             logger.info('🔍 인증코드 검증 시작...')
             logger.info(f'📋 검증 정보: clientId={client_id}, phoneCode={phone_code}')
             
-            # 기존 클라이언트를 새 스레드에서 사용
+            # 새로운 클라이언트를 생성하여 인증 (asyncio 문제 해결)
             def run_telethon_verify():
                 # 새로운 이벤트 루프 생성
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 
                 async def verify_code_async():
-                    # 기존 클라이언트 사용 (세션 유지)
-                    client = client_data['client']
-                    logger.info('🔧 기존 클라이언트 사용')
+                    # 새로운 클라이언트 생성 (메모리 세션 사용)
+                    logger.info('🔧 새로운 클라이언트 생성 중...')
+                    import io
+                    session_data = io.BytesIO()
+                    logger.info('📁 메모리 세션 사용')
+                    client = TelegramClient(session_data, client_data['api_id'], client_data['api_hash'])
+                    logger.info('✅ 새로운 클라이언트 생성 완료')
                     
-                    # 클라이언트 연결 상태 확인
-                    if not client.is_connected():
-                        logger.info('🔌 클라이언트 재연결 중...')
+                    try:
+                        # 클라이언트 연결
+                        logger.info('🔌 클라이언트 연결 중...')
                         await client.connect()
-                        logger.info('✅ 클라이언트 재연결 완료')
-                    
-                    # 실제 인증 수행
-                    logger.info('🔐 인증 수행 중...')
-                    phone_code_hash = client_data.get('phone_code_hash')
-                    if phone_code_hash:
-                        logger.info(f'📋 인증 정보: phoneCode={phone_code}, phoneCodeHash=***{phone_code_hash[-4:]}')
-                    else:
-                        logger.error('❌ phone_code_hash가 없습니다!')
-                        raise Exception('phone_code_hash가 없습니다')
-                    
-                    # Telethon의 올바른 sign_in 사용법
-                    logger.info('🔐 sign_in 메서드 호출 중...')
-                    result = await client.sign_in(phone_code, phone_code_hash=phone_code_hash)
-                    logger.info(f'✅ 인증 성공: userId={result.id}, firstName={result.first_name}')
-                    
-                    return result
+                        logger.info('✅ 클라이언트 연결 완료')
+                        
+                        # 실제 인증 수행
+                        logger.info('🔐 인증 수행 중...')
+                        phone_code_hash = client_data.get('phone_code_hash')
+                        if phone_code_hash:
+                            logger.info(f'📋 인증 정보: phoneCode={phone_code}, phoneCodeHash=***{phone_code_hash[-4:]}')
+                        else:
+                            logger.error('❌ phone_code_hash가 없습니다!')
+                            raise Exception('phone_code_hash가 없습니다')
+                        
+                        # Telethon의 올바른 sign_in 사용법
+                        logger.info('🔐 sign_in 메서드 호출 중...')
+                        result = await client.sign_in(phone_code, phone_code_hash=phone_code_hash)
+                        logger.info(f'✅ 인증 성공: userId={result.id}, firstName={result.first_name}')
+                        
+                        return result
+                        
+                    finally:
+                        # 클라이언트 연결 해제
+                        if client.is_connected():
+                            await client.disconnect()
+                            logger.info('🔌 클라이언트 연결 해제 완료')
                 
                 try:
                     result = loop.run_until_complete(verify_code_async())
