@@ -2132,11 +2132,10 @@ async def get_custom_emojis_async(account_info):
         
         logger.info('✅ 클라이언트 연결 상태 확인 완료')
         
-        # 커스텀 이모지 팩들 가져오기
+        # 커스텀 이모지 팩들 가져오기 (간단한 방법)
         try:
             # 텔레그램의 커스텀 이모지 팩들 가져오기
             from telethon.tl.functions.messages import GetEmojiStickersRequest
-            from telethon.tl.types import InputStickerSetEmpty
             
             # 빈 스티커셋으로 요청하여 모든 커스텀 이모지 팩 가져오기
             result = await client(GetEmojiStickersRequest(
@@ -2149,36 +2148,44 @@ async def get_custom_emojis_async(account_info):
             for sticker_set in result.sets:
                 try:
                     pack_info = {
-                        'id': sticker_set.id,
+                        'id': str(sticker_set.id),
                         'title': sticker_set.title,
                         'short_name': sticker_set.short_name,
                         'emojis': []
                     }
                     
-                    # 각 팩의 이모지들 가져오기
-                    stickers = await client.get_messages(sticker_set, limit=100)
-                    for sticker in stickers:
-                        if hasattr(sticker, 'document') and sticker.document:
-                            emoji_info = {
-                                'document_id': sticker.document.id,
-                                'access_hash': sticker.document.access_hash,
-                                'file_reference': sticker.document.file_reference.hex() if sticker.document.file_reference else None,
-                                'mime_type': sticker.document.mime_type,
-                                'size': sticker.document.size,
-                                'attributes': []
-                            }
-                            
-                            # 문서 속성들 저장
-                            for attr in sticker.document.attributes:
-                                if hasattr(attr, 'alt'):
-                                    emoji_info['alt'] = attr.alt
-                                if hasattr(attr, 'stickerset'):
-                                    emoji_info['stickerset'] = {
-                                        'id': attr.stickerset.id,
-                                        'access_hash': attr.stickerset.access_hash
-                                    }
-                            
-                            pack_info['emojis'].append(emoji_info)
+                    # 각 팩의 이모지들 가져오기 (더 간단한 방법)
+                    try:
+                        # 스티커셋에서 메시지들 가져오기
+                        from telethon.tl.types import InputStickerSetID
+                        input_sticker_set = InputStickerSetID(
+                            id=sticker_set.id,
+                            access_hash=sticker_set.access_hash
+                        )
+                        
+                        stickers = await client.get_messages(input_sticker_set, limit=50)
+                        
+                        for sticker in stickers:
+                            if hasattr(sticker, 'document') and sticker.document:
+                                emoji_info = {
+                                    'document_id': sticker.document.id,
+                                    'access_hash': sticker.document.access_hash,
+                                    'mime_type': sticker.document.mime_type,
+                                    'size': sticker.document.size,
+                                    'alt': '😀'  # 기본값
+                                }
+                                
+                                # 문서 속성들에서 alt 텍스트 찾기
+                                for attr in sticker.document.attributes:
+                                    if hasattr(attr, 'alt') and attr.alt:
+                                        emoji_info['alt'] = attr.alt
+                                        break
+                                
+                                pack_info['emojis'].append(emoji_info)
+                    
+                    except Exception as e:
+                        logger.error(f'❌ 스티커셋 {sticker_set.title} 처리 실패: {e}')
+                        continue
                     
                     if pack_info['emojis']:
                         emoji_packs.append(pack_info)
