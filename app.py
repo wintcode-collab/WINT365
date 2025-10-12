@@ -1466,44 +1466,51 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                 # 그룹 ID를 정수로 변환
                 try:
                     group_id_int = int(group_id)
-                    # 그룹 ID가 양수인 경우 음수로 변환 (텔레그램 그룹 ID는 음수)
-                    if group_id_int > 0:
-                        group_id_int = -group_id_int
-                        logger.info(f'📤 그룹 ID 변환: {group_id} -> {group_id_int}')
+                    logger.info(f'📤 원본 그룹 ID: {group_id_int}')
                 except ValueError:
                     logger.error(f'❌ 잘못된 그룹 ID 형식: {group_id}')
                     return False
                 
-                # 그룹 엔티티 가져오기 (슈퍼그룹/채널 처리)
+                # 그룹 엔티티 가져오기 (다양한 ID 형식 시도)
+                group_entity = None
+                
+                # 1. 원본 ID로 시도
                 try:
-                    # 먼저 원본 ID로 시도
                     group_entity = await client.get_entity(group_id_int)
-                    logger.info(f'📤 그룹 엔티티 가져오기 성공: {group_entity.title}')
+                    logger.info(f'📤 원본 ID로 엔티티 가져오기 성공: {group_entity.title}')
                 except Exception as e:
-                    logger.error(f'❌ 그룹 엔티티 가져오기 실패: {e}')
-                    
-                    # 슈퍼그룹의 경우 채널 ID로 변환 시도
-                    if group_id_int > 0:
-                        # 슈퍼그룹 ID를 채널 ID로 변환 (1000000000000을 더함)
+                    logger.error(f'❌ 원본 ID로 엔티티 가져오기 실패: {e}')
+                
+                # 2. 음수 ID로 시도
+                if not group_entity:
+                    try:
+                        negative_id = -group_id_int
+                        group_entity = await client.get_entity(negative_id)
+                        logger.info(f'📤 음수 ID로 엔티티 가져오기 성공: {group_entity.title}')
+                    except Exception as e:
+                        logger.error(f'❌ 음수 ID로 엔티티 가져오기 실패: {e}')
+                
+                # 3. 슈퍼그룹을 채널로 변환하여 시도
+                if not group_entity:
+                    try:
                         channel_id = group_id_int + 1000000000000
-                        logger.info(f'📤 슈퍼그룹을 채널로 변환 시도: {group_id_int} -> {channel_id}')
-                        try:
-                            group_entity = await client.get_entity(channel_id)
-                            logger.info(f'📤 채널 엔티티 가져오기 성공: {group_entity.title}')
-                        except Exception as e2:
-                            logger.error(f'❌ 채널 엔티티 가져오기 실패: {e2}')
-                            
-                            # 음수 변환 후 재시도
-                            negative_id = -group_id_int
-                            logger.info(f'📤 음수 변환 후 재시도: {group_id_int} -> {negative_id}')
-                            try:
-                                group_entity = await client.get_entity(negative_id)
-                                logger.info(f'📤 음수 ID 엔티티 가져오기 성공: {group_entity.title}')
-                            except Exception as e3:
-                                logger.error(f'❌ 음수 ID 엔티티 가져오기 실패: {e3}')
-                                return False
-                    else:
-                        return False
+                        group_entity = await client.get_entity(channel_id)
+                        logger.info(f'📤 채널 ID로 엔티티 가져오기 성공: {group_entity.title}')
+                    except Exception as e:
+                        logger.error(f'❌ 채널 ID로 엔티티 가져오기 실패: {e}')
+                
+                # 4. 슈퍼그룹을 채널로 변환한 후 음수로 시도
+                if not group_entity:
+                    try:
+                        channel_negative_id = -(group_id_int + 1000000000000)
+                        group_entity = await client.get_entity(channel_negative_id)
+                        logger.info(f'📤 채널 음수 ID로 엔티티 가져오기 성공: {group_entity.title}')
+                    except Exception as e:
+                        logger.error(f'❌ 채널 음수 ID로 엔티티 가져오기 실패: {e}')
+                
+                if not group_entity:
+                    logger.error(f'❌ 모든 ID 형식으로 엔티티 가져오기 실패: {group_id}')
+                    return False
                 
                 # 메시지 전송 (미디어 포함)
                 logger.info(f'📤 메시지 전송 중: 그룹={group_entity.title}, 메시지={message[:50]}...')
