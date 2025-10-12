@@ -941,6 +941,7 @@ async function requestTelegramAuthCode(apiId, apiHash, phone) {
                 phoneNumber: phone
             });
             
+            console.log('실제 서버 요청 시작...');
             const response = await fetch('/api/telegram/send-code', {
                 method: 'POST',
                 headers: {
@@ -952,6 +953,7 @@ async function requestTelegramAuthCode(apiId, apiHash, phone) {
                     phoneNumber: phone
                 })
             });
+            console.log('서버 요청 완료, 응답 받음');
             
             console.log('서버 응답 상태:', response.status);
             console.log('서버 응답 헤더:', response.headers);
