@@ -12,6 +12,7 @@ import tempfile
 import io
 import base64
 import requests
+import re
 
 # Telegram 라이브러리
 try:
@@ -28,6 +29,58 @@ CORS(app)
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# 마크다운을 HTML로 변환하는 함수
+def convert_markdown_to_html(text):
+    """마크다운 문법을 HTML로 변환"""
+    if not text:
+        return text
+    
+    # **텍스트** -> <b>텍스트</b>
+    text = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', text)
+    
+    # *텍스트* -> <i>텍스트</i>
+    text = re.sub(r'\*(.*?)\*', r'<i>\1</i>', text)
+    
+    # __텍스트__ -> <b>텍스트</b>
+    text = re.sub(r'__(.*?)__', r'<b>\1</b>', text)
+    
+    # _텍스트_ -> <i>텍스트</i>
+    text = re.sub(r'_(.*?)_', r'<i>\1</i>', text)
+    
+    # `텍스트` -> <code>텍스트</code>
+    text = re.sub(r'`(.*?)`', r'<code>\1</code>', text)
+    
+    # ```텍스트``` -> <pre>텍스트</pre>
+    text = re.sub(r'```(.*?)```', r'<pre>\1</pre>', text, flags=re.DOTALL)
+    
+    return text
+
+# 마크다운 문법을 제거하는 함수
+def remove_markdown_syntax(text):
+    """마크다운 문법을 제거하여 순수 텍스트로 변환"""
+    if not text:
+        return text
+    
+    # **텍스트** -> 텍스트
+    text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
+    
+    # *텍스트* -> 텍스트
+    text = re.sub(r'\*(.*?)\*', r'\1', text)
+    
+    # __텍스트__ -> 텍스트
+    text = re.sub(r'__(.*?)__', r'\1', text)
+    
+    # _텍스트_ -> 텍스트
+    text = re.sub(r'_(.*?)_', r'\1', text)
+    
+    # `텍스트` -> 텍스트
+    text = re.sub(r'`(.*?)`', r'\1', text)
+    
+    # ```텍스트``` -> 텍스트
+    text = re.sub(r'```(.*?)```', r'\1', text, flags=re.DOTALL)
+    
+    return text
 
 # 텔레그램 클라이언트 저장소
 clients = {}
@@ -1587,16 +1640,27 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                     logger.info(f'📤 원본 텍스트: {original_text}')
                     logger.info(f'📤 원본 엔티티: {original_entities}')
                     
-                    # 가장 간단한 방법: 원본 텍스트 그대로 전송 (마크다운 파싱 비활성화)
+                    # 마크다운 문법을 HTML로 변환하여 전송
                     try:
-                        # parse_mode=None으로 설정하여 마크다운 파싱 비활성화
-                        sent_message = await client.send_message(group_entity, original_text, parse_mode=None)
-                        logger.info(f'✅ 원본 메시지 전송 완료 (마크다운 비활성화): {sent_message.id}')
+                        # 마크다운을 HTML로 변환
+                        html_text = convert_markdown_to_html(original_text)
+                        logger.info(f'📤 HTML 변환된 텍스트: {html_text}')
+                        
+                        # HTML 파싱 모드로 전송
+                        sent_message = await client.send_message(group_entity, html_text, parse_mode='html')
+                        logger.info(f'✅ HTML 파싱으로 메시지 전송 완료: {sent_message.id}')
                     except Exception as e:
-                        logger.error(f'❌ 원본 메시지 전송 실패: {e}')
-                        # 일반 메시지로 전송
-                        sent_message = await client.send_message(group_entity, original_text)
-                        logger.info(f'⚠️ 일반 메시지로 전송 완료: {sent_message.id}')
+                        logger.error(f'❌ HTML 파싱 실패: {e}')
+                        # 마크다운 파싱으로 재시도
+                        try:
+                            sent_message = await client.send_message(group_entity, original_text, parse_mode='md')
+                            logger.info(f'✅ 마크다운 파싱으로 메시지 전송 완료: {sent_message.id}')
+                        except Exception as e2:
+                            logger.error(f'❌ 마크다운 파싱도 실패: {e2}')
+                            # 마크다운 문법 제거 후 전송
+                            clean_text = remove_markdown_syntax(original_text)
+                            sent_message = await client.send_message(group_entity, clean_text)
+                            logger.info(f'⚠️ 마크다운 제거 후 전송 완료: {sent_message.id}')
                 
                 # 커스텀 이모지가 있는 메시지인지 확인 (기존 방식)
                 elif media_info and media_info.get('has_custom_emoji'):
