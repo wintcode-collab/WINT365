@@ -366,10 +366,8 @@ def send_code():
                         
                         return client, result, session_file
                     finally:
-                        # 연결 해제
-                        logger.info('🔌 클라이언트 연결 해제')
-                        await client.disconnect()
-                        logger.info('✅ 연결 해제 완료')
+                        # 연결 유지 (세션 보존을 위해)
+                        logger.info('🔌 클라이언트 연결 유지 (세션 보존)')
                 
                 try:
                     client, result, session_file = loop.run_until_complete(send_code_async())
@@ -520,10 +518,13 @@ def verify_code():
                         logger.info('✅ 새로운 클라이언트 생성 완료')
                     
                     try:
-                        # 클라이언트 연결
-                        logger.info('🔌 클라이언트 연결 중...')
-                        await client.connect()
-                        logger.info('✅ 클라이언트 연결 완료')
+                        # 클라이언트 연결 상태 확인
+                        if not client.is_connected():
+                            logger.info('🔌 클라이언트 연결 중...')
+                            await client.connect()
+                            logger.info('✅ 클라이언트 연결 완료')
+                        else:
+                            logger.info('✅ 클라이언트 이미 연결됨')
                         
                         # 실제 인증 수행
                         logger.info('🔐 인증 수행 중...')
