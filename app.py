@@ -1313,59 +1313,129 @@ def get_telegram_saved_messages_with_session(account_info):
                 saved_messages = []
 
                 try:
-                    # "Saved Messages" 채팅 찾기 (여러 방법 시도)
+                    # "Saved Messages" 채팅 찾기 (더 강력한 방법들)
                     me = await client.get_me()
                     logger.info(f'💾 현재 사용자: {me.first_name} (ID: {me.id})')
                     
-                    # 방법 1: 대화 목록에서 "Saved Messages" 찾기
-                    dialogs = await client.get_dialogs()
-                    saved_messages_entity = None
+                    # 방법 1: InputPeerSelf를 사용한 직접 접근
+                    from telethon.tl.types import InputPeerSelf
+                    saved_messages_entity = InputPeerSelf()
+                    logger.info('💾 방법 1: InputPeerSelf로 저장된 메시지 접근 시도')
                     
-                    logger.info(f'💾 총 {len(dialogs)}개의 대화를 확인 중...')
+                    try:
+                        messages = await client.get_messages(saved_messages_entity, limit=50)
+                        logger.info(f'💾 방법 1 성공: {len(messages)}개의 저장된 메시지를 찾았습니다.')
+                    except Exception as e:
+                        logger.error(f'❌ 방법 1 실패: {e}')
+                        messages = []
                     
-                    for dialog in dialogs:
-                        entity = dialog.entity
-                        logger.info(f'💾 대화 확인: {getattr(entity, "title", "Unknown")} (ID: {entity.id}, Type: {type(entity).__name__})')
-                        
-                        # 자신과의 대화 (Saved Messages) 찾기
-                        if entity.id == me.id:
-                            saved_messages_entity = entity
-                            logger.info('💾 방법 1: 대화 목록에서 저장된 메시지 찾기 성공')
-                            break
-                    
-                    # 방법 2: 직접 자신의 ID로 접근
-                    if not saved_messages_entity:
+                    # 방법 2: 대화 목록에서 자신과의 대화 찾기
+                    if len(messages) == 0:
                         try:
-                            saved_messages_entity = await client.get_entity(me.id)
-                            logger.info('💾 방법 2: 자신의 ID로 저장된 메시지 접근 성공')
+                            dialogs = await client.get_dialogs()
+                            logger.info(f'💾 총 {len(dialogs)}개의 대화를 확인 중...')
+                            
+                            for dialog in dialogs:
+                                entity = dialog.entity
+                                logger.info(f'💾 대화 확인: {getattr(entity, "title", "Unknown")} (ID: {entity.id}, Type: {type(entity).__name__})')
+                                
+                                # 자신과의 대화 (Saved Messages) 찾기
+                                if entity.id == me.id:
+                                    saved_messages_entity = entity
+                                    logger.info('💾 방법 2: 대화 목록에서 저장된 메시지 찾기 성공')
+                                    break
+                            
+                            if saved_messages_entity:
+                                messages = await client.get_messages(saved_messages_entity, limit=50)
+                                logger.info(f'💾 방법 2 성공: {len(messages)}개의 저장된 메시지를 찾았습니다.')
                         except Exception as e:
                             logger.error(f'❌ 방법 2 실패: {e}')
                     
-                    # 방법 3: "me" 문자열로 접근
-                    if not saved_messages_entity:
+                    # 방법 3: 자신의 ID로 직접 접근
+                    if len(messages) == 0:
                         try:
-                            saved_messages_entity = await client.get_entity("me")
-                            logger.info('💾 방법 3: "me" 문자열로 저장된 메시지 접근 성공')
+                            saved_messages_entity = await client.get_entity(me.id)
+                            messages = await client.get_messages(saved_messages_entity, limit=50)
+                            logger.info(f'💾 방법 3 성공: {len(messages)}개의 저장된 메시지를 찾았습니다.')
                         except Exception as e:
                             logger.error(f'❌ 방법 3 실패: {e}')
                     
-                    # 방법 4: InputPeerSelf 사용
-                    if not saved_messages_entity:
+                    # 방법 4: "me" 문자열로 접근
+                    if len(messages) == 0:
                         try:
-                            from telethon.tl.types import InputPeerSelf
-                            saved_messages_entity = InputPeerSelf()
-                            logger.info('💾 방법 4: InputPeerSelf로 저장된 메시지 접근 시도')
+                            saved_messages_entity = await client.get_entity("me")
+                            messages = await client.get_messages(saved_messages_entity, limit=50)
+                            logger.info(f'💾 방법 4 성공: {len(messages)}개의 저장된 메시지를 찾았습니다.')
                         except Exception as e:
                             logger.error(f'❌ 방법 4 실패: {e}')
                     
-                    if not saved_messages_entity:
+                    # 방법 5: 모든 대화에서 메시지 검색
+                    if len(messages) == 0:
+                        try:
+                            logger.info('💾 방법 5: 모든 대화에서 저장된 메시지 검색')
+                            dialogs = await client.get_dialogs()
+                            
+                            for dialog in dialogs:
+                                entity = dialog.entity
+                                if entity.id == me.id:
+                                    # 이 대화의 메시지들을 확인
+                                    dialog_messages = await client.get_messages(entity, limit=50)
+                                    if dialog_messages:
+                                        messages = dialog_messages
+                                        saved_messages_entity = entity
+                                        logger.info(f'💾 방법 5 성공: {len(messages)}개의 저장된 메시지를 찾았습니다.')
+                                        break
+                        except Exception as e:
+                            logger.error(f'❌ 방법 5 실패: {e}')
+                    
+                    # 방법 6: GetHistoryRequest 직접 사용
+                    if len(messages) == 0:
+                        try:
+                            logger.info('💾 방법 6: GetHistoryRequest 직접 사용')
+                            from telethon.tl.functions.messages import GetHistoryRequest
+                            from telethon.tl.types import InputPeerSelf
+                            
+                            result = await client(GetHistoryRequest(
+                                peer=InputPeerSelf(),
+                                limit=50,
+                                offset_date=None,
+                                offset_id=0,
+                                max_id=0,
+                                min_id=0,
+                                add_offset=0,
+                                hash=0
+                            ))
+                            
+                            if result and hasattr(result, 'messages'):
+                                messages = result.messages
+                                logger.info(f'💾 방법 6 성공: {len(messages)}개의 저장된 메시지를 찾았습니다.')
+                        except Exception as e:
+                            logger.error(f'❌ 방법 6 실패: {e}')
+                    
+                    # 방법 7: GetFullUserRequest로 자신의 정보 가져오기
+                    if len(messages) == 0:
+                        try:
+                            logger.info('💾 방법 7: GetFullUserRequest로 자신의 정보 가져오기')
+                            from telethon.tl.functions.users import GetFullUserRequest
+                            
+                            full_user = await client(GetFullUserRequest(me))
+                            logger.info(f'💾 사용자 전체 정보: {full_user}')
+                            
+                            # 다시 InputPeerSelf로 시도
+                            messages = await client.get_messages(InputPeerSelf(), limit=50)
+                            logger.info(f'💾 방법 7 성공: {len(messages)}개의 저장된 메시지를 찾았습니다.')
+                        except Exception as e:
+                            logger.error(f'❌ 방법 7 실패: {e}')
+                    
+                    if len(messages) == 0:
                         logger.error('❌ 모든 방법으로 저장된 메시지를 찾을 수 없음')
-                        return None
-
-                    # 저장된 메시지 목록 가져오기 (최근 50개)
-                    logger.info(f'💾 저장된 메시지 엔티티: {saved_messages_entity}')
-                    messages = await client.get_messages(saved_messages_entity, limit=50)
-                    logger.info(f'💾 {len(messages)}개의 저장된 메시지를 찾았습니다.')
+                        logger.info('💾 디버깅: 사용자 정보 다시 확인')
+                        logger.info(f'💾 사용자 ID: {me.id}')
+                        logger.info(f'💾 사용자 이름: {me.first_name}')
+                        logger.info(f'💾 사용자 유저네임: {getattr(me, "username", "None")}')
+                        return []
+                    
+                    logger.info(f'💾 최종 결과: {len(messages)}개의 저장된 메시지를 찾았습니다.')
 
                     for message in messages:
                         try:
