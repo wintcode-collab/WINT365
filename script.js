@@ -1926,6 +1926,9 @@ function closeTelegramGroupsWindow() {
         messageInput.value = '';
     }
     
+    // 미디어 정보 초기화
+    window.selectedMediaInfo = null;
+    
     // 선택된 그룹 체크박스 초기화
     const groupCheckboxes = document.querySelectorAll('.group-checkbox');
     groupCheckboxes.forEach(checkbox => {
@@ -2071,7 +2074,8 @@ async function sendMessageToGroup() {
                     body: JSON.stringify({
                         userId: account.user_id,
                         groupId: groupId,
-                        message: message
+                        message: message,
+                        mediaInfo: window.selectedMediaInfo
                     })
                 });
                 
@@ -2130,6 +2134,10 @@ function clearMessage() {
         messageInput.value = '';
         messageInput.focus();
     }
+    
+    // 미디어 정보도 초기화
+    window.selectedMediaInfo = null;
+    console.log('🗑️ 미디어 정보 초기화');
 }
 
 // 저장된 메시지 표시
@@ -2249,11 +2257,37 @@ function displayTelegramSavedMessages(savedMessages) {
         const date = new Date(message.date).toLocaleString('ko-KR');
         const mediaIcon = message.media_type ? getMediaIcon(message.media_type) : '';
         
+        // 미디어 미리보기 생성
+        let mediaPreview = '';
+        if (message.media_type && message.media_url) {
+            if (message.media_type === 'photo') {
+                mediaPreview = `
+                    <div style="margin-top: 8px;">
+                        <img src="${message.media_url}" alt="사진" style="max-width: 200px; max-height: 150px; border-radius: 8px; border: 1px solid #333;">
+                    </div>
+                `;
+            } else if (message.media_type === 'video') {
+                mediaPreview = `
+                    <div style="margin-top: 8px;">
+                        <video controls style="max-width: 200px; max-height: 150px; border-radius: 8px; border: 1px solid #333;">
+                            <source src="${message.media_url}" type="video/mp4">
+                        </video>
+                    </div>
+                `;
+            } else {
+                mediaPreview = `
+                    <div style="margin-top: 8px; color: #10B981; padding: 8px; background: rgba(16, 185, 129, 0.1); border-radius: 6px; border: 1px solid #10B981;">
+                        ${mediaIcon} ${message.media_type}
+                    </div>
+                `;
+            }
+        }
+        
         return `
             <div class="saved-message-item" data-message-index="${index}">
                 <div class="saved-message-content">
                     ${message.text ? message.text : ''}
-                    ${message.media_type ? `<div style="margin-top: 8px; color: #10B981;">${mediaIcon} ${message.media_type}</div>` : ''}
+                    ${mediaPreview}
                 </div>
                 <div class="saved-message-meta">
                     <span>${date}</span>
@@ -2292,9 +2326,21 @@ function selectTelegramSavedMessage(messageIndex, savedMessages) {
         const messageInput = document.querySelector('.message-input');
         
         if (messageInput) {
-            // 텍스트만 입력 필드에 넣기 (미디어는 별도 처리 필요)
+            // 텍스트 입력
             messageInput.value = message.text || '';
             messageInput.focus();
+        }
+        
+        // 미디어 정보 저장 (전역 변수에)
+        if (message.media_type && message.media_path) {
+            window.selectedMediaInfo = {
+                media_type: message.media_type,
+                media_path: message.media_path,
+                media_url: message.media_url
+            };
+            console.log('💾 미디어 정보 저장:', window.selectedMediaInfo);
+        } else {
+            window.selectedMediaInfo = null;
         }
         
         // 모달 닫기

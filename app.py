@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, send_file
 from flask_cors import CORS
 import os
 import json
@@ -1173,6 +1173,24 @@ def get_telegram_saved_messages():
             'error': f'저장된 메시지 가져오기 실패: {str(error)}'
         }), 500
 
+@app.route('/api/telegram/media/<path:filename>')
+def serve_media_file(filename):
+    """미디어 파일 서빙"""
+    try:
+        # 미디어 파일 경로 찾기
+        media_dirs = ['temp_photos', 'temp_videos', 'temp_docs', 'temp_voices']
+        
+        for media_dir in media_dirs:
+            file_path = os.path.join(media_dir, filename)
+            if os.path.exists(file_path):
+                return send_file(file_path)
+        
+        return jsonify({'error': 'File not found'}), 404
+        
+    except Exception as e:
+        logger.error(f'❌ 미디어 파일 서빙 실패: {e}')
+        return jsonify({'error': 'File serving failed'}), 500
+
 @app.route('/api/telegram/send-message', methods=['POST'])
 def send_telegram_message():
     """인증된 계정으로 텔레그램 그룹에 메시지 전송"""
@@ -1198,8 +1216,9 @@ def send_telegram_message():
                 'error': '인증된 계정 정보를 찾을 수 없습니다. 다시 인증해주세요.'
             }), 404
         
-        # 메시지 전송 실행
-        result = send_message_to_telegram_group(account_info, group_id, message)
+        # 메시지 전송 실행 (미디어 정보 포함)
+        media_info = data.get('mediaInfo')
+        result = send_message_to_telegram_group(account_info, group_id, message, media_info)
         
         if result:
             logger.info(f'✅ 메시지 전송 성공: 그룹={group_id}')
@@ -1256,6 +1275,11 @@ def get_telegram_saved_messages_with_session(account_info):
             logger.error(f'❌ 임시 세션 파일 생성 실패: {e}')
             return None
 
+        # 미디어 디렉토리 생성
+        media_dirs = ['temp_photos', 'temp_videos', 'temp_docs', 'temp_voices']
+        for media_dir in media_dirs:
+            os.makedirs(media_dir, exist_ok=True)
+
         # 비동기 저장된 메시지 가져오기 함수
         async def get_saved_messages_async():
             try:
@@ -1299,17 +1323,41 @@ def get_telegram_saved_messages_with_session(account_info):
                             # 미디어 처리
                             if message.photo:
                                 message_info['media_type'] = 'photo'
-                                # 사진 다운로드 URL 생성 (실제로는 다운로드해야 함)
-                                message_info['media_url'] = f'photo_{message.id}'
+                                # 사진 다운로드
+                                try:
+                                    photo_path = await client.download_media(message.photo, file=f'temp_photos/photo_{message.id}.jpg')
+                                    message_info['media_url'] = f'/api/telegram/media/photo_{message.id}.jpg'
+                                    message_info['media_path'] = photo_path
+                                except Exception as e:
+                                    logger.error(f'❌ 사진 다운로드 실패: {e}')
+                                    message_info['media_url'] = None
                             elif message.video:
                                 message_info['media_type'] = 'video'
-                                message_info['media_url'] = f'video_{message.id}'
+                                try:
+                                    video_path = await client.download_media(message.video, file=f'temp_videos/video_{message.id}.mp4')
+                                    message_info['media_url'] = f'/api/telegram/media/video_{message.id}.mp4'
+                                    message_info['media_path'] = video_path
+                                except Exception as e:
+                                    logger.error(f'❌ 비디오 다운로드 실패: {e}')
+                                    message_info['media_url'] = None
                             elif message.document:
                                 message_info['media_type'] = 'document'
-                                message_info['media_url'] = f'document_{message.id}'
+                                try:
+                                    doc_path = await client.download_media(message.document, file=f'temp_docs/doc_{message.id}')
+                                    message_info['media_url'] = f'/api/telegram/media/doc_{message.id}'
+                                    message_info['media_path'] = doc_path
+                                except Exception as e:
+                                    logger.error(f'❌ 문서 다운로드 실패: {e}')
+                                    message_info['media_url'] = None
                             elif message.voice:
                                 message_info['media_type'] = 'voice'
-                                message_info['media_url'] = f'voice_{message.id}'
+                                try:
+                                    voice_path = await client.download_media(message.voice, file=f'temp_voices/voice_{message.id}.ogg')
+                                    message_info['media_url'] = f'/api/telegram/media/voice_{message.id}.ogg'
+                                    message_info['media_path'] = voice_path
+                                except Exception as e:
+                                    logger.error(f'❌ 음성 다운로드 실패: {e}')
+                                    message_info['media_url'] = None
 
                             saved_messages.append(message_info)
                             logger.info(f'✅ 저장된 메시지 추가: {message.id} - {message_info["text"][:50]}...')
@@ -1361,7 +1409,7 @@ def get_telegram_saved_messages_with_session(account_info):
         logger.error(f'❌ 에러 타입: {type(e)}')
         return None
 
-def send_message_to_telegram_group(account_info, group_id, message):
+def send_message_to_telegram_group(account_info, group_id, message, media_info=None):
     """텔레그램 그룹에 메시지 전송"""
     try:
         logger.info(f'📤 텔레그램 메시지 전송 시작: {account_info["user_id"]} -> {group_id}')
@@ -1402,10 +1450,29 @@ def send_message_to_telegram_group(account_info, group_id, message):
                     logger.error(f'❌ 잘못된 그룹 ID 형식: {group_id}')
                     return False
                 
-                # 메시지 전송
-                logger.info(f'📤 메시지 전송 중: 그룹={group_id_int}, 메시지={message[:50]}...')
-                await client.send_message(group_id_int, message)
-                logger.info('✅ 메시지 전송 성공')
+                        # 메시지 전송 (미디어 포함)
+                        logger.info(f'📤 메시지 전송 중: 그룹={group_id_int}, 메시지={message[:50]}...')
+                        
+                        if media_info and media_info.get('media_path'):
+                            # 미디어와 함께 메시지 전송
+                            media_path = media_info['media_path']
+                            media_type = media_info.get('media_type')
+                            
+                            if media_type == 'photo':
+                                await client.send_file(group_id_int, media_path, caption=message)
+                            elif media_type == 'video':
+                                await client.send_file(group_id_int, media_path, caption=message)
+                            elif media_type == 'document':
+                                await client.send_file(group_id_int, media_path, caption=message)
+                            elif media_type == 'voice':
+                                await client.send_file(group_id_int, media_path, caption=message)
+                            else:
+                                await client.send_message(group_id_int, message)
+                        else:
+                            # 텍스트만 전송
+                            await client.send_message(group_id_int, message)
+                        
+                        logger.info('✅ 메시지 전송 성공')
                 
                 return True
                 
