@@ -545,7 +545,14 @@ def verify_code():
                         
                         # Telethon의 올바른 sign_in 사용법
                         logger.info('🔐 sign_in 메서드 호출 중...')
-                        result = await client.sign_in(phone_code, phone_code_hash=phone_code_hash)
+                        logger.info(f'📋 인증 시도 정보: phone={client_data.get("phone_number")}, code={phone_code}, hash=***{phone_code_hash[-4:]}')
+                        
+                        # 전화번호와 함께 sign_in 시도
+                        result = await client.sign_in(
+                            phone=client_data.get('phone_number'),
+                            code=phone_code, 
+                            phone_code_hash=phone_code_hash
+                        )
                         logger.info(f'✅ 인증 성공: userId={result.id}, firstName={result.first_name}')
                         
                         # 인증 성공 후 계정 정보 저장 및 Firebase 세션 삭제
