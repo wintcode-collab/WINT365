@@ -2328,9 +2328,13 @@ function displayTelegramSavedMessages(savedMessages) {
     
     // 메시지 아이템 클릭 이벤트 추가
     const messageItems = messagesList.querySelectorAll('.saved-message-item');
-    messageItems.forEach(item => {
+    console.log('💾 저장된 메시지 아이템 개수:', messageItems.length);
+    
+    messageItems.forEach((item, index) => {
+        console.log(`💾 메시지 아이템 ${index} 이벤트 리스너 추가`);
         item.addEventListener('click', () => {
             const messageIndex = parseInt(item.dataset.messageIndex);
+            console.log('💾 저장된 메시지 클릭됨:', messageIndex);
             selectTelegramSavedMessage(messageIndex, savedMessages);
         });
     });
@@ -2349,7 +2353,8 @@ function getMediaIcon(mediaType) {
 
 // 텔레그램 저장된 메시지 선택
 function selectTelegramSavedMessage(messageIndex, savedMessages) {
-    console.log('💾 텔레그램 저장된 메시지 선택:', messageIndex);
+    console.log('💾 텔레그램 저장된 메시지 선택 함수 호출됨:', messageIndex);
+    console.log('💾 저장된 메시지 배열:', savedMessages);
     
     if (messageIndex >= 0 && messageIndex < savedMessages.length) {
         const message = savedMessages[messageIndex];
@@ -2363,6 +2368,8 @@ function selectTelegramSavedMessage(messageIndex, savedMessages) {
             media_type: message.media_type
         });
         
+        console.log('💾 입력칸 요소 찾기:', messageInput);
+        
         // 입력칸에는 아무것도 표시하지 않음 (원본 데이터만 저장)
         if (messageInput) {
             messageInput.value = '';
@@ -2374,12 +2381,18 @@ function selectTelegramSavedMessage(messageIndex, savedMessages) {
         
         // 저장된 메시지 버튼을 해제 버튼으로 변경
         const savedMessagesBtn = document.getElementById('savedMessagesBtn');
+        console.log('💾 저장된 메시지 버튼 요소 찾기:', savedMessagesBtn);
+        
         if (savedMessagesBtn) {
+            console.log('💾 버튼 변경 전:', savedMessagesBtn.textContent);
             savedMessagesBtn.textContent = '❌ 저장된 메시지 해제';
             savedMessagesBtn.style.backgroundColor = '#ff4444';
             savedMessagesBtn.style.borderColor = '#ff4444';
             savedMessagesBtn.onclick = clearSavedMessage;
+            console.log('💾 버튼 변경 후:', savedMessagesBtn.textContent);
             console.log('💾 저장된 메시지 버튼이 해제 버튼으로 변경됨');
+        } else {
+            console.error('❌ 저장된 메시지 버튼을 찾을 수 없습니다!');
         }
         
         // 미디어 정보 및 커스텀 이모지 정보 저장 (전역 변수에)
