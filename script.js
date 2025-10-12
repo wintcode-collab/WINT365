@@ -1296,6 +1296,24 @@ async function completeTelegramAuth(verificationCode) {
             } else {
                 const errorResult = await response.json().catch(() => ({ error: '서버 오류' }));
                 console.error('인증 서버 오류:', errorResult);
+                
+                // 2단계 인증이 필요한 경우 특별 처리
+                if (errorResult.error && errorResult.error.includes('SESSION_PASSWORD_NEEDED')) {
+                    console.log('🔐 2단계 인증이 필요합니다. 비밀번호 입력칸을 표시합니다.');
+                    
+                    // 2단계 인증 비밀번호 입력칸 표시
+                    showPasswordInput();
+                    
+                    // 인증 상태를 password_needed로 변경
+                    telegramAuthState = 'password_needed';
+                    
+                    // 버튼 상태 초기화
+                    elements.saveTelegramBtn.disabled = false;
+                    
+                    // 에러를 던지지 않고 정상 종료
+                    return;
+                }
+                
                 throw new Error(errorResult.error || `서버 요청 실패 (${response.status})`);
             }
             
@@ -1375,6 +1393,9 @@ async function completeTelegramAuth(verificationCode) {
                 
                 // 인증 상태를 password_needed로 변경
                 telegramAuthState = 'password_needed';
+                
+                // 버튼 상태 초기화 (에러 상태에서 정상 상태로)
+                elements.saveTelegramBtn.disabled = false;
                 
                 // 메시지박스 표시하지 않고 바로 return
                 return;
