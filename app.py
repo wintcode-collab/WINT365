@@ -116,18 +116,27 @@ def delete_session_from_firebase(client_id):
 def save_account_to_firebase(account_info):
     """Firebase에 인증된 계정 정보 저장"""
     try:
+        logger.info(f'🔥 Firebase 계정 정보 저장 시작: {account_info["user_id"]}')
+        logger.info(f'🔥 저장할 계정 정보: {account_info}')
+        
         url = f"{FIREBASE_URL}/authenticated_accounts/{account_info['user_id']}.json"
+        logger.info(f'🔥 Firebase URL: {url}')
+        
         response = requests.put(url, json=account_info, timeout=10)
+        logger.info(f'🔥 Firebase 응답 상태: {response.status_code}')
+        logger.info(f'🔥 Firebase 응답 내용: {response.text}')
         
         if response.status_code == 200:
             logger.info(f'🔥 Firebase 계정 정보 저장 성공: {account_info["user_id"]}')
             return True
         else:
             logger.error(f'🔥 Firebase 계정 정보 저장 실패: {response.status_code}')
+            logger.error(f'🔥 Firebase 에러 응답: {response.text}')
             return False
             
     except Exception as e:
         logger.error(f'🔥 Firebase 계정 정보 저장 에러: {e}')
+        logger.error(f'🔥 에러 타입: {type(e)}')
         return False
 
 def get_account_from_firebase(user_id):
@@ -678,7 +687,12 @@ def verify_code():
                         }
                         
                         # Firebase에 계정 정보 저장
-                        save_account_to_firebase(account_info)
+                        logger.info('🔥 Firebase에 계정 정보 저장 시도 중...')
+                        save_result = save_account_to_firebase(account_info)
+                        if save_result:
+                            logger.info('✅ Firebase 계정 정보 저장 성공!')
+                        else:
+                            logger.error('❌ Firebase 계정 정보 저장 실패!')
                         
                         # Firebase 세션 삭제
                         logger.info('🔥 Firebase 세션 삭제 중...')
@@ -874,7 +888,12 @@ def verify_password():
                     }
                     
                     # Firebase에 계정 정보 저장
-                    save_account_to_firebase(account_info)
+                    logger.info('🔥 2단계 인증 Firebase에 계정 정보 저장 시도 중...')
+                    save_result = save_account_to_firebase(account_info)
+                    if save_result:
+                        logger.info('✅ 2단계 인증 Firebase 계정 정보 저장 성공!')
+                    else:
+                        logger.error('❌ 2단계 인증 Firebase 계정 정보 저장 실패!')
                     
                     return result, account_info
                     
