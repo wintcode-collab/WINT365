@@ -2014,7 +2014,15 @@ async function sendMessageToGroup() {
         return;
     }
     
-    const message = messageInput.value.trim();
+    // 원본 메시지 데이터가 있으면 우선 사용, 없으면 입력칸의 텍스트 사용
+    let message;
+    if (window.selectedMediaInfo && window.selectedMediaInfo.raw_message_data) {
+        message = window.selectedMediaInfo.raw_message_data.text || messageInput.value.trim();
+        console.log('📤 원본 메시지 데이터 사용:', message);
+    } else {
+        message = messageInput.value.trim();
+        console.log('📤 입력칸 텍스트 사용:', message);
+    }
     const selectedGroupIds = Array.from(checkedBoxes).map(checkbox => checkbox.dataset.groupId);
     
     console.log('🔍 선택된 그룹 ID들:', selectedGroupIds);
@@ -2349,10 +2357,41 @@ function selectTelegramSavedMessage(messageIndex, savedMessages) {
         });
         
         if (messageInput) {
-            // 텍스트 입력
-            messageInput.value = message.text || '';
+            // 텍스트 입력 (커스텀 이모지 보존을 위해 원본 텍스트 사용)
+            const originalText = message.text || '';
+            messageInput.value = originalText;
             messageInput.focus();
             console.log('💾 메시지 입력칸에 텍스트 설정 완료:', messageInput.value);
+            console.log('💾 원본 텍스트 길이:', originalText.length);
+            
+            // 커스텀 이모지가 있는 경우 경고 메시지 표시
+            if (message.has_custom_emoji) {
+                console.log('⚠️ 커스텀 이모지가 포함된 메시지입니다. 입력칸에서는 일반 텍스트로 표시되지만 전송 시에는 원본 그대로 전송됩니다.');
+                
+                // 사용자에게 알림
+                const notification = document.createElement('div');
+                notification.style.cssText = `
+                    position: fixed;
+                    top: 20px;
+                    right: 20px;
+                    background: #4CAF50;
+                    color: white;
+                    padding: 10px 15px;
+                    border-radius: 5px;
+                    z-index: 10000;
+                    font-size: 14px;
+                    max-width: 300px;
+                `;
+                notification.textContent = '💾 커스텀 이모지가 포함된 메시지입니다. 전송 시 원본 그대로 전송됩니다.';
+                document.body.appendChild(notification);
+                
+                // 3초 후 자동 제거
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.parentNode.removeChild(notification);
+                    }
+                }, 3000);
+            }
         }
         
         // 미디어 정보 및 커스텀 이모지 정보 저장 (전역 변수에)
