@@ -1584,44 +1584,19 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                     original_text = raw_data.get('text', message)
                     original_entities = raw_data.get('entities', [])
                     
-                    if original_entities:
-                        logger.info(f'📤 원본 엔티티 {len(original_entities)}개 처리 중')
-                        
-                        # 엔티티 정보를 텔레그램 형식으로 변환
-                        from telethon.tl.types import MessageEntityCustomEmoji
-                        telegram_entities = []
-                        
-                        for entity in original_entities:
-                            if entity['type'] == 'CUSTOM_EMOJI':
-                                telegram_entities.append(MessageEntityCustomEmoji(
-                                    offset=entity['offset'],
-                                    length=entity['length'],
-                                    document_id=entity['document_id']
-                                ))
-                                logger.info(f'📤 원본 커스텀 이모지 엔티티 추가: offset={entity["offset"]}, length={entity["length"]}, document_id={entity["document_id"]}')
-                        
-                        # 원본 메시지와 엔티티로 전송
-                        logger.info(f'📤 원본 메시지 전송: {original_text}')
-                        logger.info(f'📤 원본 엔티티 개수: {len(telegram_entities)}')
-                        
-                        try:
-                            sent_message = await client.send_message(group_entity, original_text, formatting_entities=telegram_entities)
-                            logger.info(f'✅ 원본 메시지 전송 완료: {sent_message.id}')
-                        except Exception as e:
-                            logger.error(f'❌ 원본 formatting_entities 실패: {e}')
-                            # entities로 재시도
-                            try:
-                                sent_message = await client.send_message(group_entity, original_text, entities=telegram_entities)
-                                logger.info(f'✅ 원본 entities로 전송 완료: {sent_message.id}')
-                            except Exception as e2:
-                                logger.error(f'❌ 원본 entities도 실패: {e2}')
-                                # 일반 메시지로 전송
-                                sent_message = await client.send_message(group_entity, original_text)
-                                logger.info(f'⚠️ 원본 일반 메시지로 전송 완료: {sent_message.id}')
-                    else:
-                        logger.info('📤 원본 엔티티 없음 - 일반 메시지로 전송')
+                    logger.info(f'📤 원본 텍스트: {original_text}')
+                    logger.info(f'📤 원본 엔티티: {original_entities}')
+                    
+                    # 가장 간단한 방법: 원본 텍스트 그대로 전송 (마크다운 파싱 비활성화)
+                    try:
+                        # parse_mode=None으로 설정하여 마크다운 파싱 비활성화
+                        sent_message = await client.send_message(group_entity, original_text, parse_mode=None)
+                        logger.info(f'✅ 원본 메시지 전송 완료 (마크다운 비활성화): {sent_message.id}')
+                    except Exception as e:
+                        logger.error(f'❌ 원본 메시지 전송 실패: {e}')
+                        # 일반 메시지로 전송
                         sent_message = await client.send_message(group_entity, original_text)
-                        logger.info(f'✅ 원본 일반 메시지 전송 완료: {sent_message.id}')
+                        logger.info(f'⚠️ 일반 메시지로 전송 완료: {sent_message.id}')
                 
                 # 커스텀 이모지가 있는 메시지인지 확인 (기존 방식)
                 elif media_info and media_info.get('has_custom_emoji'):
