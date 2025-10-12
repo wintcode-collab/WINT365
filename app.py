@@ -1450,29 +1450,29 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                     logger.error(f'❌ 잘못된 그룹 ID 형식: {group_id}')
                     return False
                 
-                        # 메시지 전송 (미디어 포함)
-                        logger.info(f'📤 메시지 전송 중: 그룹={group_id_int}, 메시지={message[:50]}...')
-                        
-                        if media_info and media_info.get('media_path'):
-                            # 미디어와 함께 메시지 전송
-                            media_path = media_info['media_path']
-                            media_type = media_info.get('media_type')
-                            
-                            if media_type == 'photo':
-                                await client.send_file(group_id_int, media_path, caption=message)
-                            elif media_type == 'video':
-                                await client.send_file(group_id_int, media_path, caption=message)
-                            elif media_type == 'document':
-                                await client.send_file(group_id_int, media_path, caption=message)
-                            elif media_type == 'voice':
-                                await client.send_file(group_id_int, media_path, caption=message)
-                            else:
-                                await client.send_message(group_id_int, message)
-                        else:
-                            # 텍스트만 전송
-                            await client.send_message(group_id_int, message)
-                        
-                        logger.info('✅ 메시지 전송 성공')
+                # 메시지 전송 (미디어 포함)
+                logger.info(f'📤 메시지 전송 중: 그룹={group_id_int}, 메시지={message[:50]}...')
+                
+                if media_info and media_info.get('media_path'):
+                    # 미디어와 함께 메시지 전송
+                    media_path = media_info['media_path']
+                    media_type = media_info.get('media_type')
+                    
+                    if media_type == 'photo':
+                        await client.send_file(group_id_int, media_path, caption=message)
+                    elif media_type == 'video':
+                        await client.send_file(group_id_int, media_path, caption=message)
+                    elif media_type == 'document':
+                        await client.send_file(group_id_int, media_path, caption=message)
+                    elif media_type == 'voice':
+                        await client.send_file(group_id_int, media_path, caption=message)
+                    else:
+                        await client.send_message(group_id_int, message)
+                else:
+                    # 텍스트만 전송
+                    await client.send_message(group_id_int, message)
+                
+                logger.info('✅ 메시지 전송 성공')
                 
                 return True
                 
