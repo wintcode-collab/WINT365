@@ -2234,7 +2234,7 @@ def get_custom_emojis():
         logger.info(f'😀 계정 정보 조회 성공: {account_info.get("first_name", "Unknown")}')
         
         # 커스텀 이모지 가져오기 실행
-        with ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor() as executor:
             future = executor.submit(run_telethon_get_custom_emojis, account_info)
             result = future.result(timeout=60)
         
