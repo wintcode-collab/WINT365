@@ -318,9 +318,9 @@ def send_code():
                         await client.connect()
                         logger.info('✅ Telegram 서버 연결 성공')
                         
-                        # 연결 안정화 대기 (더 길게)
-                        await asyncio.sleep(10)
-                        logger.info('⏳ 연결 안정화 대기 완료 (10초)')
+                        # 연결 안정화 대기
+                        await asyncio.sleep(2)
+                        logger.info('⏳ 연결 안정화 대기 완료')
                         
                         # 연결 상태 확인
                         if not client.is_connected():
@@ -346,10 +346,10 @@ def send_code():
                         logger.info(f'📋 결과 타입: {type(result)}')
                         logger.info(f'📋 결과 속성: {dir(result)}')
                         
-                        # 인증코드 발송 후 추가 대기 (실제 전달 확인)
-                        logger.info('⏳ 인증코드 전달 확인을 위한 추가 대기 (3초)...')
-                        await asyncio.sleep(3)
-                        logger.info('✅ 인증코드 전달 대기 완료')
+                        # Data Center Migration 후 안정화 대기
+                        logger.info('⏳ Data Center Migration 안정화 대기 (5초)...')
+                        await asyncio.sleep(5)
+                        logger.info('✅ Data Center Migration 안정화 완료')
                         
                         # 결과 상세 정보 로깅
                         if hasattr(result, 'phone_code_hash'):
