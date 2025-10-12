@@ -505,15 +505,16 @@ def verify_code():
                 asyncio.set_event_loop(loop)
                 
                 async def verify_code_async():
-                    # 원래 클라이언트 재사용 (세션 일치 보장)
-                    logger.info('🔧 원래 클라이언트 재사용 중...')
-                    original_client = client_data.get('client')
+                    # 세션 파일을 사용하여 클라이언트 생성 (세션 일치 보장)
+                    logger.info('🔧 세션 파일로 클라이언트 생성 중...')
+                    session_file = client_data.get('session_file')
                     
-                    if original_client:
-                        logger.info('✅ 원래 클라이언트 발견, 재사용')
-                        client = original_client
+                    if session_file:
+                        logger.info(f'✅ 세션 파일 발견: {session_file}')
+                        client = TelegramClient(session_file, client_data['api_id'], client_data['api_hash'])
+                        logger.info('✅ 세션 파일로 클라이언트 생성 완료')
                     else:
-                        logger.info('⚠️ 원래 클라이언트 없음, 새 클라이언트 생성...')
+                        logger.info('⚠️ 세션 파일 없음, 새 클라이언트 생성...')
                         client = TelegramClient(f'session_verify_{client_id}', client_data['api_id'], client_data['api_hash'])
                         logger.info('✅ 새로운 클라이언트 생성 완료')
                     
