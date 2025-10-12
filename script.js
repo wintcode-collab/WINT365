@@ -1244,8 +1244,8 @@ async function completeTelegramAuth(verificationCode) {
                 errorMessage = '등록되지 않은 전화번호입니다.';
                 errorDetails = '텔레그램에 등록된 전화번호를 사용해주세요.';
             } else if (error.message.includes('FLOOD_WAIT')) {
-                errorMessage = '요청이 너무 많습니다.';
-                errorDetails = '잠시 후 다시 시도해주세요.';
+                errorMessage = '🚫 Flood Control: 요청이 너무 많습니다.';
+                errorDetails = '같은 전화번호로 너무 자주 인증코드를 요청했습니다.\n텔레그램의 보안 정책에 따라 일정 시간 대기해야 합니다.\n\n⏰ 보통 5-10분 정도 기다린 후 다시 시도해주세요.';
             } else if (error.message.includes('클라이언트 데이터를 찾을 수 없습니다')) {
                 errorMessage = '세션이 만료되었습니다.';
                 errorDetails = '인증코드를 다시 요청해주세요.';

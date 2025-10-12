@@ -218,9 +218,11 @@ def send_code():
                 if wait_time_match:
                     wait_seconds = int(wait_time_match.group(1))
                     wait_minutes = wait_seconds // 60
-                    error_message = f'요청이 너무 많습니다. {wait_minutes}분 {wait_seconds % 60}초 후에 다시 시도해주세요.'
+                    error_message = f'🚫 Flood Control: {wait_minutes}분 {wait_seconds % 60}초 후에 다시 시도해주세요.'
+                    logger.error(f'🚫 Flood Control 감지: {wait_seconds}초 대기 필요')
                 else:
-                    error_message = '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.'
+                    error_message = '🚫 Flood Control: 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.'
+                    logger.error('🚫 Flood Control 감지: 대기 시간 불명')
             elif 'NETWORK' in str(api_error):
                 error_message = '네트워크 연결에 문제가 있습니다. 인터넷 연결을 확인해주세요.'
             
