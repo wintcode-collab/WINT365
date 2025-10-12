@@ -1547,8 +1547,6 @@ async function handleTestTelegramConnection() {
             } else {
                 console.log('📭 연동된 계정이 없습니다.');
                 
-                // Firebase 테스트 먼저 실행
-                await testFirebaseConnection();
                 
                 alert('연동된 계정이 없습니다.\n먼저 텔레그램 계정을 연동해주세요.');
                 
@@ -1568,8 +1566,6 @@ async function handleTestTelegramConnection() {
     } catch (error) {
         console.error('❌ 계정 목록 로딩 실패:', error);
         
-        // Firebase 테스트 먼저 실행
-        await testFirebaseConnection();
         
         elements.testTelegramBtn.textContent = '✗ Failed';
         elements.testTelegramBtn.style.background = 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)';
@@ -1583,34 +1579,6 @@ async function handleTestTelegramConnection() {
     }
 }
 
-// Firebase 연결 테스트
-async function testFirebaseConnection() {
-    try {
-        console.log('🔥 Firebase 연결 테스트 시작...');
-        
-        const response = await fetch('/api/telegram/test-firebase', {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        });
-        
-        const result = await response.json();
-        console.log('🔥 Firebase 테스트 응답:', result);
-        
-        if (response.ok && result.success) {
-            console.log('✅ Firebase 연결 성공!');
-            alert(`✅ Firebase 연결 성공!\n\n📝 쓰기 상태: ${result.write_status}\n📖 읽기 상태: ${result.read_status}`);
-        } else {
-            console.error('❌ Firebase 연결 실패:', result);
-            alert(`❌ Firebase 연결 실패!\n\n에러: ${result.error}\n응답: ${result.response || 'N/A'}`);
-        }
-        
-    } catch (error) {
-        console.error('❌ Firebase 테스트 실패:', error);
-        alert(`❌ Firebase 테스트 실패:\n\n${error.message}`);
-    }
-}
 
 // 계정 목록 표시
 function showAccountList(accounts) {
@@ -1976,8 +1944,6 @@ async function hideStatusBarAndShowAccounts() {
                         console.log('📭 연동된 계정이 없습니다.');
                         console.log('📭 Firebase에 계정이 저장되지 않았을 수 있습니다.');
                         
-                        // Firebase 테스트 실행
-                        await testFirebaseConnection();
                         
                         // status-bar 다시 올리기
                         statusBar.style.transform = 'translateY(0)';

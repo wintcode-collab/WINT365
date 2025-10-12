@@ -282,36 +282,49 @@ def test_telegram_connection(account_info):
         with open(f'{temp_session_file}.session', 'wb') as f:
             f.write(session_bytes)
         
-        # 클라이언트 생성 및 연결 테스트
-        client = TelegramClient(temp_session_file, account_info['api_id'], account_info['api_hash'])
+        # 비동기 연결 테스트 함수
+        async def test_connection_async():
+            try:
+                # 클라이언트 생성 및 연결 테스트
+                client = TelegramClient(temp_session_file, account_info['api_id'], account_info['api_hash'])
+                
+                # 연결 테스트
+                await client.connect()
+                
+                if client.is_connected():
+                    # 간단한 API 호출 테스트
+                    me = await client.get_me()
+                    logger.info(f'✅ 연결 테스트 성공: {me.first_name}')
+                    await client.disconnect()
+                    return True
+                else:
+                    logger.error('❌ 연결 테스트 실패')
+                    await client.disconnect()
+                    return False
+                    
+            except Exception as e:
+                logger.error(f'❌ 연결 테스트 에러: {e}')
+                try:
+                    await client.disconnect()
+                except:
+                    pass
+                return False
         
-        # 연결 테스트
-        client.connect()
+        # 새 이벤트 루프에서 실행
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
         
-        if client.is_connected():
-            # 간단한 API 호출 테스트
-            me = client.get_me()
-            logger.info(f'✅ 연결 테스트 성공: {me.first_name}')
-            client.disconnect()
+        try:
+            result = loop.run_until_complete(test_connection_async())
+            return result
+        finally:
+            loop.close()
             
             # 임시 파일 정리
             try:
                 os.remove(f'{temp_session_file}.session')
             except:
                 pass
-                
-            return True
-        else:
-            logger.error('❌ 연결 테스트 실패')
-            client.disconnect()
-            
-            # 임시 파일 정리
-            try:
-                os.remove(f'{temp_session_file}.session')
-            except:
-                pass
-                
-            return False
             
     except Exception as e:
         logger.error(f'❌ 연결 테스트 에러: {e}')
@@ -688,11 +701,13 @@ def verify_code():
                         
                         # Firebase에 계정 정보 저장
                         logger.info('🔥 Firebase에 계정 정보 저장 시도 중...')
+                        logger.info(f'🔥 저장할 계정 정보: {account_info}')
                         save_result = save_account_to_firebase(account_info)
                         if save_result:
                             logger.info('✅ Firebase 계정 정보 저장 성공!')
                         else:
                             logger.error('❌ Firebase 계정 정보 저장 실패!')
+                            # 저장 실패해도 계속 진행 (로컬 저장은 성공했으므로)
                         
                         # Firebase 세션 삭제
                         logger.info('🔥 Firebase 세션 삭제 중...')
@@ -889,11 +904,13 @@ def verify_password():
                     
                     # Firebase에 계정 정보 저장
                     logger.info('🔥 2단계 인증 Firebase에 계정 정보 저장 시도 중...')
+                    logger.info(f'🔥 저장할 계정 정보: {account_info}')
                     save_result = save_account_to_firebase(account_info)
                     if save_result:
                         logger.info('✅ 2단계 인증 Firebase 계정 정보 저장 성공!')
                     else:
                         logger.error('❌ 2단계 인증 Firebase 계정 정보 저장 실패!')
+                        # 저장 실패해도 계속 진행
                     
                     return result, account_info
                     
@@ -940,66 +957,6 @@ def health():
     })
 
 # 텔레그램 계정 목록 로딩 엔드포인트
-@app.route('/api/telegram/test-firebase', methods=['GET'])
-def test_firebase():
-    """Firebase 연결 테스트"""
-    try:
-        logger.info('🔥 Firebase 연결 테스트 시작')
-        logger.info(f'🔥 Firebase URL: {FIREBASE_URL}')
-        
-        # 테스트 데이터
-        test_data = {
-            'test': True,
-            'timestamp': datetime.now().isoformat(),
-            'message': 'Firebase 연결 테스트',
-            'server': 'WINT365'
-        }
-        
-        # Firebase에 테스트 데이터 저장
-        url = f"{FIREBASE_URL}/test.json"
-        logger.info(f'🔥 테스트 URL: {url}')
-        
-        # PUT 요청으로 데이터 저장
-        response = requests.put(url, json=test_data, timeout=10)
-        logger.info(f'🔥 PUT 응답 상태: {response.status_code}')
-        logger.info(f'🔥 PUT 응답 내용: {response.text}')
-        
-        if response.status_code == 200:
-            # 테스트 데이터 읽기
-            read_response = requests.get(url, timeout=10)
-            logger.info(f'🔥 GET 응답 상태: {read_response.status_code}')
-            logger.info(f'🔥 GET 응답 내용: {read_response.text}')
-            
-            # authenticated_accounts 테스트
-            auth_url = f"{FIREBASE_URL}/authenticated_accounts.json"
-            auth_response = requests.get(auth_url, timeout=10)
-            logger.info(f'🔥 AUTH GET 응답 상태: {auth_response.status_code}')
-            logger.info(f'🔥 AUTH GET 응답 내용: {auth_response.text}')
-            
-            return jsonify({
-                'success': True,
-                'message': 'Firebase 연결 성공',
-                'write_status': response.status_code,
-                'read_status': read_response.status_code,
-                'auth_read_status': auth_response.status_code,
-                'firebase_url': FIREBASE_URL
-            })
-        else:
-            return jsonify({
-                'success': False,
-                'error': f'Firebase 연결 실패: {response.status_code}',
-                'response': response.text,
-                'firebase_url': FIREBASE_URL
-            }), 500
-            
-    except Exception as e:
-        logger.error(f'❌ Firebase 테스트 실패: {e}')
-        logger.error(f'❌ 에러 타입: {type(e)}')
-        return jsonify({
-            'success': False,
-            'error': f'Firebase 테스트 실패: {str(e)}',
-            'firebase_url': FIREBASE_URL
-        }), 500
 
 @app.route('/api/telegram/load-accounts', methods=['GET'])
 def load_accounts():
@@ -1056,19 +1013,20 @@ def load_telegram_groups():
                 'error': '인증된 계정 정보를 찾을 수 없습니다. 다시 인증해주세요.'
             }), 404
         
-        # 연결 테스트 (그룹 로딩 전)
+        # 연결 테스트 (그룹 로딩 전) - 관대한 방식으로 변경
         logger.info('🔍 그룹 로딩 전 연결 테스트 중...')
-        if not test_telegram_connection(account_info):
-            logger.error('❌ 연결 테스트 실패, 계정 정보 삭제')
-            # 연결 실패 시 계정 정보 삭제
-            delete_account_from_firebase(user_id)
-            return jsonify({
-                'success': False,
-                'error': '텔레그램 연결에 실패했습니다. 다시 인증해주세요.'
-            }), 500
+        logger.info(f'🔍 테스트할 계정 정보: {account_info}')
+        
+        connection_test_result = test_telegram_connection(account_info)
+        logger.info(f'🔍 연결 테스트 결과: {connection_test_result}')
+        
+        if not connection_test_result:
+            logger.warning('⚠️ 연결 테스트 실패했지만 그룹 로딩을 시도합니다')
+            logger.warning(f'⚠️ 실패한 계정: {account_info}')
+            # 연결 테스트 실패해도 그룹 로딩을 시도 (세션이 만료되었을 수 있음)
         
         # 실제 그룹 로딩 로직
-        logger.info('✅ 연결 테스트 성공, 그룹 로딩 시작')
+        logger.info('✅ 그룹 로딩 시작')
         
         # 세션 데이터로 실제 그룹 목록 가져오기
         groups = load_telegram_groups_with_session(account_info)
