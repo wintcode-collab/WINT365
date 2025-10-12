@@ -1402,6 +1402,9 @@ def get_telegram_saved_messages_with_session(account_info):
                     for message in messages:
                         try:
                             logger.info(f'💾 메시지 처리 중: ID={message.id}, 텍스트={message.text[:50] if message.text else "None"}...')
+                            logger.info(f'💾 원본 메시지 객체: {message}')
+                            logger.info(f'💾 원본 메시지 타입: {type(message)}')
+                            logger.info(f'💾 원본 메시지 속성: {dir(message)}')
                             
                             # 원본 메시지 그대로 저장 (텔레그램 이모지 포함)
                             message_info = {
@@ -1417,7 +1420,15 @@ def get_telegram_saved_messages_with_session(account_info):
                                 'raw_message_data': {
                                     'id': message.id,
                                     'text': message.text or '',
-                                    'entities': []
+                                    'entities': [],
+                                    'original_message': {
+                                        'id': message.id,
+                                        'text': message.text or '',
+                                        'entities': message.entities or [],
+                                        'date': message.date,
+                                        'from_id': getattr(message, 'from_id', None),
+                                        'peer_id': getattr(message, 'peer_id', None)
+                                    }
                                 }
                             }
                             
