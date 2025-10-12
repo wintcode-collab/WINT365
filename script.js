@@ -2023,8 +2023,18 @@ async function sendMessageToGroup() {
     if (window.selectedMediaInfo) {
         // 저장된 메시지가 선택된 경우 원본 데이터 사용
         mediaInfo = window.selectedMediaInfo;
-        message = window.selectedMediaInfo.text || messageInput.value.trim();
-        console.log('📤 저장된 메시지 원본 데이터 사용:', message);
+        
+        // 커스텀 이모지가 있는 경우 원본 데이터 우선 사용
+        if (mediaInfo.has_custom_emoji && mediaInfo.raw_message_data) {
+            message = mediaInfo.raw_message_data.text || mediaInfo.text || messageInput.value.trim();
+            console.log('📤 커스텀 이모지 원본 데이터 강제 사용:', message);
+            console.log('📤 원본 raw_message_data:', mediaInfo.raw_message_data);
+        } else {
+            message = mediaInfo.text || messageInput.value.trim();
+            console.log('📤 일반 저장된 메시지 사용:', message);
+        }
+        
+        console.log('📤 최종 전송 메시지:', message);
         console.log('📤 미디어 정보:', mediaInfo);
         console.log('📤 커스텀 이모지 여부:', mediaInfo.has_custom_emoji);
         console.log('📤 커스텀 이모지 엔티티:', mediaInfo.custom_emoji_entities);
@@ -2089,17 +2099,29 @@ async function sendMessageToGroup() {
             console.log(`🔍 그룹 ${i + 1} 전송 시도: ${groupId}`);
             
             try {
+                // 서버로 전송할 데이터 준비
+                const sendData = {
+                    userId: account.user_id,
+                    groupId: groupId,
+                    message: message,
+                    mediaInfo: mediaInfo
+                };
+                
+                console.log('📤 서버로 전송할 데이터:', sendData);
+                console.log('📤 전송 메시지 텍스트:', message);
+                console.log('📤 미디어 정보 상세:', {
+                    has_custom_emoji: mediaInfo?.has_custom_emoji,
+                    custom_emoji_entities: mediaInfo?.custom_emoji_entities,
+                    raw_message_data: mediaInfo?.raw_message_data,
+                    text: mediaInfo?.text
+                });
+                
                 const sendResponse = await fetch('/api/telegram/send-message', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({
-                        userId: account.user_id,
-                        groupId: groupId,
-                        message: message,
-                        mediaInfo: mediaInfo
-                    })
+                    body: JSON.stringify(sendData)
                 });
                 
                 const sendResult = await sendResponse.json();
@@ -2244,6 +2266,20 @@ async function loadTelegramSavedMessages() {
         
         if (savedResponse.ok && savedResult.success) {
             console.log('💾 저장된 메시지 로딩 성공:', savedResult.saved_messages);
+            
+            // 커스텀 이모지가 있는 메시지들 디버깅
+            savedResult.saved_messages.forEach((msg, index) => {
+                if (msg.has_custom_emoji) {
+                    console.log(`💾 커스텀 이모지 메시지 ${index}:`, {
+                        text: msg.text,
+                        has_custom_emoji: msg.has_custom_emoji,
+                        custom_emoji_entities: msg.custom_emoji_entities,
+                        raw_message_data: msg.raw_message_data,
+                        entities: msg.entities
+                    });
+                }
+            });
+            
             displayTelegramSavedMessages(savedResult.saved_messages);
         } else {
             console.error('💾 저장된 메시지 로딩 실패:', savedResult);
@@ -2298,8 +2334,15 @@ function displayTelegramSavedMessages(savedMessages) {
             console.log('💾 커스텀 이모지 메시지 표시:', {
                 text: displayText,
                 custom_emoji_entities: message.custom_emoji_entities,
-                has_custom_emoji: message.has_custom_emoji
+                has_custom_emoji: message.has_custom_emoji,
+                raw_message_data: message.raw_message_data
             });
+            
+            // 원본 메시지 데이터가 있으면 그것을 우선 사용
+            if (message.raw_message_data && message.raw_message_data.text) {
+                displayText = message.raw_message_data.text;
+                console.log('💾 원본 메시지 데이터 사용:', displayText);
+            }
         }
         
         // 미디어 미리보기 생성
@@ -2384,8 +2427,19 @@ function selectTelegramSavedMessage(messageIndex, savedMessages) {
             has_custom_emoji: message.has_custom_emoji,
             custom_emoji_entities: message.custom_emoji_entities,
             entities: message.entities,
-            media_type: message.media_type
+            media_type: message.media_type,
+            raw_message_data: message.raw_message_data
         });
+        
+        // 커스텀 이모지가 있는 경우 원본 데이터 확인
+        if (message.has_custom_emoji) {
+            console.log('💾 커스텀 이모지 원본 데이터 확인:', {
+                original_text: message.text,
+                raw_text: message.raw_message_data?.text,
+                custom_emoji_entities: message.custom_emoji_entities,
+                entities: message.entities
+            });
+        }
         
         console.log('💾 입력칸 요소 찾기:', messageInput);
         
