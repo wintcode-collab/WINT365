@@ -1523,12 +1523,15 @@ def get_telegram_saved_messages_with_session(account_info):
                                 
                                 # 커스텀 이모지 엔티티 찾기
                                 for entity in message.entities:
-                                    if hasattr(entity, '__class__') and 'CustomEmoji' in str(entity.__class__):
+                                    entity_class_name = str(entity.__class__)
+                                    logger.info(f'💾 엔티티 클래스: {entity_class_name}')
+                                    
+                                    if 'CustomEmoji' in entity_class_name:
                                         has_custom_emoji = True
                                         custom_emoji_entities.append({
                                             'offset': entity.offset,
                                             'length': entity.length,
-                                            'type': str(entity.__class__),
+                                            'type': entity_class_name,
                                             'document_id': getattr(entity, 'document_id', None)
                                         })
                                         logger.info(f'💾 커스텀 이모지 엔티티 발견: offset={entity.offset}, length={entity.length}, document_id={getattr(entity, "document_id", None)}')
