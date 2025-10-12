@@ -7,6 +7,7 @@ let currentAnimationTimer = null;
 
 // 텔레그램 인증 관련 변수
 let telegramClient = null;
+let telegramClientId = null;
 let isTelegramAuthRequested = false;
 let telegramAuthState = 'idle'; // 'idle', 'requesting', 'code_sent', 'authenticated'
 let telegramApiId = null;
@@ -973,6 +974,7 @@ async function requestTelegramAuthCode(apiId, apiHash, phone) {
                 if (result.success && result.phoneCodeHash) {
                     // 인증코드 발송 성공
                     telegramAuthState = 'code_sent';
+                    telegramClientId = result.clientId; // clientId 저장
                     telegramClient = {
                         phoneCodeHash: result.phoneCodeHash,
                         clientId: result.clientId,
@@ -1148,9 +1150,20 @@ function showPasswordInput() {
             icon.textContent = '🔐';
         }
         
-        // 비밀번호 입력 필드에 포커스
+        // 비밀번호 입력 필드에 포커스 및 Enter 키 이벤트 추가
         setTimeout(() => {
             passwordInput.focus();
+            
+            // Enter 키 이벤트 추가
+            passwordInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const saveBtn = document.getElementById('saveTelegramBtn');
+                    if (saveBtn && !saveBtn.disabled) {
+                        saveBtn.click();
+                    }
+                }
+            });
         }, 100);
         
         // 버튼 텍스트 변경
