@@ -2363,20 +2363,22 @@ function selectTelegramSavedMessage(messageIndex, savedMessages) {
                 media_url: message.media_url,
                 has_custom_emoji: message.has_custom_emoji || false,
                 custom_emoji_entities: message.custom_emoji_entities || [],
-                entities: message.entities || []
+                entities: message.entities || [],
+                raw_message_data: message.raw_message_data || null
             };
             console.log('💾 미디어 정보 저장:', window.selectedMediaInfo);
-        } else if (message.has_custom_emoji) {
-            // 텍스트만 있지만 커스텀 이모지가 있는 경우
+        } else if (message.has_custom_emoji || message.raw_message_data) {
+            // 텍스트만 있지만 커스텀 이모지가 있거나 원본 데이터가 있는 경우
             window.selectedMediaInfo = {
                 media_type: null,
                 media_path: null,
                 media_url: null,
-                has_custom_emoji: message.has_custom_emoji,
+                has_custom_emoji: message.has_custom_emoji || false,
                 custom_emoji_entities: message.custom_emoji_entities || [],
-                entities: message.entities || []
+                entities: message.entities || [],
+                raw_message_data: message.raw_message_data || null
             };
-            console.log('💾 커스텀 이모지 정보 저장:', window.selectedMediaInfo);
+            console.log('💾 커스텀 이모지/원본 데이터 정보 저장:', window.selectedMediaInfo);
         } else {
             window.selectedMediaInfo = null;
         }
