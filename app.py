@@ -1374,9 +1374,24 @@ def get_telegram_saved_messages_with_session(account_info):
                     from telethon.tl.types import InputPeerSelf
                     
                     try:
-                        # 저장된 메시지 가져오기 (원본 그대로)
+                        # 저장된 메시지 가져오기 (원본 그대로) - 더 상세한 정보 포함
                         messages = await client.get_messages(InputPeerSelf(), limit=100)
                         logger.info(f'💾 저장된 메시지 {len(messages)}개를 찾았습니다.')
+                        
+                        # 원본 메시지 데이터를 더 상세하게 가져오기
+                        if messages:
+                            logger.info('💾 원본 메시지 데이터 상세 분석 시작')
+                            for msg in messages[:3]:  # 처음 3개만 상세 분석
+                                logger.info(f'💾 메시지 ID: {msg.id}')
+                                logger.info(f'💾 원본 텍스트: {repr(msg.text)}')
+                                logger.info(f'💾 엔티티 개수: {len(msg.entities) if msg.entities else 0}')
+                                if msg.entities:
+                                    for i, entity in enumerate(msg.entities[:5]):  # 처음 5개 엔티티만
+                                        logger.info(f'💾 엔티티 {i}: {type(entity).__name__} - offset={entity.offset}, length={entity.length}')
+                                        if hasattr(entity, 'type'):
+                                            logger.info(f'💾 엔티티 타입: {entity.type}')
+                                        if hasattr(entity, 'document_id'):
+                                            logger.info(f'💾 문서 ID: {entity.document_id}')
                         
                         if len(messages) == 0:
                             # 대화 목록에서 자신과의 대화 찾기
@@ -1406,52 +1421,64 @@ def get_telegram_saved_messages_with_session(account_info):
                             logger.info(f'💾 원본 메시지 타입: {type(message)}')
                             logger.info(f'💾 원본 메시지 속성: {dir(message)}')
                             
-                            # 원본 메시지 그대로 저장 (텔레그램 이모지 포함)
-                            # 중요: message.text는 이미 파싱된 텍스트이므로, 원본을 복원해야 함
+                            # 완전히 새로운 접근: 텔레그램의 원본 메시지 포맷 그대로 보존
+                            logger.info(f'💾 🚀 새로운 방법: 원본 메시지 포맷 그대로 보존')
+                            
+                            # 방법 1: 텔레그램의 원본 포맷팅을 그대로 사용
                             original_text = message.text or ''
                             
-                            # 원본 텍스트 복원 시도 (엔티티 정보를 사용해서)
+                            # 텔레그램의 원본 포맷팅을 마크다운으로 변환 (더 정확한 방법)
                             if message.entities:
-                                logger.info(f'💾 원본 텍스트 복원 시도: {original_text}')
-                                # 엔티티 정보를 사용해서 원본 마크다운 복원
+                                logger.info(f'💾 엔티티 기반 원본 포맷팅 복원 시작')
                                 try:
-                                    # 텔레그램의 원본 포맷팅을 마크다운으로 변환
-                                    from telethon.tl.types import MessageEntityBold, MessageEntityItalic, MessageEntityCode, MessageEntityPre, MessageEntityTextUrl
+                                    from telethon.tl.types import MessageEntityBold, MessageEntityItalic, MessageEntityCode, MessageEntityPre, MessageEntityTextUrl, MessageEntityCustomEmoji
                                     
                                     # 텍스트를 문자 배열로 변환
                                     text_chars = list(original_text)
                                     
-                                    # 엔티티를 offset 기준으로 정렬 (역순으로)
+                                    # 엔티티를 offset 기준으로 정렬 (역순으로 - 뒤에서부터 삽입)
                                     sorted_entities = sorted(message.entities, key=lambda x: x.offset, reverse=True)
                                     
                                     for entity in sorted_entities:
                                         start = entity.offset
                                         end = entity.offset + entity.length
                                         
+                                        # 엔티티 타입에 따라 마크다운 문법 추가
                                         if isinstance(entity, MessageEntityBold):
                                             text_chars.insert(end, '**')
                                             text_chars.insert(start, '**')
+                                            logger.info(f'💾 Bold 엔티티 적용: {start}-{end}')
                                         elif isinstance(entity, MessageEntityItalic):
                                             text_chars.insert(end, '*')
                                             text_chars.insert(start, '*')
+                                            logger.info(f'💾 Italic 엔티티 적용: {start}-{end}')
                                         elif isinstance(entity, MessageEntityCode):
                                             text_chars.insert(end, '`')
                                             text_chars.insert(start, '`')
+                                            logger.info(f'💾 Code 엔티티 적용: {start}-{end}')
                                         elif isinstance(entity, MessageEntityPre):
                                             text_chars.insert(end, '```')
                                             text_chars.insert(start, '```')
+                                            logger.info(f'💾 Pre 엔티티 적용: {start}-{end}')
                                         elif isinstance(entity, MessageEntityTextUrl):
                                             url = entity.url
                                             text_chars.insert(end, f']({url})')
                                             text_chars.insert(start, '[')
+                                            logger.info(f'💾 URL 엔티티 적용: {start}-{end}, URL={url}')
+                                        elif isinstance(entity, MessageEntityCustomEmoji):
+                                            # 커스텀 이모지는 그대로 유지 (이미 텍스트에 포함됨)
+                                            logger.info(f'💾 커스텀 이모지 엔티티: {start}-{end}, document_id={entity.document_id}')
                                     
                                     # 복원된 텍스트
                                     restored_text = ''.join(text_chars)
-                                    logger.info(f'💾 복원된 텍스트: {restored_text[:100]}...')
+                                    logger.info(f'💾 ✅ 복원된 텍스트: {restored_text[:100]}...')
                                     original_text = restored_text
                                     
                                 except Exception as e:
                                     logger.error(f'❌ 원본 텍스트 복원 실패: {e}')
+                                    logger.info(f'💾 원본 텍스트 그대로 사용: {original_text[:100]}...')
+                            else:
+                                logger.info(f'💾 엔티티 없음, 원본 텍스트 그대로 사용: {original_text[:100]}...')
                             
                             message_info = {
                                 'id': message.id,
