@@ -328,3 +328,4 @@ class FirebaseService {
 // 전역 Firebase 서비스 인스턴스
 window.firebaseService = new FirebaseService();
 
+

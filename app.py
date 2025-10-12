@@ -67,7 +67,10 @@ def send_code():
         phone_number = data.get('phoneNumber')
         
         # 입력 검증
+        logger.info(f'📋 입력 검증 시작: api_id={api_id}, api_hash={"***" if api_hash else "None"}, phone_number={phone_number}')
+        
         if not all([api_id, api_hash, phone_number]):
+            logger.error('❌ 필수 필드 누락')
             return jsonify({
                 'success': False,
                 'error': 'API ID, API Hash, Phone Number가 모두 필요합니다.'
@@ -145,11 +148,12 @@ def send_code():
                         logger.info(f'📋 전체 결과: {result}')
                         
                         return client, result
+                    except Exception as e:
+                        logger.error(f'❌ send_code_async 에러: {e}')
+                        raise e
                     finally:
-                        # 연결 해제
-                        if client.is_connected():
-                            await client.disconnect()
-                            logger.info('🔌 클라이언트 연결 해제 완료')
+                        # 연결 해제하지 않음 (세션 유지를 위해)
+                        logger.info('🔌 클라이언트 연결 유지 (세션 보존)')
                 
                 try:
                     client, result = loop.run_until_complete(send_code_async())
@@ -167,19 +171,16 @@ def send_code():
                 'client': client,
                 'api_id': api_id,
                 'api_hash': api_hash,
-                'phone_number': phone_number
+                'phone_number': phone_number,
+                'phone_code_hash': result.phone_code_hash
             }
             logger.info('💾 클라이언트 데이터 저장 완료')
-            
-            # phone_code_hash 업데이트
-            clients[client_id]['phone_code_hash'] = result.phone_code_hash
-            logger.info('💾 phone_code_hash 업데이트 완료')
             
             return jsonify({
                 'success': True,
                 'phoneCodeHash': result.phone_code_hash,
                 'clientId': client_id,
-                'message': '실제 MTProto API로 인증코드가 텔레그램 앱으로 발송되었습니다!'
+                'message': '인증코드가 텔레그램 앱으로 발송되었습니다! 텔레그램 앱을 확인해주세요.'
             })
             
         except Exception as api_error:

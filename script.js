@@ -899,15 +899,23 @@ async function handleSaveTelegramSettings() {
     }
     
     // 인증 상태에 따른 처리
+    console.log('현재 인증 상태:', telegramAuthState);
+    console.log('입력된 인증코드:', verificationCode);
+    
     if (telegramAuthState === 'idle') {
         // 첫 번째 Register 버튼 클릭 - 인증코드 요청
+        console.log('인증코드 요청 시작...');
         await requestTelegramAuthCode(apiId, apiHash, phone);
     } else if (telegramAuthState === 'code_sent' && verificationCode) {
         // 인증코드 입력 후 - 인증 완료
+        console.log('인증코드 검증 시작...');
         await completeTelegramAuth(verificationCode);
     } else if (telegramAuthState === 'code_sent' && !verificationCode) {
         alert('인증코드를 입력해주세요.');
         return;
+    } else {
+        console.log('알 수 없는 인증 상태:', telegramAuthState);
+        alert('인증 상태를 확인할 수 없습니다. 페이지를 새로고침해주세요.');
     }
 }
 
@@ -946,6 +954,7 @@ async function requestTelegramAuthCode(apiId, apiHash, phone) {
             });
             
             console.log('서버 응답 상태:', response.status);
+            console.log('서버 응답 헤더:', response.headers);
             
             if (response.ok) {
                 const result = await response.json();
@@ -975,15 +984,18 @@ async function requestTelegramAuthCode(apiId, apiHash, phone) {
                     }, 300);
                     
                     // 사용자에게 알림
-                    alert('✅ 인증코드가 텔레그램 앱으로 발송되었습니다!\n텔레그램 앱을 열어서 인증코드를 확인해주세요.');
+                    alert('✅ 인증코드가 텔레그램 앱으로 발송되었습니다!\n\n📱 텔레그램 앱을 열어서 인증코드를 확인해주세요.\n⏰ 인증코드는 5분간 유효합니다.');
                     
                     console.log('인증코드가 텔레그램 앱으로 발송되었습니다:', result);
                     
                 } else {
+                    console.error('서버 응답 실패:', result);
                     throw new Error(result.error || '인증코드 발송 실패');
                 }
             } else {
+                console.error('서버 응답 오류:', response.status, response.statusText);
                 const errorResult = await response.json().catch(() => ({ error: '서버 오류' }));
+                console.error('에러 상세:', errorResult);
                 throw new Error(errorResult.error || `서버 요청 실패 (${response.status})`);
             }
             
@@ -1067,6 +1079,25 @@ function showVerificationCodeInput() {
     if (telegramCard) {
         telegramCard.style.height = 'auto';
     }
+    
+    // 인증코드 입력칸에 포커스 및 플레이스홀더 설정
+    setTimeout(() => {
+        if (elements.telegramVerificationCode) {
+            elements.telegramVerificationCode.focus();
+            elements.telegramVerificationCode.placeholder = '텔레그램 앱에서 받은 5자리 코드';
+        }
+    }, 300);
+    
+    // 인증코드 입력 시 자동 포맷팅
+    if (elements.telegramVerificationCode) {
+        elements.telegramVerificationCode.addEventListener('input', (e) => {
+            let value = e.target.value.replace(/\D/g, ''); // 숫자만 추출
+            if (value.length > 5) {
+                value = value.substring(0, 5); // 5자리로 제한
+            }
+            e.target.value = value;
+        });
+    }
 }
 
 // 텔레그램 인증 완료
@@ -1084,30 +1115,39 @@ async function completeTelegramAuth(verificationCode) {
         let authResult;
         
         try {
+            console.log('인증코드 검증 요청 중...', {
+                clientId: telegramClient.clientId,
+                phoneCode: verificationCode,
+                phoneCodeHash: telegramClient.phoneCodeHash ? '***' : 'undefined'
+            });
+            
             const response = await fetch('/api/telegram/verify-code', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    apiId: telegramClient.apiId,
-                    apiHash: telegramClient.apiHash,
-                    phoneNumber: telegramClient.phoneNumber,
-                    phoneCodeHash: telegramClient.phoneCodeHash,
                     phoneCode: verificationCode,
                     clientId: telegramClient.clientId
                 })
             });
             
+            console.log('인증 응답 상태:', response.status);
+            
             if (response.ok) {
                 const result = await response.json();
+                console.log('인증 응답 결과:', result);
+                
                 if (result.success && result.user) {
                     authResult = result;
                 } else {
+                    console.error('인증 실패:', result);
                     throw new Error(result.error || '인증 실패');
                 }
             } else {
-                throw new Error('서버 요청 실패');
+                const errorResult = await response.json().catch(() => ({ error: '서버 오류' }));
+                console.error('인증 서버 오류:', errorResult);
+                throw new Error(errorResult.error || `서버 요청 실패 (${response.status})`);
             }
             
         } catch (error) {
