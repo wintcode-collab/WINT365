@@ -1317,43 +1317,64 @@ def get_telegram_saved_messages_with_session(account_info):
                     me = await client.get_me()
                     logger.info(f'💾 현재 사용자: {me.first_name} (ID: {me.id})')
                     
-                    # 방법 1: 자신의 ID로 직접 접근
-                    try:
-                        saved_messages_entity = await client.get_entity(me.id)
-                        logger.info('💾 방법 1: 자신의 ID로 저장된 메시지 접근 성공')
-                    except Exception as e:
-                        logger.error(f'❌ 방법 1 실패: {e}')
+                    # 방법 1: 대화 목록에서 "Saved Messages" 찾기
+                    dialogs = await client.get_dialogs()
+                    saved_messages_entity = None
+                    
+                    logger.info(f'💾 총 {len(dialogs)}개의 대화를 확인 중...')
+                    
+                    for dialog in dialogs:
+                        entity = dialog.entity
+                        logger.info(f'💾 대화 확인: {getattr(entity, "title", "Unknown")} (ID: {entity.id}, Type: {type(entity).__name__})')
                         
-                        # 방법 2: "me" 문자열로 접근
+                        # 자신과의 대화 (Saved Messages) 찾기
+                        if entity.id == me.id:
+                            saved_messages_entity = entity
+                            logger.info('💾 방법 1: 대화 목록에서 저장된 메시지 찾기 성공')
+                            break
+                    
+                    # 방법 2: 직접 자신의 ID로 접근
+                    if not saved_messages_entity:
+                        try:
+                            saved_messages_entity = await client.get_entity(me.id)
+                            logger.info('💾 방법 2: 자신의 ID로 저장된 메시지 접근 성공')
+                        except Exception as e:
+                            logger.error(f'❌ 방법 2 실패: {e}')
+                    
+                    # 방법 3: "me" 문자열로 접근
+                    if not saved_messages_entity:
                         try:
                             saved_messages_entity = await client.get_entity("me")
-                            logger.info('💾 방법 2: "me" 문자열로 저장된 메시지 접근 성공')
-                        except Exception as e2:
-                            logger.error(f'❌ 방법 2 실패: {e2}')
-                            
-                            # 방법 3: 대화 목록에서 찾기
-                            dialogs = await client.get_dialogs()
-                            saved_messages_entity = None
-                            
-                            for dialog in dialogs:
-                                if dialog.entity.id == me.id:
-                                    saved_messages_entity = dialog.entity
-                                    logger.info('💾 방법 3: 대화 목록에서 저장된 메시지 찾기 성공')
-                                    break
-                            
-                            if not saved_messages_entity:
-                                logger.error('❌ 모든 방법으로 저장된 메시지를 찾을 수 없음')
-                                return None
+                            logger.info('💾 방법 3: "me" 문자열로 저장된 메시지 접근 성공')
+                        except Exception as e:
+                            logger.error(f'❌ 방법 3 실패: {e}')
+                    
+                    # 방법 4: InputPeerSelf 사용
+                    if not saved_messages_entity:
+                        try:
+                            from telethon.tl.types import InputPeerSelf
+                            saved_messages_entity = InputPeerSelf()
+                            logger.info('💾 방법 4: InputPeerSelf로 저장된 메시지 접근 시도')
+                        except Exception as e:
+                            logger.error(f'❌ 방법 4 실패: {e}')
+                    
+                    if not saved_messages_entity:
+                        logger.error('❌ 모든 방법으로 저장된 메시지를 찾을 수 없음')
+                        return None
 
                     # 저장된 메시지 목록 가져오기 (최근 50개)
+                    logger.info(f'💾 저장된 메시지 엔티티: {saved_messages_entity}')
                     messages = await client.get_messages(saved_messages_entity, limit=50)
                     logger.info(f'💾 {len(messages)}개의 저장된 메시지를 찾았습니다.')
 
                     for message in messages:
                         try:
+                            logger.info(f'💾 메시지 처리 중: ID={message.id}, 텍스트={message.text[:50] if message.text else "None"}...')
+                            
                             # 커스텀 이모지 엔티티 정보 추출
                             custom_emoji_entities = []
                             if message.entities:
+                                logger.info(f'💾 메시지 엔티티 개수: {len(message.entities)}')
                                 for entity in message.entities:
                                     if hasattr(entity, 'type') and entity.type.name == 'CUSTOM_EMOJI':
                                         custom_emoji_entities.append({
@@ -1361,6 +1382,7 @@ def get_telegram_saved_messages_with_session(account_info):
                                             'length': entity.length,
                                             'document_id': entity.document_id
                                         })
+                                        logger.info(f'💾 커스텀 이모지 발견: offset={entity.offset}, length={entity.length}')
                             
                             message_info = {
                                 'id': message.id,
