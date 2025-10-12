@@ -1411,9 +1411,9 @@ def get_telegram_saved_messages_with_session(account_info):
                         # 🚀 핵심: 원본 메시지 데이터를 직접 가져오기
                         logger.info('💾 🚀 원본 메시지 데이터 직접 가져오기 시도')
                         
-                        # 방법 1: get_messages로 원본 데이터 가져오기 (parse_mode=None으로 원본 그대로)
-                        messages = await client.get_messages(InputPeerSelf(), limit=100, parse_mode=None)
-                        logger.info(f'💾 저장된 메시지 {len(messages)}개를 찾았습니다 (parse_mode=None으로 원본 그대로).')
+                        # 방법 1: get_messages로 원본 데이터 가져오기
+                        messages = await client.get_messages(InputPeerSelf(), limit=100)
+                        logger.info(f'💾 저장된 메시지 {len(messages)}개를 찾았습니다.')
                         
                         # 🚀 추가: 원본 메시지 데이터를 직접 가져오기
                         if messages:
