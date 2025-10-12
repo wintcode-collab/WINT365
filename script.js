@@ -2080,7 +2080,7 @@ async function sendMessageToGroup() {
                         userId: account.user_id,
                         groupId: groupId,
                         message: message,
-                        mediaInfo: null  // 일단 미디어 없이 테스트
+                        mediaInfo: window.selectedMediaInfo
                     })
                 });
                 

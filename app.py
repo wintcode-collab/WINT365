@@ -1221,7 +1221,6 @@ def send_telegram_message():
         logger.info(f'📤 계정 정보 조회 성공: {account_info.get("first_name", "Unknown")}')
         
         # 메시지 전송 실행 (미디어 정보 포함)
-        media_info = data.get('mediaInfo')
         result = send_message_to_telegram_group(account_info, group_id, message, media_info)
         
         if result:
