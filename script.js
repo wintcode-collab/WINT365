@@ -2017,6 +2017,18 @@ async function sendMessageToGroup() {
     const message = messageInput.value.trim();
     const selectedGroupIds = Array.from(checkedBoxes).map(checkbox => checkbox.dataset.groupId);
     
+    console.log('🔍 선택된 그룹 ID들:', selectedGroupIds);
+    console.log('🔍 체크된 체크박스들:', checkedBoxes);
+    
+    // 그룹 ID 유효성 검사
+    const validGroupIds = selectedGroupIds.filter(id => id && id !== 'undefined');
+    if (validGroupIds.length === 0) {
+        alert('선택된 그룹의 ID를 찾을 수 없습니다. 페이지를 새로고침하고 다시 시도해주세요.');
+        return;
+    }
+    
+    console.log('🔍 유효한 그룹 ID들:', validGroupIds);
+    
     // 버튼 상태 변경
     if (sendBtn) {
         sendBtn.textContent = '📤 전송 중...';
@@ -2024,15 +2036,6 @@ async function sendMessageToGroup() {
     }
     
     try {
-        // 선택된 그룹 정보 가져오기
-        const selectedGroupElement = document.querySelector('.group-item.selected');
-        if (!selectedGroupElement) {
-            throw new Error('선택된 그룹을 찾을 수 없습니다.');
-        }
-        
-        const groupId = selectedGroupElement.dataset.groupId;
-        const groupIndex = parseInt(selectedGroupElement.dataset.groupIndex);
-        
         // 현재 계정 정보 가져오기
         const accountName = document.getElementById('selectedAccountName').textContent;
         const accountPhone = document.getElementById('selectedAccountPhone').textContent;
@@ -2062,8 +2065,10 @@ async function sendMessageToGroup() {
         let successCount = 0;
         let failCount = 0;
         
-        for (let i = 0; i < selectedGroupIds.length; i++) {
-            const groupId = selectedGroupIds[i];
+        for (let i = 0; i < validGroupIds.length; i++) {
+            const groupId = validGroupIds[i];
+            
+            console.log(`🔍 그룹 ${i + 1} 전송 시도: ${groupId}`);
             
             try {
                 const sendResponse = await fetch('/api/telegram/send-message', {
@@ -2090,7 +2095,7 @@ async function sendMessageToGroup() {
                 }
                 
                 // 그룹 간 간격 (1초)
-                if (i < selectedGroupIds.length - 1) {
+                if (i < validGroupIds.length - 1) {
                     await new Promise(resolve => setTimeout(resolve, 1000));
                 }
                 
@@ -2116,6 +2121,7 @@ async function sendMessageToGroup() {
         
     } catch (error) {
         console.error('❌ 메시지 전송 실패:', error);
+        console.error('❌ 에러 상세:', error);
         alert(`❌ 메시지 전송 실패:\n\n${error.message}`);
     } finally {
         if (sendBtn) {
