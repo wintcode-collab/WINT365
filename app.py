@@ -1513,6 +1513,18 @@ def get_telegram_saved_messages_with_session(account_info):
                                         'from_id': str(getattr(message, 'from_id', None)) if getattr(message, 'from_id', None) else None,
                                         'peer_id': str(getattr(message, 'peer_id', None)) if getattr(message, 'peer_id', None) else None
                                     }
+                                },
+                                # 🚀 핵심: 원본 메시지 객체 전체를 그대로 보존
+                                'original_message_object': {
+                                    'id': message.id,
+                                    'text': original_text,
+                                    'entities': [],
+                                    'date': message.date.isoformat() if message.date else None,
+                                    'from_id': str(getattr(message, 'from_id', None)) if getattr(message, 'from_id', None) else None,
+                                    'peer_id': str(getattr(message, 'peer_id', None)) if getattr(message, 'peer_id', None) else None,
+                                    'message_id': message.id,
+                                    'raw_text': original_text,
+                                    'preserve_original': True
                                 }
                             }
                             
@@ -1737,8 +1749,52 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                 # 메시지 전송 (미디어 포함)
                 logger.info(f'📤 메시지 전송 중: 그룹={group_entity.title}, 메시지={message[:50]}...')
                 
-                # 원본 메시지 데이터가 있는지 확인
-                if media_info and media_info.get('raw_message_data'):
+                # 원본 메시지 객체가 있는지 확인 (최우선 처리)
+                if media_info and media_info.get('original_message_object'):
+                    # 원본 메시지 객체로 전송
+                    original_obj = media_info.get('original_message_object')
+                    logger.info('📤 🚀 원본 메시지 객체로 전송 (최우선 처리)')
+                    logger.info(f'📤 원본 객체: {original_obj}')
+                    
+                    # 원본 텍스트 사용
+                    original_text = original_obj.get('text', message)
+                    original_message_id = original_obj.get('id', 1)
+                    
+                    logger.info(f'📤 원본 텍스트: {original_text}')
+                    logger.info(f'📤 원본 메시지 ID: {original_message_id}')
+                    
+                    # 🚀 최종 해결책: 원본 메시지 직접 전달
+                    try:
+                        logger.info('📤 🚀 최종 해결책: 원본 메시지 직접 전달')
+                        
+                        # 자신의 저장된 메시지에서 원본 메시지를 직접 전달
+                        me = await client.get_me()
+                        logger.info(f'📤 자신의 저장된 메시지에서 전달: {me.id}')
+                        
+                        # 원본 메시지를 직접 전달 (완전히 원본 그대로)
+                        forwarded_messages = await client.forward_messages(
+                            entity=group_entity,
+                            messages=original_message_id,
+                            from_peer=InputPeerSelf()
+                        )
+                        
+                        if forwarded_messages:
+                            forwarded_message = forwarded_messages[0] if isinstance(forwarded_messages, list) else forwarded_messages
+                            logger.info(f'✅ 🎉 원본 메시지 직접 전달 성공! 완전히 원본 그대로: {forwarded_message.id}')
+                        else:
+                            logger.error('❌ 전달된 메시지가 없음')
+                            raise Exception("전달된 메시지가 없음")
+                        
+                    except Exception as e:
+                        logger.error(f'❌ 원본 메시지 직접 전달 실패: {e}')
+                        logger.info('📤 백업: 원본 텍스트 전송')
+                        
+                        # 백업: 원본 텍스트 전송
+                        sent_message = await client.send_message(group_entity, original_text)
+                        logger.info(f'✅ 백업 성공: 원본 텍스트 전송 완료: {sent_message.id}')
+                
+                # 기존 raw_message_data 방식도 지원
+                elif media_info and media_info.get('raw_message_data'):
                     # 원본 메시지 데이터로 전송
                     raw_data = media_info.get('raw_message_data')
                     logger.info('📤 원본 메시지 데이터로 전송')

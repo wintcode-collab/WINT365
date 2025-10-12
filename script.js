@@ -2123,6 +2123,22 @@ async function sendMessageToGroup() {
                     });
                 }
                 
+                // 원본 메시지 객체가 있는 경우 우선 사용
+                if (mediaInfo && mediaInfo.original_message_object) {
+                    sendData.original_message_object = mediaInfo.original_message_object;
+                    sendData.is_original_message = true;
+                    sendData.bypass_text_processing = true;
+                    sendData.message = null; // 텍스트 처리를 우회
+                    sendData.send_as_original = true;
+                    
+                    console.log('📤 원본 메시지 객체 우선 전송:', {
+                        original_message_object: sendData.original_message_object,
+                        is_original_message: sendData.is_original_message,
+                        bypass_text_processing: sendData.bypass_text_processing,
+                        send_as_original: sendData.send_as_original
+                    });
+                }
+                
                 console.log('📤 서버로 전송할 데이터:', sendData);
                 console.log('📤 전송 메시지 텍스트:', message);
                 console.log('📤 미디어 정보 상세:', {
@@ -2504,11 +2520,10 @@ function selectTelegramSavedMessage(messageIndex, savedMessages) {
             custom_emoji_entities: message.custom_emoji_entities || [],
             entities: message.entities || [],
             raw_message_data: message.raw_message_data || message, // 원본 메시지 전체를 저장
+            original_message_object: message.original_message_object || message.raw_message_data || message, // 원본 메시지 객체 저장
             text: message.text || '',
             message_id: message.message_id || null,
-            date: message.date || null,
-            // 원본 메시지 객체 전체를 별도로 보존
-            original_message_object: message.raw_message_data || message
+            date: message.date || null
         };
         
         // 커스텀 이모지가 있는 경우 원본 객체 전체 보존
