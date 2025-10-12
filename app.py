@@ -1405,43 +1405,13 @@ def get_telegram_saved_messages_with_session(account_info):
                         logger.info(f'💾 현재 사용자 ID: {me.id}')
                         logger.info(f'💾 현재 사용자 이름: {me.first_name}')
                         
-                        # 방법 1: InputPeerSelf를 사용하여 저장된 메시지 가져오기 (원본 그대로)
-                        logger.info('💾 InputPeerSelf로 저장된 메시지 가져오기 시도...')
-                        messages = await client.get_messages(InputPeerSelf(), limit=100, parse_mode=None)
-                        logger.info(f'💾 InputPeerSelf 결과: {len(messages)}개 메시지')
+                        # 🚀 완전히 새로운 접근: 텔레그램의 원본 메시지 데이터를 직접 가져오기
+                        logger.info('💾 🚀 완전히 새로운 접근: 원본 메시지 데이터 직접 가져오기')
                         
-                        # 🚀 추가: 원본 메시지 데이터를 직접 가져오기
-                        if messages:
-                            logger.info('💾 🚀 원본 메시지 데이터 직접 가져오기 시도')
-                            for msg in messages[:3]:  # 처음 3개만 분석
-                                logger.info(f'💾 원본 메시지 분석: ID={msg.id}')
-                                logger.info(f'💾 원본 텍스트 (repr): {repr(msg.text)}')
-                                logger.info(f'💾 원본 텍스트 (str): {msg.text}')
-                                logger.info(f'💾 원본 엔티티: {msg.entities}')
-                                
-                                # 원본 메시지의 모든 속성 확인
-                                raw_attrs = [attr for attr in dir(msg) if not attr.startswith('_')]
-                                logger.info(f'💾 원본 메시지 속성들: {raw_attrs}')
-                                
-                                # 원본 메시지의 raw 데이터 확인
-                                if hasattr(msg, 'raw_text'):
-                                    logger.info(f'💾 원본 raw_text: {msg.raw_text}')
-                                if hasattr(msg, 'message'):
-                                    logger.info(f'💾 원본 message: {msg.message}')
-                                if hasattr(msg, 'text'):
-                                    logger.info(f'💾 원본 text: {msg.text}')
-                                
-                                # 원본 메시지의 엔티티 정보 확인
-                                if msg.entities:
-                                    for i, entity in enumerate(msg.entities[:5]):  # 처음 5개만
-                                        logger.info(f'💾 원본 엔티티 {i}: {type(entity).__name__}')
-                                        logger.info(f'💾   - offset: {entity.offset}, length: {entity.length}')
-                                        if hasattr(entity, 'type'):
-                                            logger.info(f'💾   - type: {entity.type}')
-                                        if hasattr(entity, 'document_id'):
-                                            logger.info(f'💾   - document_id: {entity.document_id}')
-                                
-                                break  # 첫 번째 메시지만 상세 분석
+                        # 방법 1: get_messages로 원본 데이터 가져오기
+                        messages = await client.get_messages(InputPeerSelf(), limit=100)
+                        logger.info(f'💾 저장된 메시지 {len(messages)}개를 찾았습니다.')
+                        
                         
                         if len(messages) == 0:
                             logger.info('💾 InputPeerSelf에서 메시지가 없음, 대화 목록에서 찾기...')
@@ -1487,58 +1457,24 @@ def get_telegram_saved_messages_with_session(account_info):
                             logger.info(f'💾 원본 메시지 타입: {type(message)}')
                             logger.info(f'💾 원본 메시지 속성: {dir(message)}')
                             
-                            # 🚀 핵심: 원본 메시지의 raw 데이터를 직접 추출
+                            # 🚀 최종 해결책: 원본 메시지 객체 자체를 그대로 보존
                             original_text = message.text or ''
-                            logger.info(f'💾 변환된 텍스트 (message.text): {original_text[:100]}...')
+                            logger.info(f'💾 원본 텍스트: {original_text[:100]}...')
                             
-                            # 🚀 새로운 접근: 원본 메시지의 raw 데이터 확인
-                            logger.info(f'💾 원본 메시지 속성 분석 시작')
-                            message_attrs = [attr for attr in dir(message) if not attr.startswith('_')]
-                            logger.info(f'💾 메시지 속성들: {message_attrs}')
-                            
-                            # 🚀 핵심: 원본 메시지의 raw 데이터를 직접 추출
-                            # 텔레그램의 원본 메시지 객체에서 raw 텍스트 추출
-                            try:
-                                # 원본 메시지의 raw 데이터 확인
-                                if hasattr(message, 'raw_text'):
-                                    original_text = message.raw_text or original_text
-                                    logger.info(f'💾 raw_text 발견: {original_text[:100]}...')
-                                
-                                if hasattr(message, 'message'):
-                                    original_text = message.message or original_text
-                                    logger.info(f'💾 message 속성 발견: {original_text[:100]}...')
-                                
-                                # 🚀 최종 해결책: 원본 메시지 객체 자체를 그대로 보존
-                                # 텔레그램의 원본 메시지 객체를 JSON 직렬화 가능한 형태로 변환
-                                original_message_data = {
-                                    'id': message.id,
-                                    'text': original_text,  # 원본 텍스트 그대로 사용
-                                    'entities': [],
-                                    'date': message.date.isoformat() if message.date else None,
-                                    'from_id': str(getattr(message, 'from_id', None)) if getattr(message, 'from_id', None) else None,
-                                    'peer_id': str(getattr(message, 'peer_id', None)) if getattr(message, 'peer_id', None) else None,
-                                    'message_id': message.id,
-                                    'raw_text': original_text,
-                                    'preserve_original': True,
-                                    'original_message_object': True,
-                                    'use_forward_message': True
-                                }
-                                
-                                logger.info(f'💾 원본 메시지 데이터 생성 완료: {original_message_data}')
-                                
-                            except Exception as e:
-                                logger.error(f'❌ 원본 메시지 데이터 추출 실패: {e}')
-                                original_message_data = {
-                                    'id': message.id,
-                                    'text': original_text,
-                                    'entities': [],
-                                    'date': message.date.isoformat() if message.date else None,
-                                    'message_id': message.id,
-                                    'raw_text': original_text,
-                                    'preserve_original': True,
-                                    'original_message_object': True,
-                                    'use_forward_message': True
-                                }
+                            # 원본 메시지 데이터 생성
+                            original_message_data = {
+                                'id': message.id,
+                                'text': original_text,
+                                'entities': [],
+                                'date': message.date.isoformat() if message.date else None,
+                                'from_id': str(getattr(message, 'from_id', None)) if getattr(message, 'from_id', None) else None,
+                                'peer_id': str(getattr(message, 'peer_id', None)) if getattr(message, 'peer_id', None) else None,
+                                'message_id': message.id,
+                                'raw_text': original_text,
+                                'preserve_original': True,
+                                'original_message_object': True,
+                                'use_forward_message': True
+                            }
                             
                             logger.info(f'💾 원본 메시지 데이터 생성 완료: {original_message_data}')
                             
