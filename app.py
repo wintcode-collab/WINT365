@@ -102,69 +102,79 @@ def send_code():
         try:
             logger.info('🔍 MTProto API 호출 시작...')
             logger.info(f'📋 요청 정보: API ID={api_id}, Hash=***{api_hash[-4:]}, Phone={phone_number}')
+            logger.info(f'📋 API ID 타입: {type(api_id)}, API Hash 길이: {len(api_hash) if api_hash else 0}')
             
             client_id = str(int(time.time() * 1000))
             logger.info(f'🆔 클라이언트 ID 생성: {client_id}')
             
-            # Telethon을 완전히 새 스레드에서 실행
-            def run_telethon_complete():
-                # 새로운 이벤트 루프 생성
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                
-                async def send_code_async():
-                    # Telethon 클라이언트 생성 (이벤트 루프 내에서)
-                    logger.info('🔧 Telethon 클라이언트 생성 중...')
-                    client = TelegramClient(f'session_{client_id}', api_id, api_hash)
-                    logger.info('✅ Telethon 클라이언트 생성 완료')
-                    
-                    try:
-                        logger.info('🔌 Telegram 서버 연결 중...')
-                        await client.connect()
-                        logger.info('✅ Telegram 서버 연결 성공')
-                        
-                        logger.info('📱 인증코드 발송 요청 중...')
-                        logger.info(f'📋 전화번호 형식: {phone_number}')
-                        logger.info(f'📋 API ID: {api_id}')
-                        logger.info(f'📋 API Hash: ***{api_hash[-4:]}')
-                        
-                        # 텔레그램 앱으로 인증코드 요청
-                        result = await client.send_code_request(phone_number)
-                        logger.info(f'✅ 인증코드 발송 성공: phone_code_hash=***{result.phone_code_hash[-4:]}')
-                        logger.info(f'📋 결과 타입: {type(result)}')
-                        logger.info(f'📋 결과 속성: {dir(result)}')
-                        
-                        # 결과 상세 정보 로깅
-                        if hasattr(result, 'phone_code_hash'):
-                            logger.info(f'📋 phone_code_hash: {result.phone_code_hash}')
-                        if hasattr(result, 'type'):
-                            logger.info(f'📋 type: {result.type}')
-                        if hasattr(result, 'next_type'):
-                            logger.info(f'📋 next_type: {result.next_type}')
-                        if hasattr(result, 'timeout'):
-                            logger.info(f'📋 timeout: {result.timeout}')
-                        
-                        # 전체 결과 객체 로깅
-                        logger.info(f'📋 전체 결과: {result}')
-                        
-                        return client, result
-                    except Exception as e:
-                        logger.error(f'❌ send_code_async 에러: {e}')
-                        raise e
-                    finally:
-                        # 연결 해제하지 않음 (세션 유지를 위해)
-                        logger.info('🔌 클라이언트 연결 유지 (세션 보존)')
+            # API 자격 증명 검증
+            if not api_id or api_id <= 0:
+                raise ValueError(f'잘못된 API ID: {api_id}')
+            if not api_hash or len(api_hash) != 32:
+                raise ValueError(f'잘못된 API Hash 길이: {len(api_hash) if api_hash else 0} (32자리여야 함)')
+            if not phone_number or not phone_number.startswith('+'):
+                raise ValueError(f'잘못된 전화번호 형식: {phone_number}')
+            
+            # Telethon을 동기적으로 실행 (세션 파일 문제 해결)
+            import asyncio
+            import tempfile
+            import os
+            
+            # 임시 세션 파일 생성
+            session_file = os.path.join(tempfile.gettempdir(), f'telegram_session_{client_id}')
+            logger.info(f'📁 세션 파일 경로: {session_file}')
+            
+            async def send_code_async():
+                # Telethon 클라이언트 생성
+                logger.info('🔧 Telethon 클라이언트 생성 중...')
+                client = TelegramClient(session_file, api_id, api_hash)
+                logger.info('✅ Telethon 클라이언트 생성 완료')
                 
                 try:
-                    client, result = loop.run_until_complete(send_code_async())
+                    logger.info('🔌 Telegram 서버 연결 중...')
+                    await client.connect()
+                    logger.info('✅ Telegram 서버 연결 성공')
+                    
+                    logger.info('📱 인증코드 발송 요청 중...')
+                    logger.info(f'📋 전화번호 형식: {phone_number}')
+                    logger.info(f'📋 API ID: {api_id}')
+                    logger.info(f'📋 API Hash: ***{api_hash[-4:]}')
+                    
+                    # 텔레그램 앱으로 인증코드 요청
+                    result = await client.send_code_request(phone_number)
+                    logger.info(f'✅ 인증코드 발송 성공: phone_code_hash=***{result.phone_code_hash[-4:]}')
+                    logger.info(f'📋 결과 타입: {type(result)}')
+                    logger.info(f'📋 결과 속성: {dir(result)}')
+                    
+                    # 결과 상세 정보 로깅
+                    if hasattr(result, 'phone_code_hash'):
+                        logger.info(f'📋 phone_code_hash: {result.phone_code_hash}')
+                    if hasattr(result, 'type'):
+                        logger.info(f'📋 type: {result.type}')
+                    if hasattr(result, 'next_type'):
+                        logger.info(f'📋 next_type: {result.next_type}')
+                    if hasattr(result, 'timeout'):
+                        logger.info(f'📋 timeout: {result.timeout}')
+                    
+                    # 전체 결과 객체 로깅
+                    logger.info(f'📋 전체 결과: {result}')
+                    
                     return client, result
+                except Exception as e:
+                    logger.error(f'❌ send_code_async 에러: {e}')
+                    raise e
                 finally:
-                    loop.close()
+                    # 연결 해제하지 않음 (세션 유지를 위해)
+                    logger.info('🔌 클라이언트 연결 유지 (세션 보존)')
             
-            # 새 스레드에서 실행
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(run_telethon_complete)
-                client, result = future.result()
+            # 새 이벤트 루프에서 실행
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                client, result = loop.run_until_complete(send_code_async())
+            finally:
+                loop.close()
+            
             
             # 클라이언트 데이터 저장
             clients[client_id] = {
@@ -172,7 +182,8 @@ def send_code():
                 'api_id': api_id,
                 'api_hash': api_hash,
                 'phone_number': phone_number,
-                'phone_code_hash': result.phone_code_hash
+                'phone_code_hash': result.phone_code_hash,
+                'session_file': session_file
             }
             logger.info('💾 클라이언트 데이터 저장 완료')
             
@@ -257,52 +268,54 @@ def verify_code():
             logger.info('🔍 인증코드 검증 시작...')
             logger.info(f'📋 검증 정보: clientId={client_id}, phoneCode={phone_code}')
             
-            # 기존 클라이언트를 새 스레드에서 사용
-            def run_telethon_verify():
-                # 새로운 이벤트 루프 생성
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
+            # 기존 클라이언트를 사용하여 인증
+            async def verify_code_async():
+                # 기존 클라이언트 사용 (세션 유지)
+                client = client_data['client']
+                logger.info('🔧 기존 클라이언트 사용')
                 
-                async def verify_code_async():
-                    # 기존 클라이언트 사용 (세션 유지)
-                    client = client_data['client']
-                    logger.info('🔧 기존 클라이언트 사용')
-                    
-                    # 클라이언트 연결 상태 확인
-                    if not client.is_connected():
-                        logger.info('🔌 클라이언트 재연결 중...')
-                        await client.connect()
-                        logger.info('✅ 클라이언트 재연결 완료')
-                    
-                    # 실제 인증 수행
-                    logger.info('🔐 인증 수행 중...')
-                    phone_code_hash = client_data.get('phone_code_hash')
-                    if phone_code_hash:
-                        logger.info(f'📋 인증 정보: phoneCode={phone_code}, phoneCodeHash=***{phone_code_hash[-4:]}')
-                    else:
-                        logger.error('❌ phone_code_hash가 없습니다!')
-                        raise Exception('phone_code_hash가 없습니다')
-                    
-                    # Telethon의 올바른 sign_in 사용법
-                    logger.info('🔐 sign_in 메서드 호출 중...')
-                    result = await client.sign_in(phone_code, phone_code_hash=phone_code_hash)
-                    logger.info(f'✅ 인증 성공: userId={result.id}, firstName={result.first_name}')
-                    
-                    return result
+                # 클라이언트 연결 상태 확인
+                if not client.is_connected():
+                    logger.info('🔌 클라이언트 재연결 중...')
+                    await client.connect()
+                    logger.info('✅ 클라이언트 재연결 완료')
                 
-                try:
-                    result = loop.run_until_complete(verify_code_async())
-                    return result
-                finally:
-                    loop.close()
+                # 실제 인증 수행
+                logger.info('🔐 인증 수행 중...')
+                phone_code_hash = client_data.get('phone_code_hash')
+                if phone_code_hash:
+                    logger.info(f'📋 인증 정보: phoneCode={phone_code}, phoneCodeHash=***{phone_code_hash[-4:]}')
+                else:
+                    logger.error('❌ phone_code_hash가 없습니다!')
+                    raise Exception('phone_code_hash가 없습니다')
+                
+                # Telethon의 올바른 sign_in 사용법
+                logger.info('🔐 sign_in 메서드 호출 중...')
+                result = await client.sign_in(phone_code, phone_code_hash=phone_code_hash)
+                logger.info(f'✅ 인증 성공: userId={result.id}, firstName={result.first_name}')
+                
+                return result
             
-            # 새 스레드에서 실행
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(run_telethon_verify)
-                result = future.result()
+            # 새 이벤트 루프에서 실행
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                result = loop.run_until_complete(verify_code_async())
+            finally:
+                loop.close()
             
             # 클라이언트 정리
             if client_id in clients:
+                client_data = clients[client_id]
+                # 세션 파일 삭제
+                if 'session_file' in client_data:
+                    try:
+                        import os
+                        if os.path.exists(client_data['session_file']):
+                            os.remove(client_data['session_file'])
+                            logger.info(f'🗑️ 세션 파일 삭제: {client_data["session_file"]}')
+                    except Exception as e:
+                        logger.warning(f'⚠️ 세션 파일 삭제 실패: {e}')
                 del clients[client_id]
             logger.info('🗑️ 클라이언트 데이터 정리 완료')
             
@@ -320,6 +333,16 @@ def verify_code():
         except PhoneCodeInvalidError:
             logger.error('❌ 인증코드가 올바르지 않습니다.')
             if client_id in clients:
+                client_data = clients[client_id]
+                # 세션 파일 삭제
+                if 'session_file' in client_data:
+                    try:
+                        import os
+                        if os.path.exists(client_data['session_file']):
+                            os.remove(client_data['session_file'])
+                            logger.info(f'🗑️ 세션 파일 삭제: {client_data["session_file"]}')
+                    except Exception as e:
+                        logger.warning(f'⚠️ 세션 파일 삭제 실패: {e}')
                 del clients[client_id]
             return jsonify({
                 'success': False,
@@ -329,6 +352,16 @@ def verify_code():
         except PhoneCodeExpiredError:
             logger.error('❌ 인증코드가 만료되었습니다.')
             if client_id in clients:
+                client_data = clients[client_id]
+                # 세션 파일 삭제
+                if 'session_file' in client_data:
+                    try:
+                        import os
+                        if os.path.exists(client_data['session_file']):
+                            os.remove(client_data['session_file'])
+                            logger.info(f'🗑️ 세션 파일 삭제: {client_data["session_file"]}')
+                    except Exception as e:
+                        logger.warning(f'⚠️ 세션 파일 삭제 실패: {e}')
                 del clients[client_id]
             return jsonify({
                 'success': False,
@@ -338,6 +371,16 @@ def verify_code():
         except SessionPasswordNeededError:
             logger.error('❌ 2단계 인증이 필요합니다.')
             if client_id in clients:
+                client_data = clients[client_id]
+                # 세션 파일 삭제
+                if 'session_file' in client_data:
+                    try:
+                        import os
+                        if os.path.exists(client_data['session_file']):
+                            os.remove(client_data['session_file'])
+                            logger.info(f'🗑️ 세션 파일 삭제: {client_data["session_file"]}')
+                    except Exception as e:
+                        logger.warning(f'⚠️ 세션 파일 삭제 실패: {e}')
                 del clients[client_id]
             return jsonify({
                 'success': False,
@@ -353,6 +396,16 @@ def verify_code():
             logger.error(f'  - phone_code_hash 값: {client_data.get("phone_code_hash", "None")}')
             
             if client_id in clients:
+                client_data = clients[client_id]
+                # 세션 파일 삭제
+                if 'session_file' in client_data:
+                    try:
+                        import os
+                        if os.path.exists(client_data['session_file']):
+                            os.remove(client_data['session_file'])
+                            logger.info(f'🗑️ 세션 파일 삭제: {client_data["session_file"]}')
+                    except Exception as e:
+                        logger.warning(f'⚠️ 세션 파일 삭제 실패: {e}')
                 del clients[client_id]
             logger.info('🗑️ 실패한 클라이언트 데이터 정리 완료')
             
