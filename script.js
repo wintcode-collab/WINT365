@@ -2021,14 +2021,15 @@ async function sendMessageToGroup() {
     let mediaInfo = null;
     
     if (window.selectedMediaInfo) {
-        // 저장된 메시지가 선택된 경우 원본 데이터 사용
+        // 저장된 메시지가 선택된 경우 - 원본 메시지 객체 전체를 그대로 전송
         mediaInfo = window.selectedMediaInfo;
         
-        // 커스텀 이모지가 있는 경우 원본 데이터 우선 사용
-        if (mediaInfo.has_custom_emoji && mediaInfo.raw_message_data) {
-            message = mediaInfo.raw_message_data.text || mediaInfo.text || messageInput.value.trim();
-            console.log('📤 커스텀 이모지 원본 데이터 강제 사용:', message);
-            console.log('📤 원본 raw_message_data:', mediaInfo.raw_message_data);
+        // 커스텀 이모지가 있는 경우 원본 메시지 객체 전체를 전송
+        if (mediaInfo.has_custom_emoji) {
+            // 텍스트 처리를 완전히 우회하고 원본 메시지 객체를 그대로 전송
+            message = null; // 텍스트는 null로 설정
+            console.log('📤 커스텀 이모지 원본 객체 전체 전송 모드');
+            console.log('📤 원본 메시지 객체:', mediaInfo.raw_message_data);
         } else {
             message = mediaInfo.text || messageInput.value.trim();
             console.log('📤 일반 저장된 메시지 사용:', message);
@@ -2037,8 +2038,6 @@ async function sendMessageToGroup() {
         console.log('📤 최종 전송 메시지:', message);
         console.log('📤 미디어 정보:', mediaInfo);
         console.log('📤 커스텀 이모지 여부:', mediaInfo.has_custom_emoji);
-        console.log('📤 커스텀 이모지 엔티티:', mediaInfo.custom_emoji_entities);
-        console.log('📤 원본 메시지 데이터:', mediaInfo.raw_message_data);
     } else {
         message = messageInput.value.trim();
         console.log('📤 입력칸 텍스트 사용:', message);
@@ -2107,24 +2106,20 @@ async function sendMessageToGroup() {
                     mediaInfo: mediaInfo
                 };
                 
-                // 커스텀 이모지가 있는 경우 엔티티 정보 추가
+                // 커스텀 이모지가 있는 경우 원본 메시지 객체 전체를 전송
                 if (mediaInfo && mediaInfo.has_custom_emoji) {
-                    sendData.custom_emoji_entities = mediaInfo.custom_emoji_entities || [];
-                    sendData.entities = mediaInfo.entities || [];
-                    sendData.raw_message_data = mediaInfo.raw_message_data || null;
-                    sendData.has_custom_emoji = true;
+                    // 원본 메시지 객체 전체를 그대로 전송
+                    sendData.original_message_object = mediaInfo.original_message_object || mediaInfo.raw_message_data || mediaInfo;
+                    sendData.is_original_message = true;
+                    sendData.bypass_text_processing = true;
+                    sendData.message = null; // 텍스트 처리를 우회
+                    sendData.send_as_original = true; // 서버에서 원본 객체로 처리하라는 플래그
                     
-                    // 원본 메시지 텍스트도 함께 전송
-                    if (mediaInfo.raw_message_data && mediaInfo.raw_message_data.text) {
-                        sendData.original_text = mediaInfo.raw_message_data.text;
-                    }
-                    
-                    console.log('📤 커스텀 이모지 엔티티 정보 추가:', {
-                        custom_emoji_entities: sendData.custom_emoji_entities,
-                        entities: sendData.entities,
-                        raw_message_data: sendData.raw_message_data,
-                        original_text: sendData.original_text,
-                        has_custom_emoji: sendData.has_custom_emoji
+                    console.log('📤 원본 메시지 객체 전체 전송:', {
+                        original_message_object: sendData.original_message_object,
+                        is_original_message: sendData.is_original_message,
+                        bypass_text_processing: sendData.bypass_text_processing,
+                        send_as_original: sendData.send_as_original
                     });
                 }
                 
@@ -2410,7 +2405,7 @@ function displayTelegramSavedMessages(savedMessages) {
                 <div class="saved-message-content" ${customEmojiStyle}>
                     ${displayText}
                     ${mediaPreview}
-                    ${message.has_custom_emoji ? '<div style="margin-top: 5px; font-size: 12px; color: #10B981;">🎨 커스텀 이모지 포함 (원본 엔티티 정보 보존됨)</div>' : ''}
+                    ${message.has_custom_emoji ? '<div style="margin-top: 5px; font-size: 12px; color: #10B981;">🎨 커스텀 이모지 포함 (원본 객체 전체 전송 모드)</div>' : ''}
                 </div>
                 <div class="saved-message-meta">
                     <span>${date}</span>
@@ -2500,7 +2495,7 @@ function selectTelegramSavedMessage(messageIndex, savedMessages) {
         }
         
         // 미디어 정보 및 커스텀 이모지 정보 저장 (전역 변수에)
-        // 항상 원본 메시지 데이터를 저장하도록 수정
+        // 원본 메시지 객체 전체를 그대로 보존
         window.selectedMediaInfo = {
             media_type: message.media_type || null,
             media_path: message.media_path || null,
@@ -2511,24 +2506,18 @@ function selectTelegramSavedMessage(messageIndex, savedMessages) {
             raw_message_data: message.raw_message_data || message, // 원본 메시지 전체를 저장
             text: message.text || '',
             message_id: message.message_id || null,
-            date: message.date || null
+            date: message.date || null,
+            // 원본 메시지 객체 전체를 별도로 보존
+            original_message_object: message.raw_message_data || message
         };
         
-        // 커스텀 이모지가 있는 경우 엔티티 정보 강제 보존
+        // 커스텀 이모지가 있는 경우 원본 객체 전체 보존
         if (message.has_custom_emoji) {
-            console.log('💾 커스텀 이모지 엔티티 정보 강제 보존:', {
-                custom_emoji_entities: message.custom_emoji_entities,
-                entities: message.entities,
-                raw_message_data: message.raw_message_data
+            console.log('💾 커스텀 이모지 원본 객체 전체 보존:', {
+                original_message_object: window.selectedMediaInfo.original_message_object,
+                has_custom_emoji: message.has_custom_emoji,
+                bypass_text_processing: true
             });
-            
-            // 엔티티 정보가 없으면 빈 배열로라도 설정
-            if (!window.selectedMediaInfo.custom_emoji_entities || window.selectedMediaInfo.custom_emoji_entities.length === 0) {
-                window.selectedMediaInfo.custom_emoji_entities = message.custom_emoji_entities || [];
-            }
-            if (!window.selectedMediaInfo.entities || window.selectedMediaInfo.entities.length === 0) {
-                window.selectedMediaInfo.entities = message.entities || [];
-            }
         }
         
         console.log('💾 최종 저장된 메시지 정보:', window.selectedMediaInfo);
