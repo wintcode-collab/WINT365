@@ -388,8 +388,9 @@ def send_code():
             logger.info('🔥 Firebase 저장 일시 비활성화 (인증코드 발송 문제 우선 해결)')
             firebase_saved = False
             
-            # 클라이언트 데이터 저장 (Firebase 저장 여부 포함)
+            # 클라이언트 데이터 저장 (원래 클라이언트 포함)
             clients[client_id] = {
+                'client': client,  # 원래 클라이언트 저장
                 'session_file': session_file,
                 'api_id': api_id,
                 'api_hash': api_hash,
@@ -505,25 +506,15 @@ def verify_code():
                 asyncio.set_event_loop(loop)
                 
                 async def verify_code_async():
-                    # Firebase에서 세션 데이터 조회
-                    logger.info('🔥 Firebase에서 세션 데이터 조회 중...')
-                    firebase_session = get_session_from_firebase(client_id)
+                    # 원래 클라이언트 재사용 (세션 정보 보존)
+                    logger.info('🔧 원래 클라이언트 재사용 중...')
+                    original_client = client_data.get('client')
                     
-                    if firebase_session:
-                        logger.info('🔥 Firebase 세션 데이터 발견, 복원 중...')
-                        # Base64 디코딩하여 임시 세션 파일 생성
-                        session_b64 = firebase_session['sessionData']
-                        session_bytes = base64.b64decode(session_b64)
-                        temp_session_file = f'temp_verify_{client_id}'
-                        
-                        with open(f'{temp_session_file}.session', 'wb') as f:
-                            f.write(session_bytes)
-                        
-                        # Firebase 세션 데이터로 클라이언트 생성
-                        client = TelegramClient(temp_session_file, client_data['api_id'], client_data['api_hash'])
-                        logger.info('✅ Firebase 세션으로 클라이언트 생성 완료')
+                    if original_client and hasattr(original_client, 'is_connected'):
+                        logger.info('✅ 원래 클라이언트 발견, 재사용')
+                        client = original_client
                     else:
-                        logger.info('🔥 Firebase 세션 없음, 새 클라이언트 생성...')
+                        logger.info('⚠️ 원래 클라이언트 없음, 새 클라이언트 생성...')
                         # 새로운 클라이언트 생성 (asyncio 문제 방지)
                         client = TelegramClient(f'session_verify_{client_id}', client_data['api_id'], client_data['api_hash'])
                         logger.info('✅ 새로운 클라이언트 생성 완료')
