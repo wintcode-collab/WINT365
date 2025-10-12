@@ -537,7 +537,14 @@ def verify_code():
                         
                         # Telethon의 올바른 sign_in 사용법
                         logger.info('🔐 sign_in 메서드 호출 중...')
-                        result = await client.sign_in(phone_code, phone_code_hash=phone_code_hash)
+                        logger.info(f'📋 인증 시도 정보: phone={client_data.get("phone_number")}, code={phone_code}, hash=***{phone_code_hash[-4:]}')
+                        
+                        # 전화번호와 함께 sign_in 시도
+                        result = await client.sign_in(
+                            phone=client_data.get('phone_number'),
+                            code=phone_code, 
+                            phone_code_hash=phone_code_hash
+                        )
                         logger.info(f'✅ 인증 성공: userId={result.id}, firstName={result.first_name}')
                         
                         # 인증 성공 후 계정 정보 저장 및 Firebase 세션 삭제
@@ -587,20 +594,12 @@ def verify_code():
                 finally:
                     loop.close()
             
-            # 동일한 이벤트 루프에서 실행 (asyncio 문제 해결)
+            # 새 스레드에서 실행 (Event loop 문제 해결)
             try:
-                # 현재 실행 중인 이벤트 루프가 있는지 확인
-                try:
-                    current_loop = asyncio.get_running_loop()
-                    logger.info('📋 기존 이벤트 루프 감지, 새 스레드에서 실행')
-                    # 기존 루프가 있으면 새 스레드에서 실행
-                    with concurrent.futures.ThreadPoolExecutor() as executor:
-                        future = executor.submit(run_telethon_verify)
-                        result, account_info = future.result()
-                except RuntimeError:
-                    # 실행 중인 이벤트 루프가 없으면 직접 실행
-                    logger.info('📋 새 이벤트 루프에서 직접 실행')
-                    result, account_info = run_telethon_verify()
+                logger.info('📋 새 스레드에서 인증 실행')
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(run_telethon_verify)
+                    result, account_info = future.result()
             except Exception as loop_error:
                 logger.error(f'❌ 이벤트 루프 실행 실패: {loop_error}')
                 raise loop_error
