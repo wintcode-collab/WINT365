@@ -8,6 +8,10 @@ import asyncio
 import logging
 import threading
 import concurrent.futures
+import tempfile
+import io
+import base64
+import requests
 
 # Telegram 라이브러리
 try:
@@ -27,6 +31,163 @@ logger = logging.getLogger(__name__)
 
 # 텔레그램 클라이언트 저장소
 clients = {}
+
+# Firebase 설정
+FIREBASE_URL = "https://wint365-date-default-rtdb.asia-southeast1.firebasedatabase.app"
+
+# Firebase 세션 관리 함수
+def save_session_to_firebase(client_id, session_data, phone_code_hash, api_id, api_hash, phone_number):
+    """Firebase에 텔레그램 세션 데이터 저장"""
+    try:
+        # 세션 데이터를 Base64로 인코딩
+        session_bytes = session_data.getvalue()
+        session_b64 = base64.b64encode(session_bytes).decode('utf-8')
+        
+        session_info = {
+            'clientId': client_id,
+            'sessionData': session_b64,
+            'phoneCodeHash': phone_code_hash,
+            'apiId': api_id,
+            'apiHash': api_hash,
+            'phoneNumber': phone_number,
+            'createdAt': datetime.now().isoformat(),
+            'expiresAt': datetime.fromtimestamp(time.time() + 24 * 60 * 60).isoformat(),  # 24시간 후 만료
+            'ip': 'Server'
+        }
+        
+        url = f"{FIREBASE_URL}/telegram_sessions/{client_id}.json"
+        response = requests.put(url, json=session_info, timeout=10)
+        
+        if response.status_code == 200:
+            logger.info(f'🔥 Firebase 세션 저장 성공: {client_id}')
+            return True
+        else:
+            logger.error(f'🔥 Firebase 세션 저장 실패: {response.status_code}')
+            return False
+            
+    except Exception as e:
+        logger.error(f'🔥 Firebase 세션 저장 에러: {e}')
+        return False
+
+def get_session_from_firebase(client_id):
+    """Firebase에서 텔레그램 세션 데이터 조회"""
+    try:
+        url = f"{FIREBASE_URL}/telegram_sessions/{client_id}.json"
+        response = requests.get(url, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data:
+                # 만료 시간 확인
+                expires_at = datetime.fromisoformat(data['expiresAt'].replace('Z', '+00:00'))
+                if datetime.now(expires_at.tzinfo) > expires_at:
+                    logger.info(f'🔥 Firebase 세션 만료됨: {client_id}')
+                    delete_session_from_firebase(client_id)
+                    return None
+                
+                logger.info(f'🔥 Firebase 세션 조회 성공: {client_id}')
+                return data
+            else:
+                logger.info(f'🔥 Firebase 세션 없음: {client_id}')
+                return None
+        else:
+            logger.error(f'🔥 Firebase 세션 조회 실패: {response.status_code}')
+            return None
+            
+    except Exception as e:
+        logger.error(f'🔥 Firebase 세션 조회 에러: {e}')
+        return None
+
+def delete_session_from_firebase(client_id):
+    """Firebase에서 텔레그램 세션 데이터 삭제"""
+    try:
+        url = f"{FIREBASE_URL}/telegram_sessions/{client_id}.json"
+        response = requests.delete(url, timeout=10)
+        
+        if response.status_code == 200:
+            logger.info(f'🔥 Firebase 세션 삭제 성공: {client_id}')
+            return True
+        else:
+            logger.error(f'🔥 Firebase 세션 삭제 실패: {response.status_code}')
+            return False
+            
+    except Exception as e:
+        logger.error(f'🔥 Firebase 세션 삭제 에러: {e}')
+        return False
+
+def save_account_to_firebase(account_info):
+    """Firebase에 인증된 계정 정보 저장"""
+    try:
+        url = f"{FIREBASE_URL}/authenticated_accounts/{account_info['user_id']}.json"
+        response = requests.put(url, json=account_info, timeout=10)
+        
+        if response.status_code == 200:
+            logger.info(f'🔥 Firebase 계정 정보 저장 성공: {account_info["user_id"]}')
+            return True
+        else:
+            logger.error(f'🔥 Firebase 계정 정보 저장 실패: {response.status_code}')
+            return False
+            
+    except Exception as e:
+        logger.error(f'🔥 Firebase 계정 정보 저장 에러: {e}')
+        return False
+
+def get_account_from_firebase(user_id):
+    """Firebase에서 인증된 계정 정보 조회"""
+    try:
+        url = f"{FIREBASE_URL}/authenticated_accounts/{user_id}.json"
+        response = requests.get(url, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data:
+                logger.info(f'🔥 Firebase 계정 정보 조회 성공: {user_id}')
+                return data
+            else:
+                logger.info(f'🔥 Firebase 계정 정보 없음: {user_id}')
+                return None
+        else:
+            logger.error(f'🔥 Firebase 계정 정보 조회 실패: {response.status_code}')
+            return None
+            
+    except Exception as e:
+        logger.error(f'🔥 Firebase 계정 정보 조회 에러: {e}')
+        return None
+
+def test_telegram_connection(account_info):
+    """텔레그램 연결 테스트 (그룹 로딩 전)"""
+    try:
+        logger.info(f'🔍 텔레그램 연결 테스트 시작: {account_info["user_id"]}')
+        
+        # 세션 데이터 복원
+        session_b64 = account_info.get('session_data')
+        if not session_b64:
+            logger.error('❌ 세션 데이터 없음')
+            return False
+            
+        session_bytes = base64.b64decode(session_b64)
+        session_data = io.BytesIO(session_bytes)
+        
+        # 클라이언트 생성 및 연결 테스트
+        client = TelegramClient(session_data, account_info['api_id'], account_info['api_hash'])
+        
+        # 연결 테스트
+        client.connect()
+        
+        if client.is_connected():
+            # 간단한 API 호출 테스트
+            me = client.get_me()
+            logger.info(f'✅ 연결 테스트 성공: {me.first_name}')
+            client.disconnect()
+            return True
+        else:
+            logger.error('❌ 연결 테스트 실패')
+            client.disconnect()
+            return False
+            
+    except Exception as e:
+        logger.error(f'❌ 연결 테스트 에러: {e}')
+        return False
 
 # 동기 방식으로 처리하므로 run_async 함수 불필요
 
@@ -122,9 +283,11 @@ def send_code():
                 asyncio.set_event_loop(loop)
                 
                 async def send_code_async():
-                    # Telethon 클라이언트 생성 (이벤트 루프 내에서)
+                    # Telethon 클라이언트 생성 (메모리 세션 사용)
                     logger.info('🔧 Telethon 클라이언트 생성 중...')
-                    client = TelegramClient(f'session_{client_id}', api_id, api_hash)
+                    session_data = io.BytesIO()
+                    logger.info('📁 메모리 세션 사용 (웹 환경 최적화)')
+                    client = TelegramClient(session_data, api_id, api_hash)
                     logger.info('✅ Telethon 클라이언트 생성 완료')
                 
                     try:
@@ -173,29 +336,48 @@ def send_code():
                         # 전체 결과 객체 로깅
                         logger.info(f'📋 전체 결과: {result}')
                         
-                        return client, result
+                        return client, result, session_data
                     finally:
-                        # 연결 해제하지 않음 (세션 유지를 위해)
-                        logger.info('🔌 클라이언트 연결 유지 (세션 보존)')
+                        # 연결 해제 (메모리 세션은 자동으로 관리됨)
+                        logger.info('🔌 클라이언트 연결 해제')
+                        await client.disconnect()
+                        logger.info('✅ 연결 해제 완료')
                 
                 try:
-                    client, result = loop.run_until_complete(send_code_async())
-                    return client, result
+                    client, result, session_data = loop.run_until_complete(send_code_async())
+                    return client, result, session_data
                 finally:
                     loop.close()
             
             # 새 스레드에서 실행
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 future = executor.submit(run_telethon_complete)
-                client, result = future.result()
+                client, result, session_data = future.result()
             
             
-            # 클라이언트 데이터 저장
+            # Firebase에 세션 데이터 저장
+            logger.info('🔥 Firebase에 세션 데이터 저장 중...')
+            firebase_saved = save_session_to_firebase(
+                client_id, 
+                session_data, 
+                result.phone_code_hash, 
+                api_id, 
+                api_hash, 
+                phone_number
+            )
+            
+            if firebase_saved:
+                logger.info('🔥 Firebase 세션 저장 성공')
+            else:
+                logger.warning('🔥 Firebase 세션 저장 실패 (로컬 저장으로 대체)')
+            
+            # 클라이언트 데이터 저장 (Firebase 저장 여부 포함)
             clients[client_id] = {
-                'client': client,
+                'session_data': session_data,
                 'api_id': api_id,
                 'api_hash': api_hash,
-                'phone_number': phone_number
+                'phone_number': phone_number,
+                'firebase_saved': firebase_saved
             }
             logger.info('💾 클라이언트 데이터 저장 완료')
             
@@ -299,10 +481,25 @@ def verify_code():
                 asyncio.set_event_loop(loop)
                 
                 async def verify_code_async():
-                    # 새로운 클라이언트 생성 (asyncio 문제 방지)
-                    logger.info('🔧 새로운 클라이언트 생성 중...')
-                    client = TelegramClient(f'session_verify_{client_id}', client_data['api_id'], client_data['api_hash'])
-                    logger.info('✅ 새로운 클라이언트 생성 완료')
+                    # Firebase에서 세션 데이터 조회
+                    logger.info('🔥 Firebase에서 세션 데이터 조회 중...')
+                    firebase_session = get_session_from_firebase(client_id)
+                    
+                    if firebase_session:
+                        logger.info('🔥 Firebase 세션 데이터 발견, 복원 중...')
+                        # Base64 디코딩하여 세션 데이터 복원
+                        session_b64 = firebase_session['sessionData']
+                        session_bytes = base64.b64decode(session_b64)
+                        session_data = io.BytesIO(session_bytes)
+                        
+                        # Firebase 세션 데이터로 클라이언트 생성
+                        client = TelegramClient(session_data, client_data['api_id'], client_data['api_hash'])
+                        logger.info('✅ Firebase 세션으로 클라이언트 생성 완료')
+                    else:
+                        logger.info('🔥 Firebase 세션 없음, 새 클라이언트 생성...')
+                        # 새로운 클라이언트 생성 (asyncio 문제 방지)
+                        client = TelegramClient(f'session_verify_{client_id}', client_data['api_id'], client_data['api_hash'])
+                        logger.info('✅ 새로운 클라이언트 생성 완료')
                     
                     try:
                         # 클라이언트 연결
@@ -324,7 +521,34 @@ def verify_code():
                         result = await client.sign_in(phone_code, phone_code_hash=phone_code_hash)
                         logger.info(f'✅ 인증 성공: userId={result.id}, firstName={result.first_name}')
                         
-                        return result
+                        # 인증 성공 후 계정 정보 저장 및 Firebase 세션 삭제
+                        logger.info('🔥 인증 성공, 계정 정보 저장 중...')
+                        
+                        # 인증된 계정 정보 저장 (세션 데이터 포함)
+                        session_bytes = session_data.getvalue()
+                        session_b64 = base64.b64encode(session_bytes).decode('utf-8')
+                        
+                        account_info = {
+                            'user_id': result.id,
+                            'first_name': result.first_name,
+                            'last_name': result.last_name,
+                            'username': result.username,
+                            'phone_number': client_data['phone_number'],
+                            'api_id': client_data['api_id'],
+                            'api_hash': client_data['api_hash'],
+                            'session_data': session_b64,  # 세션 데이터 포함
+                            'authenticated_at': datetime.now().isoformat(),
+                            'client_id': client_id
+                        }
+                        
+                        # Firebase에 계정 정보 저장
+                        save_account_to_firebase(account_info)
+                        
+                        # Firebase 세션 삭제
+                        logger.info('🔥 Firebase 세션 삭제 중...')
+                        delete_session_from_firebase(client_id)
+                        
+                        return result, account_info
                         
                     finally:
                         # 클라이언트 연결 해제
@@ -333,8 +557,8 @@ def verify_code():
                             logger.info('🔌 클라이언트 연결 해제 완료')
                 
                 try:
-                    result = loop.run_until_complete(verify_code_async())
-                    return result
+                    result, account_info = loop.run_until_complete(verify_code_async())
+                    return result, account_info
                 finally:
                     loop.close()
             
@@ -347,11 +571,11 @@ def verify_code():
                     # 기존 루프가 있으면 새 스레드에서 실행
                     with concurrent.futures.ThreadPoolExecutor() as executor:
                         future = executor.submit(run_telethon_verify)
-                        result = future.result()
+                        result, account_info = future.result()
                 except RuntimeError:
                     # 실행 중인 이벤트 루프가 없으면 직접 실행
                     logger.info('📋 새 이벤트 루프에서 직접 실행')
-                    result = run_telethon_verify()
+                    result, account_info = run_telethon_verify()
             except Exception as loop_error:
                 logger.error(f'❌ 이벤트 루프 실행 실패: {loop_error}')
                 raise loop_error
@@ -369,6 +593,7 @@ def verify_code():
                     'last_name': result.last_name,
                     'username': result.username
                 },
+                'account_info': account_info,
                 'message': '실제 MTProto API로 개인 계정 인증이 완료되었습니다!'
             })
             
@@ -406,6 +631,10 @@ def verify_code():
             logger.error(f'  - 클라이언트 연결 상태: N/A')
             logger.error(f'  - phone_code_hash 존재: {bool(client_data.get("phone_code_hash"))}')
             logger.error(f'  - phone_code_hash 값: {client_data.get("phone_code_hash", "None")}')
+            
+            # 인증 실패 시 Firebase 세션 정리
+            logger.info('🔥 인증 실패, Firebase 세션 정리 중...')
+            delete_session_from_firebase(client_id)
             
             if client_id in clients:
                 del clients[client_id]
@@ -454,6 +683,80 @@ def health():
         'timestamp': datetime.now().isoformat(),
         'telethon_loaded': TelegramClient is not None
     })
+
+# 텔레그램 그룹 로딩 엔드포인트
+@app.route('/api/telegram/load-groups', methods=['POST'])
+def load_telegram_groups():
+    """인증된 계정의 텔레그램 그룹 로딩"""
+    try:
+        data = request.get_json()
+        user_id = data.get('userId')
+        
+        if not user_id:
+            return jsonify({
+                'success': False,
+                'error': '사용자 ID가 필요합니다.'
+            }), 400
+        
+        logger.info(f'🔍 그룹 로딩 요청: {user_id}')
+        
+        # Firebase에서 계정 정보 조회
+        account_info = get_account_from_firebase(user_id)
+        if not account_info:
+            return jsonify({
+                'success': False,
+                'error': '인증된 계정 정보를 찾을 수 없습니다. 다시 인증해주세요.'
+            }), 404
+        
+        # 연결 테스트 (그룹 로딩 전)
+        logger.info('🔍 그룹 로딩 전 연결 테스트 중...')
+        if not test_telegram_connection(account_info):
+            logger.error('❌ 연결 테스트 실패, 계정 정보 삭제')
+            # 연결 실패 시 계정 정보 삭제
+            delete_account_from_firebase(user_id)
+            return jsonify({
+                'success': False,
+                'error': '텔레그램 연결에 실패했습니다. 다시 인증해주세요.'
+            }), 500
+        
+        # 그룹 로딩 로직 (여기에 실제 그룹 로딩 코드 추가)
+        logger.info('✅ 연결 테스트 성공, 그룹 로딩 시작')
+        
+        # 임시 그룹 데이터 (실제로는 텔레그램 API에서 가져와야 함)
+        groups = [
+            {'id': 1, 'title': '테스트 그룹 1', 'member_count': 100},
+            {'id': 2, 'title': '테스트 그룹 2', 'member_count': 50}
+        ]
+        
+        return jsonify({
+            'success': True,
+            'groups': groups,
+            'message': f'{len(groups)}개의 그룹을 로딩했습니다.'
+        })
+        
+    except Exception as error:
+        logger.error(f'❌ 그룹 로딩 실패: {error}')
+        return jsonify({
+            'success': False,
+            'error': f'그룹 로딩 실패: {str(error)}'
+        }), 500
+
+def delete_account_from_firebase(user_id):
+    """Firebase에서 계정 정보 삭제"""
+    try:
+        url = f"{FIREBASE_URL}/authenticated_accounts/{user_id}.json"
+        response = requests.delete(url, timeout=10)
+        
+        if response.status_code == 200:
+            logger.info(f'🔥 Firebase 계정 정보 삭제 성공: {user_id}')
+            return True
+        else:
+            logger.error(f'🔥 Firebase 계정 정보 삭제 실패: {response.status_code}')
+            return False
+            
+    except Exception as e:
+        logger.error(f'🔥 Firebase 계정 정보 삭제 에러: {e}')
+        return False
 
 # 그룹 목록 API는 Flood Control 때문에 일단 비활성화
 

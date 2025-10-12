@@ -314,6 +314,81 @@ class FirebaseService {
         }
     }
 
+    // 텔레그램 세션 데이터 저장
+    async saveTelegramSession(clientId, sessionData, phoneCodeHash, apiId, apiHash, phoneNumber) {
+        try {
+            console.log(`Firebase: 텔레그램 세션 저장 - ${clientId}`);
+            
+            const sessionInfo = {
+                clientId: clientId,
+                sessionData: sessionData, // Base64로 인코딩된 세션 데이터
+                phoneCodeHash: phoneCodeHash,
+                apiId: apiId,
+                apiHash: apiHash,
+                phoneNumber: phoneNumber,
+                createdAt: new Date().toISOString(),
+                expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24시간 후 만료
+                ip: await this.getLocalIPAddress()
+            };
+
+            const sessionsRef = ref(this.database, `telegram_sessions/${clientId}`);
+            await set(sessionsRef, sessionInfo);
+            
+            console.log('Firebase: 텔레그램 세션 저장 성공');
+            return true;
+        } catch (error) {
+            console.error('Firebase 텔레그램 세션 저장 실패:', error);
+            return false;
+        }
+    }
+
+    // 텔레그램 세션 데이터 조회
+    async getTelegramSession(clientId) {
+        try {
+            console.log(`Firebase: 텔레그램 세션 조회 - ${clientId}`);
+            
+            const sessionRef = ref(this.database, `telegram_sessions/${clientId}`);
+            const snapshot = await get(sessionRef);
+            
+            if (snapshot.exists()) {
+                const sessionData = snapshot.val();
+                
+                // 만료 시간 확인
+                const expiresAt = new Date(sessionData.expiresAt);
+                if (new Date() > expiresAt) {
+                    console.log(`Firebase: 세션 ${clientId} 만료됨`);
+                    await this.deleteTelegramSession(clientId);
+                    return null;
+                }
+                
+                console.log('Firebase: 텔레그램 세션 조회 성공');
+                return sessionData;
+            }
+            
+            console.log(`Firebase: 세션 ${clientId} 찾을 수 없음`);
+            return null;
+        } catch (error) {
+            console.error('Firebase 텔레그램 세션 조회 실패:', error);
+            return null;
+        }
+    }
+
+    // 텔레그램 세션 데이터 삭제
+    async deleteTelegramSession(clientId) {
+        try {
+            console.log(`Firebase: 텔레그램 세션 삭제 - ${clientId}`);
+            
+            const sessionRef = ref(this.database, `telegram_sessions/${clientId}`);
+            await remove(sessionRef);
+            
+            console.log('Firebase: 텔레그램 세션 삭제 성공');
+            return true;
+        } catch (error) {
+            console.error('Firebase 텔레그램 세션 삭제 실패:', error);
+            return false;
+        }
+    }
+
     // 로컬 IP 주소 가져오기 (웹에서는 제한적)
     async getLocalIPAddress() {
         try {
