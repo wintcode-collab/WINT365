@@ -1139,6 +1139,98 @@ input:focus, button:focus, textarea:focus, select:focus {
 }
 
 
+/* 입력 영역 래퍼 */
+.input-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+/* 입력 헤더 */
+.input-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    padding: 0 4px;
+}
+
+.input-label {
+    color: #10B981;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+/* 토글 컨테이너 */
+.toggle-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.toggle-label {
+    color: #888;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+/* 토글 스위치 */
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+    cursor: pointer;
+}
+
+.toggle-input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #444;
+    border: 1px solid #666;
+    border-radius: 24px;
+    transition: all 0.3s ease;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 2px;
+    bottom: 2px;
+    background-color: #888;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+}
+
+.toggle-input:checked + .toggle-slider {
+    background-color: #10B981;
+    border-color: #10B981;
+}
+
+.toggle-input:checked + .toggle-slider:before {
+    transform: translateX(20px);
+    background-color: #fff;
+}
+
+.toggle-input:focus + .toggle-slider {
+    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.3);
+}
+
+.toggle-switch:hover .toggle-slider {
+    border-color: #10B981;
+}
+
 .message-input {
     background: rgba(0, 0, 0, 0.3);
     border: 1px solid #333;

@@ -1223,7 +1223,7 @@ def get_telegram_saved_messages():
             logger.error('❌ 저장된 메시지 가져오기 실패')
             return jsonify({
                 'success': False,
-                'error': '저장된 메시지 가져오기에 실패했습니다. 세션이 만료되었거나 연결에 문제가 있을 수 있습니다.'
+                'error': '저장된 메시지 가져오기에 실패했습니다. 잠시 후 다시 시도해주세요.'
             }), 500
 
         if len(saved_messages) == 0:
@@ -1340,8 +1340,10 @@ def get_telegram_saved_messages_with_session(account_info):
         logger.info(f'💾 텔레그램 저장된 메시지 가져오기 시작: {account_info["user_id"]}')
         logger.info(f'💾 계정 정보: {account_info}')
 
-        # 임시 세션 파일 생성
-        temp_session_file = f'temp_saved_messages_{account_info["user_id"]}'
+        # 임시 세션 파일 생성 (타임스탬프 추가로 충돌 방지)
+        import time
+        timestamp = int(time.time() * 1000)  # 밀리초 단위 타임스탬프
+        temp_session_file = f'temp_saved_messages_{account_info["user_id"]}_{timestamp}'
 
         # 세션 데이터 복원
         session_b64 = account_info.get('session_data')
@@ -1378,6 +1380,14 @@ def get_telegram_saved_messages_with_session(account_info):
                 # 클라이언트 생성
                 client = TelegramClient(temp_session_file, account_info['api_id'], account_info['api_hash'])
                 logger.info('💾 텔레그램 클라이언트 생성 완료')
+
+                # 기존 연결이 있다면 정리
+                try:
+                    if client.is_connected():
+                        await client.disconnect()
+                        logger.info('💾 기존 연결 정리 완료')
+                except:
+                    pass
 
                 # 연결
                 await client.connect()

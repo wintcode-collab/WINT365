@@ -1900,6 +1900,13 @@ function setupTelegramGroupsEventListeners() {
     if (closeSavedMessagesBtn) {
         closeSavedMessagesBtn.addEventListener('click', closeSavedMessages);
     }
+    
+    // 24시간 자동 전송 토글 (기본 토글 기능만 활성화)
+    const autoSendToggle = document.getElementById('autoSendToggle');
+    if (autoSendToggle) {
+        autoSendToggle.addEventListener('change', handleAutoSendToggle);
+        console.log('⏰ 24시간 토글 버튼 준비됨 (기본 토글 기능 활성화)');
+    }
 }
 
 // 그룹 관리 창 닫기
@@ -2058,7 +2065,7 @@ async function sendMessageToGroup() {
     
     // 버튼 상태 변경
     if (sendBtn) {
-        sendBtn.textContent = '📤 전송 중...';
+        sendBtn.textContent = `📤 전송 중... (0/${validGroupIds.length})`;
         sendBtn.disabled = true;
     }
     
@@ -2169,9 +2176,18 @@ async function sendMessageToGroup() {
                     console.error(`❌ 응답 상태: ${sendResponse.status}`);
                 }
                 
-                // 그룹 간 간격 (1초)
+                // 버튼 텍스트 업데이트
+                if (sendBtn) {
+                    sendBtn.textContent = `📤 전송 중... (${i + 1}/${validGroupIds.length})`;
+                }
+                
+                // 그룹 간 간격 (30초)
                 if (i < validGroupIds.length - 1) {
-                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    console.log(`⏰ 다음 그룹 전송까지 30초 대기 중... (${i + 1}/${validGroupIds.length})`);
+                    if (sendBtn) {
+                        sendBtn.textContent = `⏰ 대기 중... (${i + 1}/${validGroupIds.length}) - 30초`;
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 30000));
                 }
                 
             } catch (error) {
@@ -2221,6 +2237,113 @@ function clearMessage() {
     console.log('🗑️ 미디어 정보 초기화');
 }
 
+// 24시간 자동 전송 토글 핸들러 (기본 토글 기능만)
+function handleAutoSendToggle(event) {
+    const isEnabled = event.target.checked;
+    console.log('⏰ 24시간 토글:', isEnabled ? 'ON' : 'OFF');
+    
+    // 현재는 토글 상태만 로그로 출력 (나중에 기능 추가 예정)
+    if (isEnabled) {
+        console.log('⏰ 24시간 모드 활성화됨 (기능은 나중에 추가 예정)');
+    } else {
+        console.log('⏰ 24시간 모드 비활성화됨');
+    }
+}
+
+// 자동 전송 시작
+function startAutoSend() {
+    console.log('⏰ 자동 전송 시작');
+    
+    // 24시간 = 24 * 60 * 60 * 1000 밀리초
+    const interval = 24 * 60 * 60 * 1000;
+    
+    // 기존 인터벌이 있다면 제거
+    if (window.autoSendInterval) {
+        clearInterval(window.autoSendInterval);
+    }
+    
+    // 새 인터벌 설정
+    window.autoSendInterval = setInterval(() => {
+        console.log('⏰ 24시간 자동 전송 실행');
+        sendMessageToGroup();
+    }, interval);
+    
+    // 다음 전송 시간 표시
+    updateNextSendTime();
+}
+
+// 자동 전송 중지
+function stopAutoSend() {
+    console.log('⏰ 자동 전송 중지');
+    
+    if (window.autoSendInterval) {
+        clearInterval(window.autoSendInterval);
+        window.autoSendInterval = null;
+    }
+    
+    // 다음 전송 시간 표시 제거
+    const nextSendTimeElement = document.getElementById('nextSendTime');
+    if (nextSendTimeElement) {
+        nextSendTimeElement.remove();
+    }
+}
+
+// 다음 전송 시간 업데이트
+function updateNextSendTime() {
+    const now = new Date();
+    const nextSend = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    
+    const nextSendTimeElement = document.getElementById('nextSendTime');
+    if (nextSendTimeElement) {
+        nextSendTimeElement.remove();
+    }
+    
+    const toggleContainer = document.querySelector('.toggle-container');
+    if (toggleContainer) {
+        const timeElement = document.createElement('div');
+        timeElement.id = 'nextSendTime';
+        timeElement.style.cssText = `
+            color: #10B981;
+            font-size: 10px;
+            margin-top: 2px;
+            text-align: right;
+        `;
+        timeElement.textContent = `다음: ${nextSend.toLocaleString()}`;
+        toggleContainer.appendChild(timeElement);
+    }
+}
+
+// 알림 표시 함수
+function showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: ${type === 'success' ? '#10B981' : type === 'error' ? '#dc3545' : '#007bff'};
+        color: white;
+        padding: 12px 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        z-index: 10000;
+        font-size: 14px;
+        font-weight: 500;
+        max-width: 300px;
+        word-wrap: break-word;
+    `;
+    notification.textContent = message;
+    
+    document.body.appendChild(notification);
+    
+    // 3초 후 제거
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.parentNode.removeChild(notification);
+        }
+    }, 3000);
+}
+*/
+
 // 저장된 메시지 표시
 async function showSavedMessages() {
     console.log('💾 텔레그램 저장된 메시지 표시');
@@ -2253,8 +2376,25 @@ async function showSavedMessages() {
 }
 
 // 텔레그램 저장된 메시지 로드
+let isLoadingSavedMessages = false; // 중복 요청 방지 플래그
+
 async function loadTelegramSavedMessages() {
     console.log('💾 텔레그램 저장된 메시지 로드');
+    
+    // 이미 로딩 중이면 중복 요청 방지
+    if (isLoadingSavedMessages) {
+        console.log('💾 이미 로딩 중입니다. 중복 요청을 방지합니다.');
+        return;
+    }
+    
+    isLoadingSavedMessages = true;
+    
+    // 버튼 상태 변경
+    const loadBtn = document.querySelector('.load-saved-messages-btn');
+    if (loadBtn) {
+        loadBtn.textContent = '💾 로딩 중...';
+        loadBtn.disabled = true;
+    }
     
     try {
         // 현재 계정 정보 가져오기
@@ -2329,6 +2469,16 @@ async function loadTelegramSavedMessages() {
                     ${error.message}
                 </div>
             `;
+        }
+    } finally {
+        // 로딩 플래그 해제
+        isLoadingSavedMessages = false;
+        
+        // 버튼 상태 복원
+        const loadBtn = document.querySelector('.load-saved-messages-btn');
+        if (loadBtn) {
+            loadBtn.textContent = '💾 저장된 메시지 불러오기';
+            loadBtn.disabled = false;
         }
     }
 }
@@ -2503,7 +2653,11 @@ function selectTelegramSavedMessage(messageIndex, savedMessages) {
             savedMessagesBtn.textContent = '❌ 저장된 메시지 해제';
             savedMessagesBtn.style.backgroundColor = '#ff4444';
             savedMessagesBtn.style.borderColor = '#ff4444';
-            savedMessagesBtn.onclick = clearSavedMessage;
+            
+            // 기존 이벤트 리스너 제거하고 새로 추가
+            savedMessagesBtn.removeEventListener('click', showSavedMessages);
+            savedMessagesBtn.addEventListener('click', clearSavedMessage);
+            
             console.log('💾 버튼 변경 후:', savedMessagesBtn.textContent);
             console.log('💾 저장된 메시지 버튼이 해제 버튼으로 변경됨');
         } else {
@@ -2568,7 +2722,11 @@ function clearSavedMessage() {
         savedMessagesBtn.textContent = '💾 저장된 메시지';
         savedMessagesBtn.style.backgroundColor = '';
         savedMessagesBtn.style.borderColor = '';
-        savedMessagesBtn.onclick = showSavedMessages;
+        
+        // 이벤트 리스너를 원래대로 복원
+        savedMessagesBtn.removeEventListener('click', clearSavedMessage);
+        savedMessagesBtn.addEventListener('click', showSavedMessages);
+        
         console.log('💾 저장된 메시지 버튼이 원래대로 복원됨');
     }
     
