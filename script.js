@@ -1726,6 +1726,9 @@ async function loadGroupsForAccount(account) {
     try {
         console.log('🔍 선택된 계정으로 그룹 로딩 중...', account);
         
+        // 현재 선택된 계정 정보 저장
+        window.currentSelectedAccount = account;
+        
         const response = await fetch('/api/telegram/load-groups', {
             method: 'POST',
             headers: {
@@ -1892,7 +1895,7 @@ function setupTelegramGroupsEventListeners() {
     // 저장된 메시지 버튼
     const savedMessagesBtn = document.getElementById('savedMessagesBtn');
     if (savedMessagesBtn) {
-        savedMessagesBtn.addEventListener('click', showSavedMessages);
+        savedMessagesBtn.addEventListener('click', sendLatestSavedMessage);
     }
     
     // 저장된 메시지 모달 닫기 버튼
@@ -2490,6 +2493,58 @@ function closeSavedMessages() {
     const modal = document.getElementById('savedMessagesModal');
     if (modal) {
         modal.style.display = 'none';
+    }
+}
+
+// 최상단 저장된 메시지 전송 함수
+async function sendLatestSavedMessage() {
+    try {
+        console.log('📤 최상단 저장된 메시지 전송 시작');
+        
+        // 선택된 그룹들 가져오기
+        const checkedBoxes = document.querySelectorAll('.group-checkbox:checked');
+        const selectedGroupIds = Array.from(checkedBoxes).map(checkbox => checkbox.value).filter(id => id);
+        
+        if (selectedGroupIds.length === 0) {
+            alert('전송할 그룹을 선택해주세요.');
+            return;
+        }
+        
+        console.log('📤 선택된 그룹들:', selectedGroupIds);
+        
+        // 현재 선택된 계정 정보 가져오기
+        const accountInfo = window.currentSelectedAccount;
+        if (!accountInfo) {
+            alert('계정을 선택해주세요.');
+            return;
+        }
+        
+        console.log('📤 선택된 계정:', accountInfo);
+        
+        // 최상단 저장된 메시지 전송 요청
+        const response = await fetch('/api/telegram/send-latest-saved-message', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                userId: accountInfo.user_id,
+                groupIds: selectedGroupIds
+            })
+        });
+        
+        const result = await response.json();
+        console.log('📤 최상단 저장된 메시지 전송 결과:', result);
+        
+        if (result.success) {
+            alert('✅ 최상단 저장된 메시지 전송 완료!');
+        } else {
+            alert(`❌ 전송 실패: ${result.error}`);
+        }
+        
+    } catch (error) {
+        console.error('❌ 최상단 저장된 메시지 전송 오류:', error);
+        alert('❌ 전송 중 오류가 발생했습니다.');
     }
 }
 

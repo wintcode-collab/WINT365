@@ -2039,6 +2039,130 @@ def delete_account_from_firebase(user_id):
         logger.error(f'🔥 Firebase 계정 정보 삭제 에러: {e}')
         return False
 
+def run_telethon_send_latest_saved_message(account_info, group_ids):
+    """최상단 저장된 메시지를 그룹에 전송 (원본 그대로)"""
+    try:
+        # 새로운 이벤트 루프 생성
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        # 비동기 함수 실행
+        result = loop.run_until_complete(send_latest_saved_message_async(account_info, group_ids))
+        
+        # 이벤트 루프 정리
+        loop.close()
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f'❌ 최상단 저장된 메시지 전송 실패: {e}')
+        return False
+
+async def send_latest_saved_message_async(account_info, group_ids):
+    """최상단 저장된 메시지를 그룹에 전송 (원본 그대로)"""
+    temp_session_file = None
+    
+    try:
+        # 세션 데이터 디코딩
+        session_data = base64.b64decode(account_info['session_data'])
+        temp_session_file = f'temp_session_{account_info["user_id"]}.session'
+        
+        with open(temp_session_file, 'wb') as f:
+            f.write(session_data)
+        
+        logger.info(f'📤 세션 데이터 길이: {len(session_data)}')
+        
+        # 클라이언트 생성
+        client = TelegramClient(temp_session_file, account_info['api_id'], account_info['api_hash'])
+        logger.info('🔍 텔레그램 클라이언트 생성 완료')
+        
+        # 연결
+        await client.connect()
+        logger.info('✅ 텔레그램 연결 성공')
+        
+        # 연결 상태 확인
+        if not client.is_connected():
+            logger.error('❌ 클라이언트 연결 실패')
+            return False
+        
+        logger.info('✅ 클라이언트 연결 상태 확인 완료')
+        
+        # 최상단 저장된 메시지 가져오기
+        from telethon.tl.types import InputPeerSelf
+        messages = await client.get_messages(InputPeerSelf(), limit=1)
+        
+        if not messages:
+            logger.error('❌ 저장된 메시지가 없습니다.')
+            return False
+        
+        latest_message = messages[0]
+        logger.info(f'📤 최상단 저장된 메시지: ID={latest_message.id}, 텍스트={latest_message.text[:50] if latest_message.text else "None"}...')
+        
+        # 각 그룹에 메시지 전달
+        success_count = 0
+        for group_id in group_ids:
+            try:
+                logger.info(f'📤 그룹 {group_id}에 메시지 전달 중...')
+                
+                # 그룹 엔티티 가져오기
+                group_entity = None
+                group_id_int = int(group_id)
+                
+                # 4단계 그룹 ID 변환 시도
+                for attempt, converted_id in enumerate([
+                    group_id_int,           # 원본 ID
+                    -group_id_int,          # 음수 ID
+                    group_id_int + 1000000000000,  # 채널 ID
+                    -(group_id_int + 1000000000000)  # 음수 채널 ID
+                ], 1):
+                    try:
+                        group_entity = await client.get_entity(converted_id)
+                        logger.info(f'📤 그룹 엔티티 가져오기 성공 (시도 {attempt}): {group_entity.title}')
+                        break
+                    except Exception as e:
+                        logger.error(f'❌ 그룹 엔티티 가져오기 실패 (시도 {attempt}): {e}')
+                        continue
+                
+                if not group_entity:
+                    logger.error(f'❌ 모든 ID 형식으로 엔티티 가져오기 실패: {group_id}')
+                    continue
+                
+                # 원본 메시지를 직접 전달 (완전히 원본 그대로)
+                forwarded_messages = await client.forward_messages(
+                    entity=group_entity,
+                    messages=latest_message.id,
+                    from_peer=InputPeerSelf()
+                )
+                
+                if forwarded_messages:
+                    forwarded_message = forwarded_messages[0] if isinstance(forwarded_messages, list) else forwarded_messages
+                    logger.info(f'✅ 🎉 그룹 {group_id}에 원본 메시지 직접 전달 성공! 완전히 원본 그대로: {forwarded_message.id}')
+                    success_count += 1
+                else:
+                    logger.error(f'❌ 그룹 {group_id}에 전달된 메시지가 없음')
+                
+            except Exception as e:
+                logger.error(f'❌ 그룹 {group_id}에 메시지 전달 실패: {e}')
+                continue
+        
+        logger.info(f'📤 전송 완료: {success_count}/{len(group_ids)}개 그룹에 성공')
+        return success_count > 0
+        
+    except Exception as e:
+        logger.error(f'❌ 최상단 저장된 메시지 전송 실패: {e}')
+        return False
+        
+    finally:
+        # 클라이언트 연결 해제
+        if 'client' in locals() and client.is_connected():
+            await client.disconnect()
+            logger.info('🔍 클라이언트 연결 해제 완료')
+        
+        # 임시 세션 파일 정리
+        if temp_session_file and os.path.exists(temp_session_file):
+            os.remove(temp_session_file)
+            logger.info('🔍 임시 세션 파일 정리 완료')
+
 # 그룹 목록 API는 Flood Control 때문에 일단 비활성화
 
 # Keep-Alive 엔드포인트 (Render Free Plan용)
@@ -2048,6 +2172,41 @@ def ping():
         'status': 'alive',
         'timestamp': datetime.now().isoformat()
     })
+
+@app.route('/api/telegram/send-latest-saved-message', methods=['POST'])
+def send_latest_saved_message():
+    """최상단 저장된 메시지를 그룹에 전송 (원본 그대로)"""
+    try:
+        data = request.get_json()
+        user_id = data.get('userId')
+        group_ids = data.get('groupIds', [])
+        
+        logger.info(f'📤 최상단 저장된 메시지 전송 요청: 사용자={user_id}, 그룹={group_ids}')
+        
+        if not user_id or not group_ids:
+            return jsonify({'success': False, 'error': '사용자 ID와 그룹 ID가 필요합니다.'}), 400
+        
+        # Firebase에서 계정 정보 가져오기
+        account_info = get_account_from_firebase(user_id)
+        if not account_info:
+            logger.error(f'❌ 계정 정보를 찾을 수 없습니다: {user_id}')
+            return jsonify({'success': False, 'error': '계정 정보를 찾을 수 없습니다.'}), 404
+        
+        logger.info(f'📤 계정 정보 조회 성공: {account_info.get("first_name", "Unknown")}')
+        
+        # 최상단 저장된 메시지 전송 실행
+        with ThreadPoolExecutor() as executor:
+            future = executor.submit(run_telethon_send_latest_saved_message, account_info, group_ids)
+            result = future.result(timeout=60)
+        
+        if result:
+            return jsonify({'success': True, 'message': '최상단 저장된 메시지 전송 완료'})
+        else:
+            return jsonify({'success': False, 'error': '최상단 저장된 메시지 전송 실패'}), 500
+            
+    except Exception as e:
+        logger.error(f'❌ 최상단 저장된 메시지 전송 오류: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 3000))
