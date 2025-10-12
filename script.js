@@ -1131,6 +1131,8 @@ function showPasswordInput() {
     const passwordInput = document.getElementById('telegramPassword');
     
     if (verificationGroup && verificationInput && passwordInput) {
+        console.log('🔄 인증코드 입력칸을 비밀번호 입력칸으로 변경 중...');
+        
         // 인증코드 입력칸을 비밀번호 입력칸으로 변경
         verificationInput.style.display = 'none';
         passwordInput.style.display = 'block';
@@ -1156,6 +1158,13 @@ function showPasswordInput() {
         if (saveBtn) {
             saveBtn.textContent = 'Enter Password';
         }
+        
+        // 버튼 상태 초기화 (에러 상태에서 정상 상태로)
+        if (saveBtn) {
+            saveBtn.disabled = false;
+        }
+        
+        console.log('✅ 비밀번호 입력칸으로 변경 완료');
     }
 }
 
@@ -1345,14 +1354,17 @@ async function completeTelegramAuth(verificationCode) {
                 errorMessage = '인증코드가 만료되었습니다.';
                 errorDetails = '인증코드는 5분간만 유효합니다.\n새로운 인증코드를 요청해주세요.';
             } else if (error.message.includes('SESSION_PASSWORD_NEEDED')) {
-                errorMessage = '2단계 인증이 필요합니다.';
-                errorDetails = '텔레그램에서 2단계 인증 비밀번호를 입력해주세요.';
+                // 2단계 인증이 필요한 경우 - 메시지박스 없이 바로 입력칸 표시
+                console.log('🔐 2단계 인증이 필요합니다. 비밀번호 입력칸을 표시합니다.');
                 
                 // 2단계 인증 비밀번호 입력칸 표시
                 showPasswordInput();
                 
                 // 인증 상태를 password_needed로 변경
                 telegramAuthState = 'password_needed';
+                
+                // 메시지박스 표시하지 않고 바로 return
+                return;
             } else if (error.message.includes('PHONE_NUMBER_UNOCCUPIED')) {
                 errorMessage = '등록되지 않은 전화번호입니다.';
                 errorDetails = '텔레그램에 등록된 전화번호를 사용해주세요.';
