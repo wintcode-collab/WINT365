@@ -2174,6 +2174,9 @@ async def get_custom_emojis_async(account_info):
                         # 스티커셋의 문서들 처리
                         for document in sticker_set_info.documents:
                             if hasattr(document, 'id') and document.id:
+                                logger.info(f'😀 문서 처리 중: ID={document.id}, MIME={document.mime_type}')
+                                logger.info(f'😀 문서 속성들: {[str(attr.__class__) for attr in document.attributes]}')
+                                
                                 emoji_info = {
                                     'document_id': document.id,
                                     'access_hash': document.access_hash,
@@ -2182,15 +2185,20 @@ async def get_custom_emojis_async(account_info):
                                     'alt': '😀'  # 기본값
                                 }
                                 
-                                # 문서 속성들에서 alt 텍스트 찾기
+                                # 문서 속성들에서 커스텀 이모지 정보 찾기
                                 for attr in document.attributes:
                                     if hasattr(attr, 'alt') and attr.alt:
                                         emoji_info['alt'] = attr.alt
                                         break
+                                    # DocumentAttributeCustomEmoji인 경우
+                                    elif hasattr(attr, '__class__') and 'CustomEmoji' in str(attr.__class__):
+                                        if hasattr(attr, 'alt') and attr.alt:
+                                            emoji_info['alt'] = attr.alt
+                                        break
                                 
                                 # alt 텍스트가 없으면 document_id를 기반으로 생성
                                 if not emoji_info['alt'] or emoji_info['alt'] == '😀':
-                                    emoji_info['alt'] = f'[이모지_{document.id}]'
+                                    emoji_info['alt'] = f'[커스텀_{document.id}]'
                                 
                                 pack_info['emojis'].append(emoji_info)
                                 logger.info(f'😀 이모지 추가: {emoji_info["alt"]} (ID: {emoji_info["document_id"]})')

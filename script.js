@@ -2611,16 +2611,17 @@ function displayCustomEmojis(emojiPacks) {
             preview.style.margin = '2px';
             
             // 커스텀 이모지 표시를 위한 특별한 처리
-            if (emoji.alt && emoji.alt !== '😀' && !emoji.alt.startsWith('[이모지_')) {
+            if (emoji.alt && emoji.alt !== '😀' && !emoji.alt.startsWith('[커스텀_') && !emoji.alt.startsWith('[이모지_')) {
                 // 실제 alt 텍스트가 있으면 그것을 표시
                 preview.textContent = emoji.alt;
                 preview.style.fontSize = '20px';
             } else {
                 // 커스텀 이모지임을 나타내는 표시
                 preview.innerHTML = `
-                    <div style="text-align: center; font-size: 12px; color: #666;">
-                        <div style="font-size: 16px;">🎨</div>
+                    <div style="text-align: center; font-size: 10px; color: #666;">
+                        <div style="font-size: 14px;">🎨</div>
                         <div>커스텀</div>
+                        <div style="font-size: 8px; color: #999;">${emoji.document_id}</div>
                     </div>
                 `;
             }
@@ -2669,12 +2670,12 @@ function insertEmoji(emoji) {
         
         // 메시지 입력칸에 이모지 표시 (커스텀 이모지 표시)
         let emojiText;
-        if (emoji.alt && emoji.alt !== '😀' && !emoji.alt.startsWith('[이모지_')) {
+        if (emoji.alt && emoji.alt !== '😀' && !emoji.alt.startsWith('[커스텀_') && !emoji.alt.startsWith('[이모지_')) {
             // 실제 alt 텍스트가 있으면 그것을 사용
             emojiText = emoji.alt;
         } else {
-            // 커스텀 이모지임을 나타내는 표시
-            emojiText = '🎨';
+            // 커스텀 이모지임을 나타내는 표시 (document_id 포함)
+            emojiText = `🎨[${emoji.document_id}]`;
         }
         messageInput.value += emojiText;
         
