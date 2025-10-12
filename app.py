@@ -1640,36 +1640,42 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                     logger.info(f'📤 원본 텍스트: {original_text}')
                     logger.info(f'📤 원본 엔티티: {original_entities}')
                     
-                    # 방법 1: 원본 텍스트를 그대로 전송 (파싱 모드 없이)
+                    # 완전히 새로운 접근: 텔레그램의 원본 메시지 전달 방식 사용
                     try:
-                        logger.info('📤 방법 1: 원본 텍스트 그대로 전송 시도 (파싱 모드 없이)')
-                        sent_message = await client.send_message(group_entity, original_text)
-                        logger.info(f'✅ 방법 1 성공: 원본 텍스트 전송 완료: {sent_message.id}')
-                    except Exception as e:
-                        logger.error(f'❌ 방법 1 실패: {e}')
+                        logger.info('📤 새로운 방법: 텔레그램 원본 메시지 전달 방식')
                         
-                        # 방법 2: 마크다운 파싱으로 재시도
+                        # 1단계: 자신에게 메시지를 먼저 전송 (원본 그대로)
+                        me = await client.get_me()
+                        temp_message = await client.send_message(me.id, original_text)
+                        logger.info(f'📤 임시 메시지 전송 완료: {temp_message.id}')
+                        
+                        # 2단계: 임시 메시지를 대상 그룹으로 전달 (원본 그대로)
+                        forwarded_message = await client.forward_messages(group_entity, temp_message.id, me.id)
+                        logger.info(f'✅ 전달 완료: {forwarded_message.id}')
+                        
+                        # 3단계: 임시 메시지 삭제
+                        await client.delete_messages(me.id, temp_message.id)
+                        logger.info('🗑️ 임시 메시지 삭제 완료')
+                        
+                    except Exception as e:
+                        logger.error(f'❌ 전달 방식 실패: {e}')
+                        
+                        # 백업: 원본 텍스트를 그대로 전송
                         try:
-                            logger.info('📤 방법 2: 마크다운 파싱으로 재시도')
-                            sent_message = await client.send_message(group_entity, original_text, parse_mode='md')
-                            logger.info(f'✅ 방법 2 성공: 마크다운 파싱으로 전송 완료: {sent_message.id}')
+                            logger.info('📤 백업: 원본 텍스트 그대로 전송')
+                            sent_message = await client.send_message(group_entity, original_text)
+                            logger.info(f'✅ 백업 성공: {sent_message.id}')
                         except Exception as e2:
-                            logger.error(f'❌ 방법 2 실패: {e2}')
+                            logger.error(f'❌ 백업도 실패: {e2}')
                             
-                            # 방법 3: HTML 파싱으로 재시도
+                            # 최종 백업: 마크다운 파싱
                             try:
-                                html_text = convert_markdown_to_html(original_text)
-                                logger.info('📤 방법 3: HTML 파싱으로 재시도')
-                                sent_message = await client.send_message(group_entity, html_text, parse_mode='html')
-                                logger.info(f'✅ 방법 3 성공: HTML 파싱으로 전송 완료: {sent_message.id}')
+                                logger.info('📤 최종 백업: 마크다운 파싱')
+                                sent_message = await client.send_message(group_entity, original_text, parse_mode='md')
+                                logger.info(f'✅ 최종 백업 성공: {sent_message.id}')
                             except Exception as e3:
-                                logger.error(f'❌ 방법 3 실패: {e3}')
-                                
-                                # 방법 4: 마크다운 문법 제거 후 전송
-                                clean_text = remove_markdown_syntax(original_text)
-                                logger.info('📤 방법 4: 마크다운 제거 후 전송')
-                                sent_message = await client.send_message(group_entity, clean_text)
-                                logger.info(f'⚠️ 방법 4 성공: 마크다운 제거 후 전송 완료: {sent_message.id}')
+                                logger.error(f'❌ 모든 방법 실패: {e3}')
+                                return False
                 
                 # 커스텀 이모지가 있는 메시지인지 확인 (기존 방식)
                 elif media_info and media_info.get('has_custom_emoji'):
