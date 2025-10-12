@@ -2080,18 +2080,21 @@ async function sendMessageToGroup() {
                         userId: account.user_id,
                         groupId: groupId,
                         message: message,
-                        mediaInfo: window.selectedMediaInfo
+                        mediaInfo: null  // 일단 미디어 없이 테스트
                     })
                 });
                 
                 const sendResult = await sendResponse.json();
+                
+                console.log(`🔍 그룹 ${i + 1} 전송 응답:`, sendResult);
                 
                 if (sendResponse.ok && sendResult.success) {
                     successCount++;
                     console.log(`✅ 그룹 ${i + 1} 전송 성공: ${groupId}`);
                 } else {
                     failCount++;
-                    console.error(`❌ 그룹 ${i + 1} 전송 실패: ${sendResult.error}`);
+                    console.error(`❌ 그룹 ${i + 1} 전송 실패:`, sendResult);
+                    console.error(`❌ 응답 상태: ${sendResponse.status}`);
                 }
                 
                 // 그룹 간 간격 (1초)

@@ -1207,14 +1207,18 @@ def send_telegram_message():
             }), 400
         
         logger.info(f'📤 메시지 전송 요청: 사용자={user_id}, 그룹={group_id}, 메시지={message[:50]}...')
+        logger.info(f'📤 미디어 정보: {media_info}')
         
         # Firebase에서 계정 정보 조회
         account_info = get_account_from_firebase(user_id)
         if not account_info:
+            logger.error(f'❌ 계정 정보 없음: {user_id}')
             return jsonify({
                 'success': False,
                 'error': '인증된 계정 정보를 찾을 수 없습니다. 다시 인증해주세요.'
             }), 404
+        
+        logger.info(f'📤 계정 정보 조회 성공: {account_info.get("first_name", "Unknown")}')
         
         # 메시지 전송 실행 (미디어 정보 포함)
         media_info = data.get('mediaInfo')
@@ -1413,12 +1417,17 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
     """텔레그램 그룹에 메시지 전송"""
     try:
         logger.info(f'📤 텔레그램 메시지 전송 시작: {account_info["user_id"]} -> {group_id}')
+        logger.info(f'📤 메시지 내용: {message[:100]}...')
+        logger.info(f'📤 미디어 정보: {media_info}')
         
         # 세션 데이터 복원
         session_b64 = account_info.get('session_data')
         if not session_b64:
             logger.error('❌ 세션 데이터 없음')
+            logger.error(f'❌ 계정 정보 키들: {list(account_info.keys())}')
             return False
+        
+        logger.info(f'📤 세션 데이터 길이: {len(session_b64)}')
             
         session_bytes = base64.b64decode(session_b64)
         temp_session_file = f'temp_message_{account_info["user_id"]}'
@@ -1443,6 +1452,8 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                     logger.error('❌ 클라이언트 연결 실패')
                     return False
                 
+                logger.info('✅ 클라이언트 연결 상태 확인 완료')
+                
                 # 그룹 ID를 정수로 변환
                 try:
                     group_id_int = int(group_id)
@@ -1458,6 +1469,8 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                     media_path = media_info['media_path']
                     media_type = media_info.get('media_type')
                     
+                    logger.info(f'📤 미디어 전송: 타입={media_type}, 경로={media_path}')
+                    
                     if media_type == 'photo':
                         await client.send_file(group_id_int, media_path, caption=message)
                     elif media_type == 'video':
@@ -1470,6 +1483,7 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                         await client.send_message(group_id_int, message)
                 else:
                     # 텍스트만 전송
+                    logger.info('📤 텍스트만 전송')
                     await client.send_message(group_id_int, message)
                 
                 logger.info('✅ 메시지 전송 성공')
@@ -1479,6 +1493,9 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
             except Exception as e:
                 logger.error(f'❌ 메시지 전송 실패: {e}')
                 logger.error(f'❌ 에러 타입: {type(e)}')
+                logger.error(f'❌ 에러 상세: {str(e)}')
+                import traceback
+                logger.error(f'❌ 스택 트레이스: {traceback.format_exc()}')
                 return False
                 
             finally:
