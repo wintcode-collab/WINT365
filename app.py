@@ -1358,7 +1358,6 @@ def get_telegram_saved_messages_with_session(account_info):
                                 'media_type': None,
                                 'media_url': None,
                                 'media_path': None,
-                                'original_message': message,  # 원본 메시지 객체 전체 저장
                                 'has_custom_emoji': False,
                                 'custom_emoji_entities': [],
                                 'entities': []
