@@ -883,9 +883,28 @@ input:focus, button:focus, textarea:focus, select:focus {
     border: 1px solid #333;
     border-radius: 10px;
     padding: 15px;
-    cursor: pointer;
     transition: all 0.3s ease;
     position: relative;
+}
+
+.group-checkbox-container {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.group-checkbox {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    cursor: pointer;
+    accent-color: #10B981;
+}
+
+.group-label {
+    flex: 1;
+    cursor: pointer;
+    margin: 0;
 }
 
 .group-item:hover {
@@ -936,21 +955,15 @@ input:focus, button:focus, textarea:focus, select:focus {
     margin-top: 20px;
 }
 
-.selected-group-info {
+.selected-groups-info {
     margin-bottom: 15px;
 }
 
-.selected-group-name {
+.selected-groups-count {
     font-size: 16px;
     font-weight: 600;
     color: #10B981;
     display: block;
-    margin-bottom: 5px;
-}
-
-.selected-group-members {
-    font-size: 14px;
-    color: #888;
 }
 
 .message-input-container {
@@ -967,32 +980,14 @@ input:focus, button:focus, textarea:focus, select:focus {
 
 .message-input-row {
     display: flex;
+    flex-direction: column;
     gap: 10px;
-    align-items: flex-start;
 }
 
-.remove-message-btn {
-    background: rgba(220, 53, 69, 0.2);
-    border: 1px solid #dc3545;
-    color: #dc3545;
-    padding: 8px 12px;
-    border-radius: 6px;
-    font-size: 12px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    flex-shrink: 0;
-    margin-top: 5px;
-}
-
-.remove-message-btn:hover {
-    background: #dc3545;
-    color: #fff;
-}
-
-.add-message-btn {
-    background: rgba(0, 123, 255, 0.2);
-    border: 1px solid #007bff;
-    color: #007bff;
+.clear-message-btn {
+    background: rgba(108, 117, 125, 0.2);
+    border: 1px solid #6c757d;
+    color: #6c757d;
     padding: 10px 20px;
     border-radius: 6px;
     font-size: 14px;
@@ -1001,8 +996,182 @@ input:focus, button:focus, textarea:focus, select:focus {
     transition: all 0.3s ease;
 }
 
-.add-message-btn:hover {
-    background: #007bff;
+.clear-message-btn:hover {
+    background: #6c757d;
+    color: #fff;
+}
+
+.saved-messages-btn {
+    background: rgba(255, 193, 7, 0.2);
+    border: 1px solid #ffc107;
+    color: #ffc107;
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.saved-messages-btn:hover {
+    background: #ffc107;
+    color: #000;
+}
+
+.save-message-btn {
+    background: rgba(40, 167, 69, 0.2);
+    border: 1px solid #28a745;
+    color: #28a745;
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.save-message-btn:hover {
+    background: #28a745;
+    color: #fff;
+}
+
+/* 저장된 메시지 모달 */
+.saved-messages-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10000;
+    backdrop-filter: blur(5px);
+}
+
+.saved-messages-content {
+    background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+    border-radius: 20px;
+    padding: 30px;
+    max-width: 600px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    border: 2px solid #10B981;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+}
+
+.saved-messages-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #333;
+}
+
+.saved-messages-header h3 {
+    color: #10B981;
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.close-saved-messages-btn {
+    background: none;
+    border: none;
+    color: #888;
+    font-size: 24px;
+    cursor: pointer;
+    padding: 5px;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.close-saved-messages-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+}
+
+.saved-messages-list {
+    margin-bottom: 20px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.saved-message-item {
+    background: linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%);
+    border: 1px solid #444;
+    border-radius: 12px;
+    padding: 15px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.saved-message-item:hover {
+    border-color: #10B981;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(16, 185, 129, 0.3);
+}
+
+.saved-message-content {
+    color: #fff;
+    font-size: 14px;
+    line-height: 1.4;
+    margin-bottom: 8px;
+    word-wrap: break-word;
+}
+
+.saved-message-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    color: #888;
+}
+
+.saved-message-delete {
+    background: rgba(220, 53, 69, 0.2);
+    border: 1px solid #dc3545;
+    color: #dc3545;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.saved-message-delete:hover {
+    background: #dc3545;
+    color: #fff;
+}
+
+.saved-messages-actions {
+    text-align: center;
+}
+
+.delete-all-messages-btn {
+    background: rgba(220, 53, 69, 0.2);
+    border: 1px solid #dc3545;
+    color: #dc3545;
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.delete-all-messages-btn:hover {
+    background: #dc3545;
     color: #fff;
 }
 

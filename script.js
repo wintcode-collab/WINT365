@@ -1808,98 +1808,60 @@ function renderGroupsList(groups) {
     
     groupsList.innerHTML = groups.map((group, index) => `
         <div class="group-item" data-group-id="${group.id}" data-group-index="${index}">
-            <div class="group-name">${group.title}</div>
-            <div class="group-info">
-                <div class="group-type">
-                    ${group.type === 'supergroup' ? '슈퍼그룹' : '채널'}
-                </div>
+            <div class="group-checkbox-container">
+                <input type="checkbox" class="group-checkbox" id="group-${group.id}" data-group-id="${group.id}">
+                <label for="group-${group.id}" class="group-label">
+                    <div class="group-name">${group.title}</div>
+                    <div class="group-info">
+                        <div class="group-type">
+                            ${group.type === 'supergroup' ? '슈퍼그룹' : '채널'}
+                        </div>
+                    </div>
+                </label>
             </div>
         </div>
     `).join('');
     
-    // 그룹 아이템 클릭 이벤트 추가
-    const groupItems = groupsList.querySelectorAll('.group-item');
-    groupItems.forEach(item => {
-        item.addEventListener('click', () => {
-            const groupId = item.dataset.groupId;
-            const groupIndex = parseInt(item.dataset.groupIndex);
-            const group = groups[groupIndex];
-            
-            // 선택된 그룹 표시
-            selectGroup(group, item);
-        });
+    // 체크박스 이벤트 추가
+    const groupCheckboxes = groupsList.querySelectorAll('.group-checkbox');
+    groupCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', updateSelectedGroupsCount);
     });
+    
+    // 초기 선택된 그룹 수 업데이트
+    updateSelectedGroupsCount();
 }
 
-// 그룹 선택
-function selectGroup(group, groupElement) {
-    console.log('📱 그룹 선택:', group);
+// 선택된 그룹 수 업데이트
+function updateSelectedGroupsCount() {
+    const checkedBoxes = document.querySelectorAll('.group-checkbox:checked');
+    const count = checkedBoxes.length;
     
-    // 모든 그룹 아이템에서 선택 상태 제거
-    document.querySelectorAll('.group-item').forEach(item => {
-        item.classList.remove('selected');
-    });
-    
-    // 선택된 그룹에 선택 상태 추가
-    groupElement.classList.add('selected');
-    
-    // 선택된 그룹 정보 표시
-    document.getElementById('selectedGroupName').textContent = group.title;
-    document.getElementById('selectedGroupMembers').textContent = `${group.type === 'supergroup' ? '슈퍼그룹' : '채널'}`;
-    
-    // 메시지 전송 섹션 표시
-    const messageSection = document.getElementById('messageSendingSection');
-    if (messageSection) {
-        messageSection.style.display = 'block';
+    const countElement = document.getElementById('selectedGroupsCount');
+    if (countElement) {
+        countElement.textContent = `선택된 그룹: ${count}개`;
+        
+        // 선택된 그룹이 있으면 초록색, 없으면 회색
+        if (count > 0) {
+            countElement.style.color = '#10B981';
+        } else {
+            countElement.style.color = '#888';
+        }
     }
     
-    // 메시지 입력 필드 포커스
-    const messageInputs = document.querySelectorAll('.message-input');
-    if (messageInputs.length > 0) {
-        messageInputs[0].focus();
+    // 전송 버튼 활성화/비활성화
+    const sendBtn = document.getElementById('sendMessageBtn');
+    if (sendBtn) {
+        if (count > 0) {
+            sendBtn.disabled = false;
+            sendBtn.style.opacity = '1';
+        } else {
+            sendBtn.disabled = true;
+            sendBtn.style.opacity = '0.5';
+        }
     }
 }
 
-// 메시지 입력 필드 추가
-function addMessageInput() {
-    console.log('➕ 메시지 입력 필드 추가');
-    
-    const messageInputs = document.getElementById('messageInputs');
-    if (!messageInputs) return;
-    
-    const messageRow = document.createElement('div');
-    messageRow.className = 'message-input-row';
-    messageRow.innerHTML = `
-        <textarea class="message-input" placeholder="전송할 메시지를 입력하세요..."></textarea>
-        <button class="remove-message-btn">❌</button>
-    `;
-    
-    messageInputs.appendChild(messageRow);
-    
-    // 삭제 버튼 이벤트 추가
-    const removeBtn = messageRow.querySelector('.remove-message-btn');
-    removeBtn.addEventListener('click', () => {
-        messageRow.remove();
-        updateRemoveButtonsVisibility();
-    });
-    
-    // 새로 추가된 입력 필드에 포커스
-    const newInput = messageRow.querySelector('.message-input');
-    newInput.focus();
-    
-    updateRemoveButtonsVisibility();
-}
-
-// 삭제 버튼 표시/숨김 업데이트
-function updateRemoveButtonsVisibility() {
-    const messageRows = document.querySelectorAll('.message-input-row');
-    const removeButtons = document.querySelectorAll('.remove-message-btn');
-    
-    // 첫 번째 행의 삭제 버튼은 숨기고, 나머지는 표시
-    removeButtons.forEach((btn, index) => {
-        btn.style.display = index === 0 ? 'none' : 'block';
-    });
-}
 
 // 텔레그램 그룹 관리 창 이벤트 리스너 설정
 function setupTelegramGroupsEventListeners() {
@@ -1915,22 +1877,40 @@ function setupTelegramGroupsEventListeners() {
         refreshGroupsBtn.addEventListener('click', refreshGroups);
     }
     
-    // 메시지 추가 버튼
-    const addMessageBtn = document.getElementById('addMessageBtn');
-    if (addMessageBtn) {
-        addMessageBtn.addEventListener('click', addMessageInput);
-    }
-    
     // 메시지 전송 버튼
     const sendMessageBtn = document.getElementById('sendMessageBtn');
     if (sendMessageBtn) {
         sendMessageBtn.addEventListener('click', sendMessageToGroup);
     }
     
-    // 메시지 취소 버튼
-    const cancelMessageBtn = document.getElementById('cancelMessageBtn');
-    if (cancelMessageBtn) {
-        cancelMessageBtn.addEventListener('click', cancelMessage);
+    // 메시지 지우기 버튼
+    const clearMessageBtn = document.getElementById('clearMessageBtn');
+    if (clearMessageBtn) {
+        clearMessageBtn.addEventListener('click', clearMessage);
+    }
+    
+    // 저장된 메시지 버튼
+    const savedMessagesBtn = document.getElementById('savedMessagesBtn');
+    if (savedMessagesBtn) {
+        savedMessagesBtn.addEventListener('click', showSavedMessages);
+    }
+    
+    // 메시지 저장 버튼
+    const saveMessageBtn = document.getElementById('saveMessageBtn');
+    if (saveMessageBtn) {
+        saveMessageBtn.addEventListener('click', saveCurrentMessage);
+    }
+    
+    // 저장된 메시지 모달 닫기 버튼
+    const closeSavedMessagesBtn = document.getElementById('closeSavedMessagesBtn');
+    if (closeSavedMessagesBtn) {
+        closeSavedMessagesBtn.addEventListener('click', closeSavedMessages);
+    }
+    
+    // 전체 삭제 버튼
+    const deleteAllMessagesBtn = document.getElementById('deleteAllMessagesBtn');
+    if (deleteAllMessagesBtn) {
+        deleteAllMessagesBtn.addEventListener('click', deleteAllSavedMessages);
     }
 }
 
@@ -1952,28 +1932,20 @@ function closeTelegramGroupsWindow() {
         statusBar.style.transform = 'translateY(0)';
     }
     
-    // 메시지 전송 섹션 숨기기
-    const messageSection = document.getElementById('messageSendingSection');
-    if (messageSection) {
-        messageSection.style.display = 'none';
-    }
-    
     // 메시지 입력 필드 초기화
-    const messageInputs = document.querySelectorAll('.message-input');
-    messageInputs.forEach(input => {
-        input.value = '';
-    });
-    
-    // 추가된 메시지 입력 필드들 제거 (첫 번째 제외)
-    const messageRows = document.querySelectorAll('.message-input-row');
-    for (let i = 1; i < messageRows.length; i++) {
-        messageRows[i].remove();
+    const messageInput = document.querySelector('.message-input');
+    if (messageInput) {
+        messageInput.value = '';
     }
     
-    // 선택된 그룹 상태 초기화
-    document.querySelectorAll('.group-item').forEach(item => {
-        item.classList.remove('selected');
+    // 선택된 그룹 체크박스 초기화
+    const groupCheckboxes = document.querySelectorAll('.group-checkbox');
+    groupCheckboxes.forEach(checkbox => {
+        checkbox.checked = false;
     });
+    
+    // 선택된 그룹 수 업데이트
+    updateSelectedGroupsCount();
 }
 
 // 그룹 목록 새로고침
@@ -2030,32 +2002,29 @@ async function refreshGroups() {
     }
 }
 
-// 그룹에 메시지 전송
+// 선택된 그룹들에 메시지 전송
 async function sendMessageToGroup() {
-    console.log('📤 그룹에 메시지 전송');
+    console.log('📤 선택된 그룹들에 메시지 전송');
     
-    const messageInputs = document.querySelectorAll('.message-input');
+    const messageInput = document.querySelector('.message-input');
     const sendBtn = document.getElementById('sendMessageBtn');
-    const selectedGroupName = document.getElementById('selectedGroupName').textContent;
     
-    // 모든 메시지 입력 필드에서 메시지 수집
-    const messages = [];
-    messageInputs.forEach(input => {
-        if (input.value.trim()) {
-            messages.push(input.value.trim());
-        }
-    });
-    
-    if (messages.length === 0) {
+    // 메시지 확인
+    if (!messageInput || !messageInput.value.trim()) {
         alert('전송할 메시지를 입력해주세요.');
-        messageInputs[0]?.focus();
+        messageInput?.focus();
         return;
     }
     
-    if (!selectedGroupName) {
+    // 선택된 그룹들 확인
+    const checkedBoxes = document.querySelectorAll('.group-checkbox:checked');
+    if (checkedBoxes.length === 0) {
         alert('전송할 그룹을 선택해주세요.');
         return;
     }
+    
+    const message = messageInput.value.trim();
+    const selectedGroupIds = Array.from(checkedBoxes).map(checkbox => checkbox.dataset.groupId);
     
     // 버튼 상태 변경
     if (sendBtn) {
@@ -2098,12 +2067,12 @@ async function sendMessageToGroup() {
             throw new Error('계정을 찾을 수 없습니다.');
         }
         
-        // 여러 개 메시지 전송
+        // 선택된 그룹들에 메시지 전송
         let successCount = 0;
         let failCount = 0;
         
-        for (let i = 0; i < messages.length; i++) {
-            const message = messages[i];
+        for (let i = 0; i < selectedGroupIds.length; i++) {
+            const groupId = selectedGroupIds[i];
             
             try {
                 const sendResponse = await fetch('/api/telegram/send-message', {
@@ -2122,36 +2091,36 @@ async function sendMessageToGroup() {
                 
                 if (sendResponse.ok && sendResult.success) {
                     successCount++;
-                    console.log(`✅ 메시지 ${i + 1} 전송 성공: ${message.substring(0, 50)}...`);
+                    console.log(`✅ 그룹 ${i + 1} 전송 성공: ${groupId}`);
                 } else {
                     failCount++;
-                    console.error(`❌ 메시지 ${i + 1} 전송 실패: ${sendResult.error}`);
+                    console.error(`❌ 그룹 ${i + 1} 전송 실패: ${sendResult.error}`);
                 }
                 
-                // 메시지 간 간격 (1초)
-                if (i < messages.length - 1) {
+                // 그룹 간 간격 (1초)
+                if (i < selectedGroupIds.length - 1) {
                     await new Promise(resolve => setTimeout(resolve, 1000));
                 }
                 
             } catch (error) {
                 failCount++;
-                console.error(`❌ 메시지 ${i + 1} 전송 에러: ${error.message}`);
+                console.error(`❌ 그룹 ${i + 1} 전송 에러: ${error.message}`);
             }
         }
         
         // 결과 알림
         if (successCount > 0 && failCount === 0) {
-            alert(`✅ 모든 메시지 전송 성공!\n\n그룹: ${selectedGroupName}\n전송된 메시지: ${successCount}개`);
+            alert(`✅ 모든 그룹에 메시지 전송 성공!\n\n전송된 그룹: ${successCount}개\n메시지: ${message.substring(0, 50)}${message.length > 50 ? '...' : ''}`);
         } else if (successCount > 0 && failCount > 0) {
-            alert(`⚠️ 부분 전송 완료\n\n그룹: ${selectedGroupName}\n성공: ${successCount}개\n실패: ${failCount}개`);
+            alert(`⚠️ 부분 전송 완료\n\n성공: ${successCount}개 그룹\n실패: ${failCount}개 그룹\n메시지: ${message.substring(0, 50)}${message.length > 50 ? '...' : ''}`);
         } else {
-            throw new Error('모든 메시지 전송 실패');
+            throw new Error('모든 그룹 전송 실패');
         }
         
         // 메시지 입력 필드 초기화
-        messageInputs.forEach(input => {
-            input.value = '';
-        });
+        if (messageInput) {
+            messageInput.value = '';
+        }
         
     } catch (error) {
         console.error('❌ 메시지 전송 실패:', error);
@@ -2164,32 +2133,194 @@ async function sendMessageToGroup() {
     }
 }
 
-// 메시지 전송 취소
-function cancelMessage() {
-    console.log('❌ 메시지 전송 취소');
+// 메시지 지우기
+function clearMessage() {
+    console.log('🗑️ 메시지 지우기');
     
-    const messageInputs = document.querySelectorAll('.message-input');
-    const messageSection = document.getElementById('messageSendingSection');
+    const messageInput = document.querySelector('.message-input');
+    if (messageInput) {
+        messageInput.value = '';
+        messageInput.focus();
+    }
+}
+
+// 저장된 메시지 표시
+function showSavedMessages() {
+    console.log('💾 저장된 메시지 표시');
     
-    // 모든 메시지 입력 필드 초기화
-    messageInputs.forEach(input => {
-        input.value = '';
+    const modal = document.getElementById('savedMessagesModal');
+    if (!modal) return;
+    
+    // 저장된 메시지 목록 로드
+    loadSavedMessages();
+    
+    // 모달 표시
+    modal.style.display = 'flex';
+    
+    // 모달 배경 클릭 시 닫기
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            closeSavedMessages();
+        }
     });
+}
+
+// 저장된 메시지 목록 로드
+function loadSavedMessages() {
+    console.log('💾 저장된 메시지 목록 로드');
     
-    // 추가된 메시지 입력 필드들 제거 (첫 번째 제외)
-    const messageRows = document.querySelectorAll('.message-input-row');
-    for (let i = 1; i < messageRows.length; i++) {
-        messageRows[i].remove();
+    const savedMessages = getSavedMessages();
+    const messagesList = document.getElementById('savedMessagesList');
+    
+    if (!messagesList) return;
+    
+    if (savedMessages.length === 0) {
+        messagesList.innerHTML = `
+            <div style="text-align: center; color: #888; padding: 20px;">
+                저장된 메시지가 없습니다.<br>
+                메시지를 입력하고 "메시지 저장" 버튼을 눌러보세요.
+            </div>
+        `;
+        return;
     }
     
-    if (messageSection) {
-        messageSection.style.display = 'none';
+    messagesList.innerHTML = savedMessages.map((message, index) => `
+        <div class="saved-message-item" data-message-index="${index}">
+            <div class="saved-message-content">${message.content}</div>
+            <div class="saved-message-meta">
+                <span>저장일: ${message.savedAt}</span>
+                <button class="saved-message-delete" onclick="deleteSavedMessage(${index})">삭제</button>
+            </div>
+        </div>
+    `).join('');
+    
+    // 메시지 아이템 클릭 이벤트 추가
+    const messageItems = messagesList.querySelectorAll('.saved-message-item');
+    messageItems.forEach(item => {
+        item.addEventListener('click', (e) => {
+            // 삭제 버튼 클릭이 아닌 경우에만 메시지 선택
+            if (!e.target.classList.contains('saved-message-delete')) {
+                const messageIndex = parseInt(item.dataset.messageIndex);
+                selectSavedMessage(messageIndex);
+            }
+        });
+    });
+}
+
+// 저장된 메시지 선택
+function selectSavedMessage(messageIndex) {
+    console.log('💾 저장된 메시지 선택:', messageIndex);
+    
+    const savedMessages = getSavedMessages();
+    if (messageIndex >= 0 && messageIndex < savedMessages.length) {
+        const message = savedMessages[messageIndex];
+        const messageInput = document.querySelector('.message-input');
+        
+        if (messageInput) {
+            messageInput.value = message.content;
+            messageInput.focus();
+        }
+        
+        // 모달 닫기
+        closeSavedMessages();
+    }
+}
+
+// 현재 메시지 저장
+function saveCurrentMessage() {
+    console.log('💾 현재 메시지 저장');
+    
+    const messageInput = document.querySelector('.message-input');
+    if (!messageInput || !messageInput.value.trim()) {
+        alert('저장할 메시지를 입력해주세요.');
+        messageInput?.focus();
+        return;
     }
     
-    // 선택된 그룹 상태 초기화
-    document.querySelectorAll('.group-item').forEach(item => {
-        item.classList.remove('selected');
-    });
+    const message = messageInput.value.trim();
+    const savedMessages = getSavedMessages();
+    
+    // 중복 메시지 확인
+    const isDuplicate = savedMessages.some(saved => saved.content === message);
+    if (isDuplicate) {
+        alert('이미 저장된 메시지입니다.');
+        return;
+    }
+    
+    // 새 메시지 추가
+    const newMessage = {
+        content: message,
+        savedAt: new Date().toLocaleString('ko-KR')
+    };
+    
+    savedMessages.unshift(newMessage); // 최신 메시지를 맨 위에
+    
+    // 최대 50개까지만 저장
+    if (savedMessages.length > 50) {
+        savedMessages.splice(50);
+    }
+    
+    // 로컬 스토리지에 저장
+    localStorage.setItem('savedMessages', JSON.stringify(savedMessages));
+    
+    alert('메시지가 저장되었습니다!');
+    console.log('✅ 메시지 저장 완료:', newMessage);
+}
+
+// 저장된 메시지 가져오기
+function getSavedMessages() {
+    try {
+        const saved = localStorage.getItem('savedMessages');
+        return saved ? JSON.parse(saved) : [];
+    } catch (error) {
+        console.error('❌ 저장된 메시지 로드 실패:', error);
+        return [];
+    }
+}
+
+// 저장된 메시지 삭제
+function deleteSavedMessage(messageIndex) {
+    console.log('🗑️ 저장된 메시지 삭제:', messageIndex);
+    
+    if (!confirm('이 메시지를 삭제하시겠습니까?')) {
+        return;
+    }
+    
+    const savedMessages = getSavedMessages();
+    if (messageIndex >= 0 && messageIndex < savedMessages.length) {
+        savedMessages.splice(messageIndex, 1);
+        localStorage.setItem('savedMessages', JSON.stringify(savedMessages));
+        
+        // 목록 다시 로드
+        loadSavedMessages();
+        
+        console.log('✅ 메시지 삭제 완료');
+    }
+}
+
+// 모든 저장된 메시지 삭제
+function deleteAllSavedMessages() {
+    console.log('🗑️ 모든 저장된 메시지 삭제');
+    
+    if (!confirm('모든 저장된 메시지를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) {
+        return;
+    }
+    
+    localStorage.removeItem('savedMessages');
+    loadSavedMessages();
+    
+    alert('모든 저장된 메시지가 삭제되었습니다.');
+    console.log('✅ 모든 메시지 삭제 완료');
+}
+
+// 저장된 메시지 모달 닫기
+function closeSavedMessages() {
+    console.log('💾 저장된 메시지 모달 닫기');
+    
+    const modal = document.getElementById('savedMessagesModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
 }
 
 // status-bar 내리기 애니메이션 후 계정 목록 표시
