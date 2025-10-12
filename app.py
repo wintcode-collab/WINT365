@@ -504,27 +504,16 @@ def verify_code():
                 asyncio.set_event_loop(loop)
                 
                 async def verify_code_async():
-                    # 원래 클라이언트 재사용 (세션 정보 보존)
-                    logger.info('🔧 원래 클라이언트 재사용 중...')
-                    original_client = client_data.get('client')
-                    
-                    if original_client and hasattr(original_client, 'is_connected'):
-                        logger.info('✅ 원래 클라이언트 발견, 재사용')
-                        client = original_client
-                    else:
-                        logger.info('⚠️ 원래 클라이언트 없음, 새 클라이언트 생성...')
-                        # 새로운 클라이언트 생성 (asyncio 문제 방지)
-                        client = TelegramClient(f'session_verify_{client_id}', client_data['api_id'], client_data['api_hash'])
-                        logger.info('✅ 새로운 클라이언트 생성 완료')
+                    # 항상 새로운 클라이언트 생성 (Event loop 문제 해결)
+                    logger.info('🔧 새로운 클라이언트 생성 중...')
+                    client = TelegramClient(f'session_verify_{client_id}', client_data['api_id'], client_data['api_hash'])
+                    logger.info('✅ 새로운 클라이언트 생성 완료')
                     
                     try:
-                        # 클라이언트 연결 상태 확인
-                        if not client.is_connected():
-                            logger.info('🔌 클라이언트 연결 중...')
-                            await client.connect()
-                            logger.info('✅ 클라이언트 연결 완료')
-                        else:
-                            logger.info('✅ 클라이언트 이미 연결됨')
+                        # 클라이언트 연결
+                        logger.info('🔌 클라이언트 연결 중...')
+                        await client.connect()
+                        logger.info('✅ 클라이언트 연결 완료')
                         
                         # 실제 인증 수행
                         logger.info('🔐 인증 수행 중...')
