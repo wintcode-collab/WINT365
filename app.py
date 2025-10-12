@@ -1424,34 +1424,46 @@ def get_telegram_saved_messages_with_session(account_info):
                                     'original_message': {
                                         'id': message.id,
                                         'text': message.text or '',
-                                        'entities': message.entities or [],
-                                        'date': message.date,
-                                        'from_id': getattr(message, 'from_id', None),
-                                        'peer_id': getattr(message, 'peer_id', None)
+                                        'entities': [],  # JSON 직렬화 문제로 빈 배열로 설정
+                                        'date': message.date.isoformat() if message.date else None,
+                                        'from_id': str(getattr(message, 'from_id', None)) if getattr(message, 'from_id', None) else None,
+                                        'peer_id': str(getattr(message, 'peer_id', None)) if getattr(message, 'peer_id', None) else None
                                     }
                                 }
                             }
                             
-                            # 텔레그램 이모지 엔티티 정보 추출
+                            # 텔레그램 이모지 엔티티 정보 추출 (JSON 직렬화 가능한 형태로)
                             if message.entities:
                                 logger.info(f'💾 메시지 엔티티 개수: {len(message.entities)}')
                                 custom_emoji_entities = []
                                 
                                 for entity in message.entities:
-                                    entity_info = {
-                                        'offset': entity.offset,
-                                        'length': entity.length,
-                                        'type': entity.type.name if hasattr(entity, 'type') else str(type(entity))
-                                    }
-                                    
-                                    # 커스텀 이모지인 경우
-                                    if hasattr(entity, 'type') and entity.type.name == 'CUSTOM_EMOJI':
-                                        entity_info['document_id'] = entity.document_id
-                                        custom_emoji_entities.append(entity_info)
-                                        logger.info(f'💾 커스텀 이모지 발견: offset={entity.offset}, length={entity.length}, document_id={entity.document_id}')
-                                    
-                                    message_info['entities'].append(entity_info)
-                                    message_info['raw_message_data']['entities'].append(entity_info)
+                                    try:
+                                        entity_info = {
+                                            'offset': int(entity.offset),
+                                            'length': int(entity.length),
+                                            'type': entity.type.name if hasattr(entity, 'type') else str(type(entity))
+                                        }
+                                        
+                                        # 커스텀 이모지인 경우
+                                        if hasattr(entity, 'type') and entity.type.name == 'CUSTOM_EMOJI':
+                                            entity_info['document_id'] = int(entity.document_id)
+                                            custom_emoji_entities.append(entity_info)
+                                            logger.info(f'💾 커스텀 이모지 발견: offset={entity.offset}, length={entity.length}, document_id={entity.document_id}')
+                                        
+                                        message_info['entities'].append(entity_info)
+                                        message_info['raw_message_data']['entities'].append(entity_info)
+                                        
+                                    except Exception as e:
+                                        logger.error(f'❌ 엔티티 처리 실패: {e}')
+                                        # 엔티티 처리 실패 시 기본 정보만 저장
+                                        entity_info = {
+                                            'offset': 0,
+                                            'length': 0,
+                                            'type': 'UNKNOWN'
+                                        }
+                                        message_info['entities'].append(entity_info)
+                                        message_info['raw_message_data']['entities'].append(entity_info)
                                 
                                 message_info['custom_emoji_entities'] = custom_emoji_entities
                                 message_info['has_custom_emoji'] = len(custom_emoji_entities) > 0
