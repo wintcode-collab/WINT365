@@ -1640,70 +1640,36 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                     logger.info(f'📤 원본 텍스트: {original_text}')
                     logger.info(f'📤 원본 엔티티: {original_entities}')
                     
-                    # 커스텀 이모지가 있는 경우 원본 그대로 전송
-                    if original_entities and any(entity.get('type') == 'CUSTOM_EMOJI' for entity in original_entities):
-                        logger.info('📤 커스텀 이모지가 포함된 원본 메시지 전송')
+                    # 방법 1: 원본 텍스트를 그대로 전송 (파싱 모드 없이)
+                    try:
+                        logger.info('📤 방법 1: 원본 텍스트 그대로 전송 시도 (파싱 모드 없이)')
+                        sent_message = await client.send_message(group_entity, original_text)
+                        logger.info(f'✅ 방법 1 성공: 원본 텍스트 전송 완료: {sent_message.id}')
+                    except Exception as e:
+                        logger.error(f'❌ 방법 1 실패: {e}')
                         
-                        # 엔티티 정보를 텔레그램 형식으로 변환
-                        from telethon.tl.types import MessageEntityCustomEmoji, MessageEntityBold, MessageEntityItalic
-                        telegram_entities = []
-                        
-                        for entity in original_entities:
-                            if entity['type'] == 'CUSTOM_EMOJI':
-                                telegram_entities.append(MessageEntityCustomEmoji(
-                                    offset=entity['offset'],
-                                    length=entity['length'],
-                                    document_id=entity['document_id']
-                                ))
-                                logger.info(f'📤 커스텀 이모지 엔티티 추가: offset={entity["offset"]}, length={entity["length"]}, document_id={entity["document_id"]}')
-                            elif entity['type'] == 'BOLD':
-                                telegram_entities.append(MessageEntityBold(
-                                    offset=entity['offset'],
-                                    length=entity['length']
-                                ))
-                            elif entity['type'] == 'ITALIC':
-                                telegram_entities.append(MessageEntityItalic(
-                                    offset=entity['offset'],
-                                    length=entity['length']
-                                ))
-                        
-                        # 원본 텍스트와 엔티티로 전송
+                        # 방법 2: 마크다운 파싱으로 재시도
                         try:
-                            sent_message = await client.send_message(group_entity, original_text, formatting_entities=telegram_entities)
-                            logger.info(f'✅ 커스텀 이모지 원본 메시지 전송 완료: {sent_message.id}')
-                        except Exception as e:
-                            logger.error(f'❌ 커스텀 이모지 전송 실패: {e}')
-                            # entities로 재시도
-                            try:
-                                sent_message = await client.send_message(group_entity, original_text, entities=telegram_entities)
-                                logger.info(f'✅ entities로 커스텀 이모지 전송 완료: {sent_message.id}')
-                            except Exception as e2:
-                                logger.error(f'❌ entities도 실패: {e2}')
-                                # 일반 메시지로 전송
-                                sent_message = await client.send_message(group_entity, original_text)
-                                logger.info(f'⚠️ 일반 메시지로 전송 완료: {sent_message.id}')
-                    else:
-                        # 커스텀 이모지가 없는 경우 마크다운 처리
-                        try:
-                            # 마크다운을 HTML로 변환
-                            html_text = convert_markdown_to_html(original_text)
-                            logger.info(f'📤 HTML 변환된 텍스트: {html_text}')
+                            logger.info('📤 방법 2: 마크다운 파싱으로 재시도')
+                            sent_message = await client.send_message(group_entity, original_text, parse_mode='md')
+                            logger.info(f'✅ 방법 2 성공: 마크다운 파싱으로 전송 완료: {sent_message.id}')
+                        except Exception as e2:
+                            logger.error(f'❌ 방법 2 실패: {e2}')
                             
-                            # HTML 파싱 모드로 전송
-                            sent_message = await client.send_message(group_entity, html_text, parse_mode='html')
-                            logger.info(f'✅ HTML 파싱으로 메시지 전송 완료: {sent_message.id}')
-                        except Exception as e:
-                            logger.error(f'❌ HTML 파싱 실패: {e}')
-                            # 마크다운 파싱으로 재시도
+                            # 방법 3: HTML 파싱으로 재시도
                             try:
-                                sent_message = await client.send_message(group_entity, original_text, parse_mode='md')
-                                logger.info(f'✅ 마크다운 파싱으로 메시지 전송 완료: {sent_message.id}')
-                            except Exception as e2:
-                                logger.error(f'❌ 마크다운 파싱도 실패: {e2}')
-                                # 마크다운 문법 제거 후 전송
+                                html_text = convert_markdown_to_html(original_text)
+                                logger.info('📤 방법 3: HTML 파싱으로 재시도')
+                                sent_message = await client.send_message(group_entity, html_text, parse_mode='html')
+                                logger.info(f'✅ 방법 3 성공: HTML 파싱으로 전송 완료: {sent_message.id}')
+                            except Exception as e3:
+                                logger.error(f'❌ 방법 3 실패: {e3}')
+                                
+                                # 방법 4: 마크다운 문법 제거 후 전송
                                 clean_text = remove_markdown_syntax(original_text)
+                                logger.info('📤 방법 4: 마크다운 제거 후 전송')
                                 sent_message = await client.send_message(group_entity, clean_text)
-                                logger.info(f'⚠️ 마크다운 제거 후 전송 완료: {sent_message.id}')
+                                logger.info(f'⚠️ 방법 4 성공: 마크다운 제거 후 전송 완료: {sent_message.id}')
                 
                 # 커스텀 이모지가 있는 메시지인지 확인 (기존 방식)
                 elif media_info and media_info.get('has_custom_emoji'):
