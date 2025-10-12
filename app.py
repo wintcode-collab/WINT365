@@ -940,6 +940,53 @@ def health():
     })
 
 # 텔레그램 계정 목록 로딩 엔드포인트
+@app.route('/api/telegram/test-firebase', methods=['GET'])
+def test_firebase():
+    """Firebase 연결 테스트"""
+    try:
+        logger.info('🔥 Firebase 연결 테스트 시작')
+        
+        # 테스트 데이터
+        test_data = {
+            'test': True,
+            'timestamp': datetime.now().isoformat(),
+            'message': 'Firebase 연결 테스트'
+        }
+        
+        # Firebase에 테스트 데이터 저장
+        url = f"{FIREBASE_URL}/test.json"
+        logger.info(f'🔥 테스트 URL: {url}')
+        
+        response = requests.put(url, json=test_data, timeout=10)
+        logger.info(f'🔥 테스트 응답 상태: {response.status_code}')
+        logger.info(f'🔥 테스트 응답 내용: {response.text}')
+        
+        if response.status_code == 200:
+            # 테스트 데이터 읽기
+            read_response = requests.get(url, timeout=10)
+            logger.info(f'🔥 읽기 응답 상태: {read_response.status_code}')
+            logger.info(f'🔥 읽기 응답 내용: {read_response.text}')
+            
+            return jsonify({
+                'success': True,
+                'message': 'Firebase 연결 성공',
+                'write_status': response.status_code,
+                'read_status': read_response.status_code
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': f'Firebase 연결 실패: {response.status_code}',
+                'response': response.text
+            }), 500
+            
+    except Exception as e:
+        logger.error(f'❌ Firebase 테스트 실패: {e}')
+        return jsonify({
+            'success': False,
+            'error': f'Firebase 테스트 실패: {str(e)}'
+        }), 500
+
 @app.route('/api/telegram/load-accounts', methods=['GET'])
 def load_accounts():
     """Firebase에서 모든 인증된 텔레그램 계정 목록 로드"""
