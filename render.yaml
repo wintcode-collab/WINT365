@@ -1,0 +1,17 @@
+# Render Web Service 배포 설정
+services:
+  - type: web
+    name: wint365-login
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python app.py
+    plan: free
+    region: oregon
+    branch: main
+    rootDir: .
+    autoDeploy: true
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: PORT
+        value: 10000

@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>@WINT365 - Member Login</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script type="module" src="firebase-config.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- 로그인 화면 -->
+        <div class="login-window" id="loginScreen">
+            <!-- 상단 바 (제목과 닫기 버튼) -->
+            <div class="header">
+                <div class="title-container">
+                    <div class="title-text" id="titleText">
+                        <span class="char" id="char1"></span>
+                        <span class="char" id="char2"></span>
+                        <span class="char" id="char3"></span>
+                        <span class="char" id="char4"></span>
+                        <span class="char" id="char5"></span>
+                        <span class="char" id="char6"></span>
+                        <span class="char" id="char7"></span>
+                        <span class="char" id="char8"></span>
+                    </div>
+                    
+                    <!-- SIGN UP 타이틀 (숨김) -->
+                    <div class="title-text signup-title" id="signupTitle" style="display: none;">
+                        <span class="char" id="signChar1"></span>
+                        <span class="char" id="signChar2"></span>
+                        <span class="char" id="signChar3"></span>
+                        <span class="char" id="signChar4"></span>
+                        <span class="char" id="signChar5"></span>
+                        <span class="char" id="signChar6"></span>
+                        <span class="char" id="signChar7"></span>
+                    </div>
+                    
+                    <!-- CODE INJECTION 타이틀 (숨김) -->
+                    <div class="title-text code-title" id="codeTitle" style="display: none;">
+                        <span class="char" id="codeChar1"></span>
+                        <span class="char" id="codeChar2"></span>
+                        <span class="char" id="codeChar3"></span>
+                        <span class="char" id="codeChar4"></span>
+                        <span class="char" id="codeChar5"></span>
+                        <span class="char" id="codeChar6"></span>
+                        <span class="char" id="codeChar7"></span>
+                        <span class="char" id="codeChar8"></span>
+                        <span class="char" id="codeChar9"></span>
+                        <span class="char" id="codeChar10"></span>
+                        <span class="char" id="codeChar11"></span>
+                        <span class="char" id="codeChar12"></span>
+                        <span class="char" id="codeChar13"></span>
+                        <span class="char" id="codeChar14"></span>
+                    </div>
+                </div>
+                <button class="close-btn" id="closeBtn">×</button>
+            </div>
+
+            <!-- 메인 콘텐츠 -->
+            <div class="content">
+                <!-- 이메일 입력 -->
+                <div class="input-group">
+                    <div class="input-container">
+                        <span class="input-icon">✉</span>
+                        <span class="placeholder" id="emailPlaceholder">Email</span>
+                        <input type="text" id="emailInput" class="input-field" style="outline: none !important; border: none !important; box-shadow: none !important;">
+                    </div>
+                </div>
+
+                <!-- 비밀번호 입력 -->
+                <div class="input-group" id="passwordGroup">
+                    <div class="input-container">
+                        <span class="input-icon">🔒</span>
+                        <span class="placeholder" id="passwordPlaceholder">Password</span>
+                        <input type="password" id="passwordInput" class="input-field" style="outline: none !important; border: none !important; box-shadow: none !important;">
+                    </div>
+                </div>
+
+                <!-- 비밀번호 확인 입력 (회원가입 모드에서만 표시) -->
+                <div class="input-group" id="confirmPasswordGroup" style="display: none;">
+                    <div class="input-container">
+                        <span class="input-icon">🔒</span>
+                        <span class="placeholder" id="confirmPasswordPlaceholder">Confirm Password</span>
+                        <input type="password" id="confirmPasswordInput" class="input-field" style="outline: none !important; border: none !important; box-shadow: none !important;">
+                    </div>
+                </div>
+
+                <!-- 코드 입력 (코드 모드에서만 표시) -->
+                <div class="input-group" id="codeGroup" style="display: none;">
+                    <div class="input-container">
+                        <span class="input-icon">#</span>
+                        <span class="placeholder" id="codePlaceholder">Access Code</span>
+                        <input type="text" id="codeInput" class="input-field" style="outline: none !important; border: none !important; box-shadow: none !important;">
+                    </div>
+                </div>
+
+                <!-- 코드 등록 입력 (코드 등록 모드에서만 표시) -->
+                <div class="input-group" id="codeRegistrationGroup" style="display: none;">
+                    <div class="input-container">
+                        <span class="input-icon">✉</span>
+                        <span class="placeholder" id="codeRegistrationPlaceholder">Register Code</span>
+                        <input type="text" id="codeRegistrationInput" class="input-field" style="outline: none !important; border: none !important; box-shadow: none !important;">
+                    </div>
+                </div>
+
+                <!-- 옵션들 -->
+                <div class="options">
+                    <div class="action-links">
+                        <span class="action-link" id="signUpLink">SIGN UP</span>
+                    </div>
+                </div>
+
+                <!-- 로그인 버튼 -->
+                <button class="login-btn" id="loginBtn" style="outline: none !important; box-shadow: none !important;">LOGIN</button>
+
+                <!-- 에러 메시지 -->
+                <div class="error-message" id="errorMessage" style="display: none;"></div>
+            </div>
+        </div>
+
+        <!-- 메인 앱 화면 (숨김) -->
+        <div class="main-app-window" id="mainAppScreen" style="display: none;">
+            <!-- 상단 네비게이션 -->
+            <div class="app-header">
+                <div class="app-title">
+                    <span class="app-logo">@WINT365</span>
+                </div>
+                <div class="app-user-info">
+                    <button class="logout-btn" id="logoutBtn">LOGOUT</button>
+                </div>
+            </div>
+
+            <!-- 메인 콘텐츠 -->
+            <div class="app-content">
+                <div class="welcome-section">
+                    <h1 class="welcome-title">Welcome to WINT365</h1>
+                    <p class="welcome-subtitle">Your secure access portal</p>
+                </div>
+
+                <div class="dashboard-grid">
+                    <!-- 시스템 상태 카드 -->
+                    <div class="info-card">
+                        <div class="card-header">
+                            <h3>System Status</h3>
+                        </div>
+                        <div class="card-content">
+                            <div class="info-item">
+                                <span class="info-label">Status:</span>
+                                <span class="info-value status-active">Active</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Last Login:</span>
+                                <span class="info-value" id="lastLogin">Just now</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Version:</span>
+                                <span class="info-value">v1.0.0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 액세스 코드 정보 카드 -->
+                    <div class="info-card">
+                        <div class="card-header">
+                            <h3>Access Code Status</h3>
+                        </div>
+                        <div class="card-content">
+                            <div class="info-item">
+                                <span class="info-label">Code Status:</span>
+                                <span class="info-value status-valid">Valid</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Expires:</span>
+                                <span class="info-value" id="codeExpiry">30 days remaining</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Registered:</span>
+                                <span class="info-value" id="codeRegistered">Today</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 시스템 정보 카드 -->
+                    <div class="info-card">
+                        <div class="card-header">
+                            <h3>System Information</h3>
+                        </div>
+                        <div class="card-content">
+                            <div class="info-item">
+                                <span class="info-label">Version:</span>
+                                <span class="info-value">v1.0.0</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Build:</span>
+                                <span class="info-value">2024.10.12</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Status:</span>
+                                <span class="info-value status-online">Online</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 텔레그램 API 설정 카드 -->
+                    <div class="info-card telegram-card">
+                        <div class="card-header">
+                            <h3>Telegram API Settings</h3>
+                        </div>
+                        <div class="card-content">
+                            <div class="telegram-form">
+                                <div class="telegram-input-group">
+                                    <div class="telegram-input-container">
+                                        <span class="telegram-input-icon">#</span>
+                                        <input type="text" class="telegram-input-field" id="telegramApiId" placeholder="API ID">
+                                        <span class="telegram-placeholder" id="telegramApiIdPlaceholder">API ID</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="telegram-input-group">
+                                    <div class="telegram-input-container">
+                                        <span class="telegram-input-icon">🔒</span>
+                                        <input type="text" class="telegram-input-field" id="telegramApiHash" placeholder="API Hash">
+                                        <span class="telegram-placeholder" id="telegramApiHashPlaceholder">API Hash</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="telegram-input-group">
+                                    <div class="telegram-input-container">
+                                        <span class="telegram-input-icon">📞</span>
+                                        <input type="tel" class="telegram-input-field" id="telegramPhone" placeholder="Phone Number (01012345678)">
+                                        <span class="telegram-placeholder" id="telegramPhonePlaceholder">Phone Number (01012345678)</span>
+                                    </div>
+                                </div>
+                                
+                                <!-- 인증코드 입력칸 (인증코드 요청 후 표시) -->
+                                <div class="telegram-input-group" id="verificationCodeGroup" style="display: none;">
+                                    <div class="telegram-input-container">
+                                        <span class="telegram-input-icon">#</span>
+                                        <input type="text" class="telegram-input-field" id="telegramVerificationCode" placeholder="Telegram App Code">
+                                        <span class="telegram-placeholder" id="telegramVerificationCodePlaceholder">Telegram App Code</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="telegram-actions">
+                                    <button class="telegram-btn telegram-save-btn" id="saveTelegramBtn">Register</button>
+                                    <button class="telegram-btn telegram-test-btn" id="testTelegramBtn">Load</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- 하단 상태 바 -->
+                <div class="status-bar">
+                    <div class="status-left">
+                        <span class="status-text">Connected to WINT365 Server</span>
+                    </div>
+                    <div class="status-right">
+                        <span class="status-text" id="currentTime"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

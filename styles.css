@@ -1,0 +1,769 @@
+/* 기본 스타일 리셋 */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+}
+
+.container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+}
+
+/* 로그인 창 */
+.login-window {
+    background: rgba(26, 26, 26, 0.9);
+    border-radius: 6px;
+    width: 400px;
+    height: 300px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    position: relative;
+    overflow: hidden;
+}
+
+/* 상단 헤더 */
+.header {
+    height: 70px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    padding: 15px 0 0 0;
+}
+
+.title-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.title-text {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.char {
+    font-size: 22px;
+    font-weight: bold;
+    color: #FFFFFF;
+    opacity: 0;
+    text-shadow: 0 0 8px rgba(255, 255, 255, 0.8);
+    transition: opacity 0.3s ease;
+}
+
+.close-btn {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: transparent;
+    border: none;
+    color: #CCCCCC;
+    font-size: 16px;
+    width: 24px;
+    height: 24px;
+    cursor: pointer;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.close-btn:hover {
+    background: #FF4444;
+    color: #FFFFFF;
+}
+
+/* 메인 콘텐츠 */
+.content {
+    padding: 10px 25px 0 25px;
+}
+
+/* 입력 그룹 */
+.input-group {
+    margin-bottom: 12px;
+}
+
+.input-container {
+    position: relative;
+    border-bottom: 1px solid #CCCCCC;
+    padding-bottom: 8px;
+    min-height: 35px;
+    display: flex;
+    align-items: center;
+}
+
+.input-icon {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 18px;
+    color: #888888;
+    z-index: 1;
+    filter: grayscale(100%) brightness(0.8);
+}
+
+.placeholder {
+    position: absolute;
+    left: 50px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 13px;
+    font-weight: 300;
+    color: #888888;
+    pointer-events: none;
+    transition: all 0.2s ease;
+    z-index: 1;
+}
+
+.input-field {
+    width: 100%;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #CCCCCC;
+    font-family: 'Segoe UI', sans-serif;
+    font-size: 15px;
+    padding: 8px 0;
+    margin-left: 50px;
+    caret-color: #FFFFFF;
+    position: relative;
+    z-index: 2;
+    height: 35px;
+    line-height: 35px;
+}
+
+.input-field:focus + .placeholder,
+.input-field:not(:placeholder-shown) + .placeholder {
+    opacity: 0;
+}
+
+/* 옵션들 */
+.options {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-right: 10px;
+}
+
+.action-links {
+    display: flex;
+    gap: 20px;
+}
+
+.action-link {
+    font-size: 12px;
+    font-weight: 500;
+    color: #CCCCCC;
+    cursor: pointer;
+    transition: color 0.2s ease;
+}
+
+.action-link:hover {
+    color: #FFFFFF;
+}
+
+/* 로그인 버튼 */
+.login-btn {
+    width: 100%;
+    background: transparent;
+    border: 1px solid #CCCCCC;
+    color: #FFFFFF;
+    font-family: 'Segoe UI', sans-serif;
+    font-size: 16px;
+    font-weight: normal;
+    padding: 10px 20px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    margin-bottom: 0;
+    margin-top: 5px;
+}
+
+.login-btn:hover {
+    background: #333333;
+}
+
+.login-btn:active {
+    transform: translateY(1px);
+}
+
+/* 에러 메시지 */
+.error-message {
+    font-size: 11px;
+    color: #FF6666;
+    text-align: center;
+    margin-top: 8px;
+    min-height: 20px;
+    line-height: 1.4;
+    word-wrap: break-word;
+}
+
+/* 애니메이션 클래스 */
+.fade-in {
+    opacity: 1 !important;
+}
+
+.blink {
+    animation: blink 4s ease-in-out infinite;
+}
+
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.85; }
+}
+
+/* 회원가입 모드 스타일 */
+.signup-mode .login-window {
+    height: 350px;
+}
+
+.signup-mode .login-btn {
+    margin-top: -10px;
+}
+
+/* 코드 모드 스타일 */
+.code-mode .login-window {
+    height: 300px;
+}
+
+/* 코드 등록 모드 스타일 */
+.code-registration-mode .login-window {
+    height: 300px;
+}
+
+/* 성공 상태 */
+.success .login-btn {
+    background: #10B981;
+    border-color: #10B981;
+    color: #FFFFFF;
+}
+
+/* 반응형 디자인 */
+@media (max-width: 480px) {
+    .login-window {
+        width: 90%;
+        max-width: 400px;
+    }
+    
+    .content {
+        padding: 15px 20px 0 20px;
+    }
+    
+    .char {
+        font-size: 20px;
+    }
+}
+
+@media (max-width: 360px) {
+    .login-window {
+        width: 95%;
+    }
+    
+    .content {
+        padding: 10px 15px 0 15px;
+    }
+    
+    .char {
+        font-size: 18px;
+    }
+    
+    .input-field {
+        font-size: 14px;
+    }
+    
+    .login-btn {
+        font-size: 14px;
+        padding: 10px 15px;
+    }
+}
+
+/* 다크 모드 최적화 */
+@media (prefers-color-scheme: dark) {
+    body {
+        background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%);
+    }
+}
+
+/* 파란 테두리 완전 제거 */
+.input-field:focus {
+    outline: none !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.input-field:active {
+    outline: none !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.input-field:focus-visible {
+    outline: none !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.login-btn:focus {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+.login-btn:active {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+.login-btn:focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+/* 모든 요소의 포커스 테두리 제거 */
+*:focus {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+*:focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+/* 브라우저 기본 스타일 제거 */
+input, button, textarea, select {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+input:focus, button:focus, textarea:focus, select:focus {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+/* 로딩 상태 */
+.loading .login-btn {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.loading .login-btn::after {
+    content: '';
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid #CCCCCC;
+    border-radius: 50%;
+    border-top-color: transparent;
+    animation: spin 1s linear infinite;
+    margin-left: 8px;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* 메인 앱 화면 스타일 */
+.main-app-window {
+    background: #0a0a0a;
+    width: 100vw;
+    height: 100vh;
+    margin: 0;
+    padding: 0;
+    position: fixed;
+    top: 0;
+    left: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    z-index: 1000;
+}
+
+/* 앱 헤더 */
+.app-header {
+    height: 70px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 30px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(10px);
+}
+
+.app-title {
+    display: flex;
+    align-items: center;
+}
+
+.app-logo {
+    font-size: 20px;
+    font-weight: bold;
+    color: #FFFFFF;
+    text-shadow: 0 0 8px rgba(255, 255, 255, 0.8);
+}
+
+.app-user-info {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+
+.logout-btn {
+    background: transparent;
+    border: 1px solid #CCCCCC;
+    color: #CCCCCC;
+    font-family: 'Segoe UI', sans-serif;
+    font-size: 12px;
+    padding: 6px 12px;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: all 0.2s ease;
+}
+
+.logout-btn:hover {
+    background: #333333;
+    color: #FFFFFF;
+}
+
+/* 앱 콘텐츠 */
+.app-content {
+    flex: 1;
+    padding: 40px;
+    overflow-y: auto;
+    background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
+}
+
+.welcome-section {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.welcome-title {
+    font-size: 28px;
+    font-weight: 600;
+    color: #FFFFFF;
+    margin-bottom: 8px;
+}
+
+.welcome-subtitle {
+    font-size: 16px;
+    color: #CCCCCC;
+    font-weight: 300;
+}
+
+/* 대시보드 그리드 */
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.info-card {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.card-header {
+    background: rgba(0, 0, 0, 0.4);
+    padding: 15px 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.card-header h3 {
+    font-size: 16px;
+    font-weight: 600;
+    color: #FFFFFF;
+    margin: 0;
+}
+
+.card-content {
+    padding: 20px;
+}
+
+.info-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.info-item:last-child {
+    margin-bottom: 0;
+}
+
+.info-label {
+    font-size: 14px;
+    color: #CCCCCC;
+    font-weight: 400;
+}
+
+.info-value {
+    font-size: 14px;
+    color: #FFFFFF;
+    font-weight: 500;
+}
+
+.status-active {
+    color: #10B981 !important;
+}
+
+.status-valid {
+    color: #10B981 !important;
+}
+
+.status-online {
+    color: #10B981 !important;
+}
+
+
+/* 텔레그램 API 설정 카드 - 기존 스타일과 일치 */
+.telegram-card {
+    background: rgba(26, 26, 26, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: height 0.3s ease-in-out;
+    overflow: hidden;
+}
+
+.telegram-card .card-header h3 {
+    color: #FFFFFF;
+}
+
+.telegram-form {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.telegram-input-group {
+    margin-bottom: 15px;
+}
+
+.telegram-input-container {
+    position: relative;
+    min-height: 45px;
+    display: flex;
+    align-items: center;
+}
+
+.telegram-input-icon {
+    position: absolute;
+    left: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 16px;
+    color: #CCCCCC;
+    z-index: 2;
+    filter: grayscale(100%) brightness(0.8);
+}
+
+.telegram-input-field {
+    width: 100%;
+    height: 45px;
+    padding: 12px 15px 12px 45px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    color: #FFFFFF;
+    font-size: 14px;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    transition: all 0.3s ease;
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+.telegram-input-field:focus {
+    border-color: #CCCCCC;
+    background: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 0 0 2px rgba(204, 204, 204, 0.2) !important;
+}
+
+.telegram-input-field::placeholder {
+    color: transparent;
+}
+
+.telegram-placeholder {
+    position: absolute;
+    left: 45px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #888;
+    font-size: 14px;
+    pointer-events: none;
+    transition: all 0.3s ease;
+    z-index: 1;
+}
+
+.telegram-input-field:focus + .telegram-placeholder,
+.telegram-input-field:not(:placeholder-shown) + .telegram-placeholder {
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-50%) translateY(-10px);
+}
+
+.telegram-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.telegram-btn {
+    flex: 1;
+    padding: 12px 20px;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+.telegram-save-btn {
+    background: #333333;
+    color: #FFFFFF;
+    border: 1px solid #555555;
+}
+
+.telegram-save-btn:hover {
+    background: #444444;
+    border-color: #666666;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+}
+
+.telegram-test-btn {
+    background: #333333;
+    color: #FFFFFF;
+    border: 1px solid #555555;
+}
+
+.telegram-test-btn:hover {
+    background: #444444;
+    border-color: #666666;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+}
+
+.telegram-btn:active {
+    transform: translateY(0);
+}
+
+/* 인증코드 입력칸 애니메이션 */
+.telegram-input-group {
+    transition: all 0.3s ease-in-out;
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.telegram-input-group.hidden {
+    opacity: 0;
+    transform: translateY(-10px);
+    max-height: 0;
+    margin-bottom: 0;
+    overflow: hidden;
+}
+
+.telegram-input-group.show {
+    opacity: 1;
+    transform: translateY(0);
+    max-height: 100px;
+    margin-bottom: 15px;
+}
+
+/* 상태 바 */
+.status-bar {
+    height: 50px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 30px;
+    background: rgba(0, 0, 0, 0.9);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    font-size: 13px;
+    color: #888;
+    backdrop-filter: blur(10px);
+    margin-top: 0;
+}
+
+.status-left, .status-right {
+    display: flex;
+    align-items: center;
+}
+
+.status-text {
+    font-size: 12px;
+    color: #888888;
+}
+
+/* 화면 전환 애니메이션 */
+.screen-transition {
+    transition: opacity 0.3s ease-in-out;
+}
+
+.screen-hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.screen-visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* 반응형 디자인 */
+@media (max-width: 900px) {
+    .main-app-window {
+        width: 100vw;
+        height: 100vh;
+    }
+    
+    .dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 600px) {
+    .app-header {
+        padding: 0 15px;
+    }
+    
+    .app-content {
+        padding: 15px;
+    }
+    
+    .welcome-title {
+        font-size: 24px;
+    }
+    
+    .dashboard-grid {
+        gap: 15px;
+    }
+}
