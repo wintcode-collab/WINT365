@@ -2107,6 +2107,27 @@ async function sendMessageToGroup() {
                     mediaInfo: mediaInfo
                 };
                 
+                // 커스텀 이모지가 있는 경우 엔티티 정보 추가
+                if (mediaInfo && mediaInfo.has_custom_emoji) {
+                    sendData.custom_emoji_entities = mediaInfo.custom_emoji_entities || [];
+                    sendData.entities = mediaInfo.entities || [];
+                    sendData.raw_message_data = mediaInfo.raw_message_data || null;
+                    sendData.has_custom_emoji = true;
+                    
+                    // 원본 메시지 텍스트도 함께 전송
+                    if (mediaInfo.raw_message_data && mediaInfo.raw_message_data.text) {
+                        sendData.original_text = mediaInfo.raw_message_data.text;
+                    }
+                    
+                    console.log('📤 커스텀 이모지 엔티티 정보 추가:', {
+                        custom_emoji_entities: sendData.custom_emoji_entities,
+                        entities: sendData.entities,
+                        raw_message_data: sendData.raw_message_data,
+                        original_text: sendData.original_text,
+                        has_custom_emoji: sendData.has_custom_emoji
+                    });
+                }
+                
                 console.log('📤 서버로 전송할 데이터:', sendData);
                 console.log('📤 전송 메시지 텍스트:', message);
                 console.log('📤 미디어 정보 상세:', {
@@ -2328,20 +2349,24 @@ function displayTelegramSavedMessages(savedMessages) {
         
         // 커스텀 이모지가 있는 경우 원본 텍스트 표시
         let displayText = message.text || '';
-        if (message.has_custom_emoji && message.custom_emoji_entities && message.custom_emoji_entities.length > 0) {
-            // 커스텀 이모지가 있는 경우 원본 텍스트를 그대로 표시
-            displayText = message.text || '';
+        if (message.has_custom_emoji) {
             console.log('💾 커스텀 이모지 메시지 표시:', {
                 text: displayText,
                 custom_emoji_entities: message.custom_emoji_entities,
                 has_custom_emoji: message.has_custom_emoji,
-                raw_message_data: message.raw_message_data
+                raw_message_data: message.raw_message_data,
+                entities: message.entities
             });
             
             // 원본 메시지 데이터가 있으면 그것을 우선 사용
             if (message.raw_message_data && message.raw_message_data.text) {
                 displayText = message.raw_message_data.text;
                 console.log('💾 원본 메시지 데이터 사용:', displayText);
+            }
+            
+            // 커스텀 이모지 엔티티가 있는 경우 강조 표시
+            if (message.custom_emoji_entities && message.custom_emoji_entities.length > 0) {
+                console.log('💾 커스텀 이모지 엔티티 발견:', message.custom_emoji_entities);
             }
         }
         
@@ -2374,12 +2399,18 @@ function displayTelegramSavedMessages(savedMessages) {
         // 커스텀 이모지 표시를 위한 스타일 추가
         const customEmojiStyle = message.has_custom_emoji ? 'style="font-family: \'Segoe UI Emoji\', \'Apple Color Emoji\', \'Noto Color Emoji\', sans-serif;"' : '';
         
+        // 커스텀 이모지 엔티티 정보를 data 속성에 저장
+        const customEmojiData = message.has_custom_emoji ? 
+            `data-custom-emoji-entities='${JSON.stringify(message.custom_emoji_entities || [])}' 
+             data-entities='${JSON.stringify(message.entities || [])}' 
+             data-raw-message='${JSON.stringify(message.raw_message_data || {})}'` : '';
+        
         return `
-            <div class="saved-message-item" data-message-index="${index}">
+            <div class="saved-message-item" data-message-index="${index}" ${customEmojiData}>
                 <div class="saved-message-content" ${customEmojiStyle}>
                     ${displayText}
                     ${mediaPreview}
-                    ${message.has_custom_emoji ? '<div style="margin-top: 5px; font-size: 12px; color: #10B981;">🎨 커스텀 이모지 포함</div>' : ''}
+                    ${message.has_custom_emoji ? '<div style="margin-top: 5px; font-size: 12px; color: #10B981;">🎨 커스텀 이모지 포함 (원본 엔티티 정보 보존됨)</div>' : ''}
                 </div>
                 <div class="saved-message-meta">
                     <span>${date}</span>
@@ -2482,7 +2513,25 @@ function selectTelegramSavedMessage(messageIndex, savedMessages) {
             message_id: message.message_id || null,
             date: message.date || null
         };
-        console.log('💾 저장된 메시지 정보 저장:', window.selectedMediaInfo);
+        
+        // 커스텀 이모지가 있는 경우 엔티티 정보 강제 보존
+        if (message.has_custom_emoji) {
+            console.log('💾 커스텀 이모지 엔티티 정보 강제 보존:', {
+                custom_emoji_entities: message.custom_emoji_entities,
+                entities: message.entities,
+                raw_message_data: message.raw_message_data
+            });
+            
+            // 엔티티 정보가 없으면 빈 배열로라도 설정
+            if (!window.selectedMediaInfo.custom_emoji_entities || window.selectedMediaInfo.custom_emoji_entities.length === 0) {
+                window.selectedMediaInfo.custom_emoji_entities = message.custom_emoji_entities || [];
+            }
+            if (!window.selectedMediaInfo.entities || window.selectedMediaInfo.entities.length === 0) {
+                window.selectedMediaInfo.entities = message.entities || [];
+            }
+        }
+        
+        console.log('💾 최종 저장된 메시지 정보:', window.selectedMediaInfo);
         
         // 모달 닫기
         closeSavedMessages();
