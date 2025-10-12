@@ -175,12 +175,14 @@ def send_code():
                 loop.close()
             
             
-            # 클라이언트 데이터 저장 (클라이언트 객체 제외)
+            # 클라이언트 데이터 저장
             clients[client_id] = {
+                'client': client,
                 'api_id': api_id,
                 'api_hash': api_hash,
                 'phone_number': phone_number,
-                'phone_code_hash': result.phone_code_hash
+                'phone_code_hash': result.phone_code_hash,
+                'session_data': session_data
             }
             logger.info('💾 클라이언트 데이터 저장 완료')
             
@@ -264,87 +266,88 @@ def verify_code():
         logger.info(f'📋 클라이언트 데이터 확인: {client_id}')
         logger.info(f'📋 클라이언트 데이터 키들: {list(client_data.keys())}')
         logger.info(f'📋 phone_code_hash 존재: {bool(client_data.get("phone_code_hash"))}')
-        logger.info(f'📋 API ID: {client_data.get("api_id")}')
-        logger.info(f'📋 전화번호: {client_data.get("phone_number")}')
+        logger.info(f'📋 클라이언트 연결 상태: {client_data.get("client").is_connected() if client_data.get("client") else "N/A"}')
         
         # 실제 Telegram MTProto API로 인증 검증
         try:
             logger.info('🔍 인증코드 검증 시작...')
             logger.info(f'📋 검증 정보: clientId={client_id}, phoneCode={phone_code}')
             
-            # 새로운 클라이언트를 생성하여 인증 (이벤트 루프 문제 해결)
+            # 기존 클라이언트를 사용하여 인증 (동일한 이벤트 루프에서 실행)
             async def verify_code_async():
-                # 새로운 클라이언트 생성 (이벤트 루프 문제 방지)
-                logger.info('🔧 새로운 클라이언트 생성 중...')
-                session_data = io.BytesIO()
-                client = TelegramClient(session_data, client_data['api_id'], client_data['api_hash'])
-                logger.info('✅ 새로운 클라이언트 생성 완료')
+                # 기존 클라이언트 사용
+                client = client_data['client']
+                logger.info('🔧 기존 클라이언트 사용')
+                
+                # 실제 인증 수행
+                logger.info('🔐 인증 수행 중...')
+                phone_code_hash = client_data.get('phone_code_hash')
+                if phone_code_hash:
+                    logger.info(f'📋 인증 정보: phoneCode={phone_code}, phoneCodeHash=***{phone_code_hash[-4:]}')
+                else:
+                    logger.error('❌ phone_code_hash가 없습니다!')
+                    raise Exception('phone_code_hash가 없습니다')
+                
+                # 인증코드 형식 검증
+                if not phone_code or len(phone_code) != 5 or not phone_code.isdigit():
+                    logger.error(f'❌ 잘못된 인증코드 형식: {phone_code}')
+                    raise ValueError(f'인증코드는 5자리 숫자여야 합니다: {phone_code}')
+                
+                # Telethon의 올바른 sign_in 사용법
+                logger.info('🔐 sign_in 메서드 호출 중...')
+                logger.info(f'📋 sign_in 파라미터: phone_code={phone_code}, phone_code_hash={phone_code_hash}')
                 
                 try:
-                    # 클라이언트 연결
-                    logger.info('🔌 클라이언트 연결 중...')
-                    await client.connect()
-                    logger.info('✅ 클라이언트 연결 완료')
+                    result = await client.sign_in(phone_code, phone_code_hash=phone_code_hash)
+                    logger.info(f'✅ 인증 성공: userId={result.id}, firstName={result.first_name}')
+                except Exception as sign_in_error:
+                    logger.error(f'❌ sign_in 실패: {sign_in_error}')
+                    logger.error(f'  - 에러 타입: {type(sign_in_error).__name__}')
+                    logger.error(f'  - 에러 메시지: {str(sign_in_error)}')
+                    logger.error(f'  - 클라이언트 연결 상태: {client.is_connected()}')
+                    logger.error(f'  - phone_code: {phone_code}')
+                    logger.error(f'  - phone_code_hash: {phone_code_hash}')
                     
-                    # 실제 인증 수행
-                    logger.info('🔐 인증 수행 중...')
-                    phone_code_hash = client_data.get('phone_code_hash')
-                    if phone_code_hash:
-                        logger.info(f'📋 인증 정보: phoneCode={phone_code}, phoneCodeHash=***{phone_code_hash[-4:]}')
+                    # 구체적인 에러 분석
+                    error_str = str(sign_in_error)
+                    if 'PHONE_CODE_INVALID' in error_str:
+                        logger.error('❌ 인증코드가 올바르지 않습니다.')
+                    elif 'PHONE_CODE_EXPIRED' in error_str:
+                        logger.error('❌ 인증코드가 만료되었습니다.')
+                    elif 'SESSION_PASSWORD_NEEDED' in error_str:
+                        logger.error('❌ 2단계 인증이 필요합니다.')
+                    elif 'FLOOD_WAIT' in error_str:
+                        logger.error('❌ 요청이 너무 많습니다.')
                     else:
-                        logger.error('❌ phone_code_hash가 없습니다!')
-                        raise Exception('phone_code_hash가 없습니다')
+                        logger.error(f'❌ 알 수 없는 에러: {error_str}')
                     
-                    # 인증코드 형식 검증
-                    if not phone_code or len(phone_code) != 5 or not phone_code.isdigit():
-                        logger.error(f'❌ 잘못된 인증코드 형식: {phone_code}')
-                        raise ValueError(f'인증코드는 5자리 숫자여야 합니다: {phone_code}')
-                    
-                    # Telethon의 올바른 sign_in 사용법
-                    logger.info('🔐 sign_in 메서드 호출 중...')
-                    logger.info(f'📋 sign_in 파라미터: phone_code={phone_code}, phone_code_hash={phone_code_hash}')
-                    
-                    try:
-                        result = await client.sign_in(phone_code, phone_code_hash=phone_code_hash)
-                        logger.info(f'✅ 인증 성공: userId={result.id}, firstName={result.first_name}')
-                    except Exception as sign_in_error:
-                        logger.error(f'❌ sign_in 실패: {sign_in_error}')
-                        logger.error(f'  - 에러 타입: {type(sign_in_error).__name__}')
-                        logger.error(f'  - 에러 메시지: {str(sign_in_error)}')
-                        logger.error(f'  - 클라이언트 연결 상태: {client.is_connected()}')
-                        logger.error(f'  - phone_code: {phone_code}')
-                        logger.error(f'  - phone_code_hash: {phone_code_hash}')
-                        
-                        # 구체적인 에러 분석
-                        error_str = str(sign_in_error)
-                        if 'PHONE_CODE_INVALID' in error_str:
-                            logger.error('❌ 인증코드가 올바르지 않습니다.')
-                        elif 'PHONE_CODE_EXPIRED' in error_str:
-                            logger.error('❌ 인증코드가 만료되었습니다.')
-                        elif 'SESSION_PASSWORD_NEEDED' in error_str:
-                            logger.error('❌ 2단계 인증이 필요합니다.')
-                        elif 'FLOOD_WAIT' in error_str:
-                            logger.error('❌ 요청이 너무 많습니다.')
-                        else:
-                            logger.error(f'❌ 알 수 없는 에러: {error_str}')
-                        
-                        raise sign_in_error
-                    
-                    return result
-                    
-                finally:
-                    # 클라이언트 연결 해제
-                    if client.is_connected():
-                        await client.disconnect()
-                        logger.info('🔌 클라이언트 연결 해제 완료')
+                    raise sign_in_error
+                
+                return result
             
-            # 새 이벤트 루프에서 실행
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
+            # 기존 이벤트 루프에서 실행 (asyncio 문제 해결)
             try:
-                result = loop.run_until_complete(verify_code_async())
-            finally:
-                loop.close()
+                # 현재 실행 중인 이벤트 루프가 있는지 확인
+                try:
+                    loop = asyncio.get_running_loop()
+                    logger.info('📋 기존 이벤트 루프 사용')
+                    # 기존 루프에서는 run_until_complete를 사용할 수 없으므로 다른 방법 사용
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(asyncio.run, verify_code_async())
+                        result = future.result()
+                except RuntimeError:
+                    # 실행 중인 이벤트 루프가 없으면 새로 생성
+                    logger.info('📋 새 이벤트 루프 생성')
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    try:
+                        result = loop.run_until_complete(verify_code_async())
+                    finally:
+                        loop.close()
+            except Exception as loop_error:
+                logger.error(f'❌ 이벤트 루프 실행 실패: {loop_error}')
+                raise loop_error
             
             # 클라이언트 정리
             if client_id in clients:
