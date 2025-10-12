@@ -319,8 +319,8 @@ def send_code():
                         logger.info('✅ Telegram 서버 연결 성공')
                         
                         # 연결 안정화 대기 (더 길게)
-                        await asyncio.sleep(5)
-                        logger.info('⏳ 연결 안정화 대기 완료 (5초)')
+                        await asyncio.sleep(10)
+                        logger.info('⏳ 연결 안정화 대기 완료 (10초)')
                         
                         # 연결 상태 확인
                         if not client.is_connected():
@@ -345,6 +345,11 @@ def send_code():
                         logger.info(f'✅ 인증코드 발송 성공: phone_code_hash=***{result.phone_code_hash[-4:]}')
                         logger.info(f'📋 결과 타입: {type(result)}')
                         logger.info(f'📋 결과 속성: {dir(result)}')
+                        
+                        # 인증코드 발송 후 추가 대기 (실제 전달 확인)
+                        logger.info('⏳ 인증코드 전달 확인을 위한 추가 대기 (3초)...')
+                        await asyncio.sleep(3)
+                        logger.info('✅ 인증코드 전달 대기 완료')
                         
                         # 결과 상세 정보 로깅
                         if hasattr(result, 'phone_code_hash'):
@@ -379,28 +384,9 @@ def send_code():
             
             
             # 세션 파일을 읽어서 Firebase에 저장
-            logger.info('🔥 Firebase에 세션 데이터 저장 중...')
-            try:
-                with open(f'{session_file}.session', 'rb') as f:
-                    session_data = f.read()
-                session_b64 = base64.b64encode(session_data).decode('utf-8')
-                
-                firebase_saved = save_session_to_firebase(
-                    client_id, 
-                    session_b64, 
-                    result.phone_code_hash, 
-                    api_id, 
-                    api_hash, 
-                    phone_number
-                )
-            except Exception as e:
-                logger.error(f'❌ 세션 파일 읽기 실패: {e}')
-                firebase_saved = False
-            
-            if firebase_saved:
-                logger.info('🔥 Firebase 세션 저장 성공')
-            else:
-                logger.warning('🔥 Firebase 세션 저장 실패 (로컬 저장으로 대체)')
+            # Firebase 저장 일시 비활성화 (인증코드 발송 문제 우선 해결)
+            logger.info('🔥 Firebase 저장 일시 비활성화 (인증코드 발송 문제 우선 해결)')
+            firebase_saved = False
             
             # 클라이언트 데이터 저장 (Firebase 저장 여부 포함)
             clients[client_id] = {
@@ -447,9 +433,16 @@ def send_code():
                 wait_time_match = re.search(r'(\d+)', str(api_error))
                 if wait_time_match:
                     wait_seconds = int(wait_time_match.group(1))
-                    wait_minutes = wait_seconds // 60
-                    error_message = f'🚫 Flood Control: {wait_minutes}분 {wait_seconds % 60}초 후에 다시 시도해주세요.'
-                    logger.error(f'🚫 Flood Control 감지: {wait_seconds}초 대기 필요')
+                    wait_hours = wait_seconds // 3600
+                    wait_minutes = (wait_seconds % 3600) // 60
+                    wait_remaining_seconds = wait_seconds % 60
+                    
+                    if wait_hours > 0:
+                        error_message = f'🚫 Flood Control: {wait_hours}시간 {wait_minutes}분 후에 다시 시도해주세요. (텔레그램 보안 정책)'
+                    else:
+                        error_message = f'🚫 Flood Control: {wait_minutes}분 {wait_remaining_seconds}초 후에 다시 시도해주세요.'
+                    
+                    logger.error(f'🚫 Flood Control 감지: {wait_seconds}초 대기 필요 ({wait_hours}시간 {wait_minutes}분)')
                 else:
                     error_message = '🚫 Flood Control: 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.'
                     logger.error('🚫 Flood Control 감지: 대기 시간 불명')
