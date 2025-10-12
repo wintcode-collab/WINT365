@@ -728,12 +728,20 @@ def verify_code():
                         
                         # 인증된 계정 정보 저장 (세션 데이터 포함)
                         # 세션 파일을 읽어서 Base64 인코딩
+                        session_file_path = f'{temp_session_file}.session'
+                        logger.info(f'🔍 일반 인증 세션 파일 경로: {session_file_path}')
+                        logger.info(f'🔍 일반 인증 세션 파일 존재 여부: {os.path.exists(session_file_path)}')
+                        
                         try:
-                            with open(f'{temp_session_file}.session', 'rb') as f:
+                            with open(session_file_path, 'rb') as f:
                                 session_bytes = f.read()
+                                logger.info(f'🔍 일반 인증 세션 파일 크기: {len(session_bytes)} bytes')
                             session_b64 = base64.b64encode(session_bytes).decode('utf-8')
-                        except:
+                            logger.info(f'🔍 일반 인증 세션 데이터 길이: {len(session_b64)}')
+                            logger.info('📁 일반 인증 세션 데이터 읽기 성공')
+                        except Exception as e:
                             # 세션 파일이 없으면 빈 문자열
+                            logger.error(f'❌ 일반 인증 세션 데이터 읽기 실패: {e}')
                             session_b64 = ""
                         
                         account_info = {
@@ -931,13 +939,21 @@ def verify_password():
                     
                     # 세션 데이터 읽기
                     session_data = None
+                    logger.info(f'🔍 2단계 인증 세션 파일 경로: {session_file}')
+                    logger.info(f'🔍 2단계 인증 세션 파일 존재 여부: {os.path.exists(session_file) if session_file else False}')
+                    
                     if session_file and os.path.exists(session_file):
                         try:
                             with open(session_file, 'rb') as f:
-                                session_data = base64.b64encode(f.read()).decode('utf-8')
+                                session_bytes = f.read()
+                                logger.info(f'🔍 2단계 인증 세션 파일 크기: {len(session_bytes)} bytes')
+                                session_data = base64.b64encode(session_bytes).decode('utf-8')
+                                logger.info(f'🔍 2단계 인증 세션 데이터 길이: {len(session_data)}')
                             logger.info('📁 2단계 인증 세션 데이터 읽기 성공')
                         except Exception as e:
                             logger.error(f'❌ 2단계 인증 세션 데이터 읽기 실패: {e}')
+                    else:
+                        logger.error(f'❌ 2단계 인증 세션 파일이 존재하지 않습니다: {session_file}')
                     
                     # 계정 정보 수집 (세션 데이터 포함)
                     account_info = {
