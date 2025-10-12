@@ -368,6 +368,7 @@ def send_code():
                     finally:
                         # 연결 유지 (세션 보존을 위해)
                         logger.info('🔌 클라이언트 연결 유지 (세션 보존)')
+                        # 연결 해제하지 않음 - 인증 시도에서 재사용
                 
                 try:
                     client, result, session_file = loop.run_until_complete(send_code_async())
@@ -405,7 +406,7 @@ def send_code():
                 'success': True,
                 'phoneCodeHash': result.phone_code_hash,
                 'clientId': client_id,
-                'message': '인증코드가 텔레그램 앱으로 발송되었습니다! 텔레그램 앱을 확인해주세요.'
+                'message': '인증코드가 텔레그램 앱으로 발송되었습니다! 텔레그램 앱을 확인하고 5분 이내에 입력해주세요.'
             })
             
         except Exception as api_error:
@@ -504,16 +505,26 @@ def verify_code():
                 asyncio.set_event_loop(loop)
                 
                 async def verify_code_async():
-                    # 항상 새로운 클라이언트 생성 (Event loop 문제 해결)
-                    logger.info('🔧 새로운 클라이언트 생성 중...')
-                    client = TelegramClient(f'session_verify_{client_id}', client_data['api_id'], client_data['api_hash'])
-                    logger.info('✅ 새로운 클라이언트 생성 완료')
+                    # 원래 클라이언트 재사용 (세션 일치 보장)
+                    logger.info('🔧 원래 클라이언트 재사용 중...')
+                    original_client = client_data.get('client')
+                    
+                    if original_client:
+                        logger.info('✅ 원래 클라이언트 발견, 재사용')
+                        client = original_client
+                    else:
+                        logger.info('⚠️ 원래 클라이언트 없음, 새 클라이언트 생성...')
+                        client = TelegramClient(f'session_verify_{client_id}', client_data['api_id'], client_data['api_hash'])
+                        logger.info('✅ 새로운 클라이언트 생성 완료')
                     
                     try:
-                        # 클라이언트 연결
-                        logger.info('🔌 클라이언트 연결 중...')
-                        await client.connect()
-                        logger.info('✅ 클라이언트 연결 완료')
+                        # 클라이언트 연결 상태 확인
+                        if not client.is_connected():
+                            logger.info('🔌 클라이언트 연결 중...')
+                            await client.connect()
+                            logger.info('✅ 클라이언트 연결 완료')
+                        else:
+                            logger.info('✅ 클라이언트 이미 연결됨')
                         
                         # 실제 인증 수행
                         logger.info('🔐 인증 수행 중...')
