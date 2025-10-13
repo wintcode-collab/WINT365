@@ -1407,18 +1407,19 @@ input:focus, button:focus, textarea:focus, select:focus {
 .setting-input {
     width: 100%;
     padding: 10px 15px;
-    background: #2a2a2a;
-    border: 1px solid #444;
+    background: #2a2a2a !important;
+    border: 1px solid #444 !important;
     border-radius: 8px;
-    color: #fff;
+    color: #fff !important;
     font-size: 14px;
     transition: all 0.3s ease;
 }
 
 .setting-input:focus {
-    outline: none;
-    border-color: #10B981;
-    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+    outline: none !important;
+    border-color: #10B981 !important;
+    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2) !important;
+    background: #2a2a2a !important;
 }
 
 .setting-description {
