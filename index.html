@@ -299,11 +299,25 @@
                             <div class="message-input-container">
                                 <div class="infinite-send-controls">
                                     <div class="toggle-switch-container">
-                                        <span class="toggle-label">무한 전송</span>
+                                        <span class="toggle-label">무한 전송 <small>(더블클릭: 설정)</small></span>
                                         <label class="toggle-switch">
                                             <input type="checkbox" id="infiniteSendToggle">
                                             <span class="slider"></span>
                                         </label>
+                                    </div>
+                                    <div class="saved-settings" id="savedSettings" style="display: none;">
+                                        <div class="setting-item">
+                                            <span class="setting-label">그룹간격:</span>
+                                            <span class="setting-value" id="savedGroupInterval">-</span>
+                                        </div>
+                                        <div class="setting-item">
+                                            <span class="setting-label">전체대기:</span>
+                                            <span class="setting-value" id="savedCycleInterval">-</span>
+                                        </div>
+                                        <div class="setting-item">
+                                            <span class="setting-label">최소메시지:</span>
+                                            <span class="setting-value" id="savedMinMessages">-</span>
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="message-inputs" id="messageInputs">
@@ -312,9 +326,12 @@
                                     </div>
                                 </div>
                                 <div class="message-actions">
+                                    <div class="left-buttons"></div>
                                     <button class="send-message-btn" id="sendMessageBtn">📤 선택된 그룹에 전송</button>
-                                    <button class="saved-messages-btn" id="savedMessagesBtn">💾 저장된 메시지</button>
-                                    <button class="clear-message-btn" id="clearMessageBtn">🗑️ 메시지 지우기</button>
+                                    <div class="right-buttons">
+                                        <button class="saved-messages-btn" id="savedMessagesBtn">💾 저장된 메시지</button>
+                                        <button class="clear-message-btn" id="clearMessageBtn">🗑️ 메시지 지우기</button>
+                                    </div>
                                 </div>
                             </div>
                         </div>

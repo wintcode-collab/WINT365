@@ -1893,6 +1893,11 @@ function setupTelegramGroupsEventListeners() {
     const infiniteSendToggle = document.getElementById('infiniteSendToggle');
     if (infiniteSendToggle) {
         infiniteSendToggle.addEventListener('change', toggleInfiniteSend);
+        // 더블클릭으로 설정 모달 다시 열기
+        infiniteSendToggle.addEventListener('dblclick', (e) => {
+            e.preventDefault();
+            showInfiniteSendModal();
+        });
     }
     
     // 무한 전송 설정 모달 닫기 버튼
@@ -2574,6 +2579,11 @@ function toggleInfiniteSend(event) {
     console.log('🔄 무한 전송 토글:', event.target.checked);
     
     if (event.target.checked) {
+        // 이미 설정이 완료된 경우 모달을 열지 않음
+        if (window.infiniteSendEnabled) {
+            console.log('🔄 이미 설정이 완료됨');
+            return;
+        }
         // 설정 모달 열기
         showInfiniteSendModal();
     } else {
@@ -2607,12 +2617,6 @@ function closeInfiniteSendModal() {
     const modal = document.getElementById('infiniteSendModal');
     if (modal) {
         modal.style.display = 'none';
-    }
-    
-    // 토글 스위치를 OFF로 되돌리기
-    const infiniteSendToggle = document.getElementById('infiniteSendToggle');
-    if (infiniteSendToggle) {
-        infiniteSendToggle.checked = false;
     }
 }
 
@@ -2663,8 +2667,33 @@ function saveInfiniteSendSettings() {
     // 모달 닫기
     closeInfiniteSendModal();
     
+    // 토글 스위치를 ON으로 유지
+    const infiniteSendToggle = document.getElementById('infiniteSendToggle');
+    if (infiniteSendToggle) {
+        infiniteSendToggle.checked = true;
+    }
+    
+    // 라벨 업데이트
+    const toggleLabel = document.querySelector('.toggle-label');
+    if (toggleLabel) {
+        toggleLabel.textContent = '무한 전송 <small>(더블클릭: 설정)</small>';
+    }
+    
+    // 저장된 설정 표시
+    const savedSettings = document.getElementById('savedSettings');
+    const savedGroupInterval = document.getElementById('savedGroupInterval');
+    const savedCycleInterval = document.getElementById('savedCycleInterval');
+    const savedMinMessages = document.getElementById('savedMinMessages');
+    
+    if (savedSettings && savedGroupInterval && savedCycleInterval && savedMinMessages) {
+        savedGroupInterval.textContent = `${groupInterval}초`;
+        savedCycleInterval.textContent = `${cycleInterval}분`;
+        savedMinMessages.textContent = `${minNewMessages}개`;
+        savedSettings.style.display = 'flex';
+    }
+    
     // 성공 알림
-    showNotification(`🔄 무한 전송 설정이 저장되었습니다! (그룹간격: ${groupInterval}초, 전체대기: ${cycleInterval}분, 최소메시지: ${minNewMessages}개)`, 'success');
+    showNotification(`✅ 무한 전송 설정이 저장되었습니다!\n• 그룹간격: ${groupInterval}초\n• 전체대기: ${cycleInterval}분\n• 최소메시지: ${minNewMessages}개`, 'success');
 }
 
 // 무한 전송 시작 (실제 전송 시작)
@@ -2943,7 +2972,13 @@ function stopInfiniteSend() {
     // 라벨 복원
     const toggleLabel = document.querySelector('.toggle-label');
     if (toggleLabel) {
-        toggleLabel.textContent = '무한 전송';
+        toggleLabel.textContent = '무한 전송 <small>(더블클릭: 설정)</small>';
+    }
+    
+    // 저장된 설정 숨기기
+    const savedSettings = document.getElementById('savedSettings');
+    if (savedSettings) {
+        savedSettings.style.display = 'none';
     }
     
     showNotification('⏹️ 무한 전송이 중단되었습니다.', 'info');
