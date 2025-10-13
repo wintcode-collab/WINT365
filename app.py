@@ -13,6 +13,9 @@ import io
 import base64
 import requests
 import re
+import schedule
+import time
+from datetime import datetime, timedelta
 
 # Telegram 라이브러리
 try:
@@ -84,6 +87,10 @@ def remove_markdown_syntax(text):
 
 # 텔레그램 클라이언트 저장소
 clients = {}
+
+# 자동전송 설정 저장소
+auto_send_settings = {}
+auto_send_jobs = {}
 
 # Firebase 설정
 FIREBASE_URL = "https://wint365-date-default-rtdb.asia-southeast1.firebasedatabase.app"
@@ -2160,7 +2167,466 @@ def delete_account_from_firebase(user_id):
         logger.error(f'🔥 Firebase 계정 정보 삭제 에러: {e}')
         return False
 
+# 자동전송 관련 함수들
+def save_auto_send_settings_to_firebase(user_id, settings):
+    """Firebase에 자동전송 설정 저장"""
+    try:
+        settings_data = {
+            'user_id': user_id,
+            'settings': settings,
+            'created_at': datetime.now().isoformat(),
+            'is_active': True
+        }
+        
+        url = f"{FIREBASE_URL}/auto_send_settings/{user_id}.json"
+        response = requests.put(url, json=settings_data, timeout=10)
+        
+        if response.status_code == 200:
+            logger.info(f'🔥 Firebase 자동전송 설정 저장 성공: {user_id}')
+            return True
+        else:
+            logger.error(f'🔥 Firebase 자동전송 설정 저장 실패: {response.status_code}')
+            return False
+            
+    except Exception as e:
+        logger.error(f'🔥 Firebase 자동전송 설정 저장 에러: {e}')
+        return False
+
+def get_auto_send_settings_from_firebase(user_id):
+    """Firebase에서 자동전송 설정 조회"""
+    try:
+        url = f"{FIREBASE_URL}/auto_send_settings/{user_id}.json"
+        response = requests.get(url, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data and data.get('is_active'):
+                logger.info(f'🔥 Firebase 자동전송 설정 조회 성공: {user_id}')
+                return data.get('settings', {})
+            else:
+                logger.info(f'🔥 Firebase 자동전송 설정 없음: {user_id}')
+                return None
+        else:
+            logger.error(f'🔥 Firebase 자동전송 설정 조회 실패: {response.status_code}')
+            return None
+            
+    except Exception as e:
+        logger.error(f'🔥 Firebase 자동전송 설정 조회 에러: {e}')
+        return None
+
+def execute_auto_send_job(user_id, group_ids, message, media_info=None):
+    """자동전송 작업 실행"""
+    try:
+        logger.info(f'🤖 자동전송 작업 시작: {user_id}')
+        
+        # 계정 정보 조회
+        account_info = get_account_from_firebase(user_id)
+        if not account_info:
+            logger.error(f'❌ 자동전송 실패: 계정 정보 없음 - {user_id}')
+            return False
+        
+        # 설정 조회
+        settings = get_auto_send_settings_from_firebase(user_id)
+        if not settings:
+            logger.error(f'❌ 자동전송 실패: 설정 없음 - {user_id}')
+            return False
+        
+        group_interval = settings.get('groupInterval', 5)
+        max_repeats = settings.get('maxRepeats', 10)
+        
+        # 현재 반복 횟수 조회
+        current_repeats = auto_send_jobs.get(f'{user_id}_repeats', 0)
+        
+        if max_repeats > 0 and current_repeats >= max_repeats:
+            logger.info(f'✅ 자동전송 완료: 최대 반복 횟수 도달 - {user_id}')
+            stop_auto_send_job(user_id)
+            return True
+        
+        # 각 그룹에 메시지 전송
+        success_count = 0
+        for group_id in group_ids:
+            try:
+                result = send_message_to_telegram_group(account_info, group_id, message, media_info)
+                if result:
+                    success_count += 1
+                    logger.info(f'✅ 자동전송 성공: 그룹 {group_id}')
+                else:
+                    logger.error(f'❌ 자동전송 실패: 그룹 {group_id}')
+                
+                # 그룹 간 대기
+                time.sleep(group_interval)
+                
+            except Exception as e:
+                logger.error(f'❌ 자동전송 그룹 {group_id} 에러: {e}')
+                continue
+        
+        # 반복 횟수 증가
+        auto_send_jobs[f'{user_id}_repeats'] = current_repeats + 1
+        
+        logger.info(f'🤖 자동전송 완료: {success_count}/{len(group_ids)} 그룹 성공')
+        return True
+        
+    except Exception as e:
+        logger.error(f'❌ 자동전송 작업 에러: {e}')
+        return False
+
+def start_auto_send_job(user_id, group_ids, message, media_info=None):
+    """자동전송 작업 시작"""
+    try:
+        logger.info(f'🤖 자동전송 작업 시작: {user_id}')
+        
+        # 기존 작업 중지
+        stop_auto_send_job(user_id)
+        
+        # 설정 조회
+        settings = get_auto_send_settings_from_firebase(user_id)
+        if not settings:
+            logger.error(f'❌ 자동전송 시작 실패: 설정 없음 - {user_id}')
+            return False
+        
+        repeat_interval = settings.get('repeatInterval', 30)  # 분 단위
+        
+        # 스케줄 작업 등록
+        job_id = f'auto_send_{user_id}'
+        
+        def job():
+            execute_auto_send_job(user_id, group_ids, message, media_info)
+        
+        # 반복 스케줄 등록
+        schedule.every(repeat_interval).minutes.do(job)
+        
+        # 즉시 한 번 실행
+        execute_auto_send_job(user_id, group_ids, message, media_info)
+        
+        auto_send_jobs[user_id] = {
+            'job_id': job_id,
+            'group_ids': group_ids,
+            'message': message,
+            'media_info': media_info,
+            'started_at': datetime.now().isoformat()
+        }
+        
+        logger.info(f'✅ 자동전송 작업 시작됨: {user_id} (간격: {repeat_interval}분)')
+        return True
+        
+    except Exception as e:
+        logger.error(f'❌ 자동전송 시작 에러: {e}')
+        return False
+
+def stop_auto_send_job(user_id):
+    """자동전송 작업 중지"""
+    try:
+        if user_id in auto_send_jobs:
+            del auto_send_jobs[user_id]
+            logger.info(f'🛑 자동전송 작업 중지됨: {user_id}')
+            return True
+        else:
+            logger.info(f'ℹ️ 중지할 자동전송 작업 없음: {user_id}')
+            return True
+            
+    except Exception as e:
+        logger.error(f'❌ 자동전송 중지 에러: {e}')
+        return False
+
+def check_telegram_group_message_count(account_info, group_id):
+    """텔레그램 그룹에서 메시지 개수 확인 (내가 보낸 메시지 이후 다른 사람들의 메시지)"""
+    try:
+        logger.info(f'📊 그룹 메시지 개수 확인: {group_id}')
+        
+        # 세션 데이터 복원
+        session_b64 = account_info.get('session_data')
+        if not session_b64:
+            logger.error('❌ 세션 데이터 없음')
+            return 0
+            
+        session_bytes = base64.b64decode(session_b64)
+        temp_session_file = f'temp_message_count_{account_info["user_id"]}'
+        
+        # 임시 세션 파일 생성
+        with open(f'{temp_session_file}.session', 'wb') as f:
+            f.write(session_bytes)
+        
+        # 비동기 메시지 개수 확인 함수
+        async def check_message_count_async():
+            try:
+                # 클라이언트 생성
+                client = TelegramClient(temp_session_file, account_info['api_id'], account_info['api_hash'])
+                logger.info('📊 텔레그램 클라이언트 생성 완료')
+                
+                # 연결
+                await client.connect()
+                logger.info('✅ 텔레그램 연결 성공')
+                
+                # 연결 상태 확인
+                if not client.is_connected():
+                    logger.error('❌ 클라이언트 연결 실패')
+                    return 0
+                
+                # 그룹 엔티티 가져오기
+                try:
+                    group_id_int = int(group_id)
+                    group_entity = await client.get_entity(group_id_int)
+                    logger.info(f'📊 그룹 엔티티 가져오기 성공: {group_entity.title}')
+                except Exception as e:
+                    logger.error(f'❌ 그룹 엔티티 가져오기 실패: {e}')
+                    return 0
+                
+                # 최근 메시지들 가져오기 (최대 100개)
+                messages = await client.get_messages(group_entity, limit=100)
+                logger.info(f'📊 최근 메시지 {len(messages)}개 가져옴')
+                
+                # 내 사용자 정보 가져오기
+                me = await client.get_me()
+                my_user_id = me.id
+                logger.info(f'📊 내 사용자 ID: {my_user_id}')
+                
+                # 내가 보낸 마지막 메시지 찾기
+                my_last_message_index = -1
+                for i, message in enumerate(messages):
+                    if hasattr(message, 'from_id') and message.from_id and message.from_id.user_id == my_user_id:
+                        my_last_message_index = i
+                        logger.info(f'📊 내가 보낸 마지막 메시지 발견: 인덱스 {i}, 메시지 ID {message.id}')
+                        break
+                
+                if my_last_message_index == -1:
+                    logger.info('📊 내가 보낸 메시지를 찾을 수 없음 - 모든 메시지가 다른 사람들의 메시지')
+                    return len(messages)
+                
+                # 내가 보낸 메시지 이후의 다른 사람들의 메시지 개수 계산
+                other_people_messages = 0
+                for i in range(my_last_message_index):
+                    message = messages[i]
+                    if hasattr(message, 'from_id') and message.from_id and message.from_id.user_id != my_user_id:
+                        other_people_messages += 1
+                
+                logger.info(f'📊 내가 보낸 메시지 이후 다른 사람들의 메시지 개수: {other_people_messages} (내가 메시지를 보내면 0으로 리셋됨)')
+                return other_people_messages
+                
+            except Exception as e:
+                logger.error(f'❌ 메시지 개수 확인 실패: {e}')
+                return 0
+                
+            finally:
+                # 연결 해제
+                try:
+                    if client.is_connected():
+                        await client.disconnect()
+                        logger.info('📊 클라이언트 연결 해제 완료')
+                except Exception as e:
+                    logger.error(f'❌ 클라이언트 연결 해제 실패: {e}')
+        
+        # 새 이벤트 루프에서 실행
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        try:
+            result = loop.run_until_complete(check_message_count_async())
+            return result
+        finally:
+            loop.close()
+            
+            # 임시 파일 정리
+            try:
+                os.remove(f'{temp_session_file}.session')
+                logger.info('📊 임시 세션 파일 정리 완료')
+            except Exception as e:
+                logger.error(f'❌ 임시 파일 정리 실패: {e}')
+                
+    except Exception as e:
+        logger.error(f'❌ 메시지 개수 확인 에러: {e}')
+        return 0
+
+def run_scheduler():
+    """스케줄러 실행 (백그라운드 스레드)"""
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
+
 # 그룹 목록 API는 Flood Control 때문에 일단 비활성화
+
+# 자동전송 설정 저장 API
+@app.route('/api/auto-send/save-settings', methods=['POST'])
+def save_auto_send_settings():
+    """자동전송 설정 저장"""
+    try:
+        data = request.get_json()
+        user_id = data.get('userId')
+        settings = data.get('settings')
+        
+        if not user_id or not settings:
+            return jsonify({
+                'success': False,
+                'error': '사용자 ID와 설정이 필요합니다.'
+            }), 400
+        
+        # Firebase에 설정 저장
+        result = save_auto_send_settings_to_firebase(user_id, settings)
+        
+        if result:
+            return jsonify({
+                'success': True,
+                'message': '자동전송 설정이 저장되었습니다.'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': '자동전송 설정 저장에 실패했습니다.'
+            }), 500
+            
+    except Exception as error:
+        logger.error(f'❌ 자동전송 설정 저장 실패: {error}')
+        return jsonify({
+            'success': False,
+            'error': f'자동전송 설정 저장 실패: {str(error)}'
+        }), 500
+
+# 자동전송 시작 API
+@app.route('/api/auto-send/start', methods=['POST'])
+def start_auto_send():
+    """자동전송 시작"""
+    try:
+        data = request.get_json()
+        user_id = data.get('userId')
+        group_ids = data.get('groupIds', [])
+        message = data.get('message', '')
+        media_info = data.get('mediaInfo')
+        
+        if not user_id or not group_ids:
+            return jsonify({
+                'success': False,
+                'error': '사용자 ID와 그룹 ID 목록이 필요합니다.'
+            }), 400
+        
+        # 자동전송 작업 시작
+        result = start_auto_send_job(user_id, group_ids, message, media_info)
+        
+        if result:
+            return jsonify({
+                'success': True,
+                'message': '자동전송이 시작되었습니다.'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': '자동전송 시작에 실패했습니다.'
+            }), 500
+            
+    except Exception as error:
+        logger.error(f'❌ 자동전송 시작 실패: {error}')
+        return jsonify({
+            'success': False,
+            'error': f'자동전송 시작 실패: {str(error)}'
+        }), 500
+
+# 자동전송 중지 API
+@app.route('/api/auto-send/stop', methods=['POST'])
+def stop_auto_send():
+    """자동전송 중지"""
+    try:
+        data = request.get_json()
+        user_id = data.get('userId')
+        
+        if not user_id:
+            return jsonify({
+                'success': False,
+                'error': '사용자 ID가 필요합니다.'
+            }), 400
+        
+        # 자동전송 작업 중지
+        result = stop_auto_send_job(user_id)
+        
+        if result:
+            return jsonify({
+                'success': True,
+                'message': '자동전송이 중지되었습니다.'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': '자동전송 중지에 실패했습니다.'
+            }), 500
+            
+    except Exception as error:
+        logger.error(f'❌ 자동전송 중지 실패: {error}')
+        return jsonify({
+            'success': False,
+            'error': f'자동전송 중지 실패: {str(error)}'
+        }), 500
+
+# 그룹 메시지 개수 확인 API
+@app.route('/api/telegram/check-message-count', methods=['POST'])
+def check_group_message_count():
+    """그룹의 메시지 개수 확인 (내가 보낸 메시지 이후 다른 사람들의 메시지)"""
+    try:
+        data = request.get_json()
+        user_id = data.get('userId')
+        group_id = data.get('groupId')
+        
+        if not user_id or not group_id:
+            return jsonify({
+                'success': False,
+                'error': '사용자 ID와 그룹 ID가 필요합니다.'
+            }), 400
+        
+        # 계정 정보 조회
+        account_info = get_account_from_firebase(user_id)
+        if not account_info:
+            return jsonify({
+                'success': False,
+                'error': '계정 정보를 찾을 수 없습니다.'
+            }), 404
+        
+        # 메시지 개수 확인
+        message_count = check_telegram_group_message_count(account_info, group_id)
+        
+        return jsonify({
+            'success': True,
+            'messageCount': message_count,
+            'groupId': group_id
+        })
+        
+    except Exception as error:
+        logger.error(f'❌ 메시지 개수 확인 실패: {error}')
+        return jsonify({
+            'success': False,
+            'error': f'메시지 개수 확인 실패: {str(error)}'
+        }), 500
+
+# 자동전송 상태 조회 API
+@app.route('/api/auto-send/status', methods=['POST'])
+def get_auto_send_status():
+    """자동전송 상태 조회"""
+    try:
+        data = request.get_json()
+        user_id = data.get('userId')
+        
+        if not user_id:
+            return jsonify({
+                'success': False,
+                'error': '사용자 ID가 필요합니다.'
+            }), 400
+        
+        # 현재 작업 상태 확인
+        is_running = user_id in auto_send_jobs
+        current_repeats = auto_send_jobs.get(f'{user_id}_repeats', 0)
+        
+        # 설정 조회
+        settings = get_auto_send_settings_from_firebase(user_id)
+        
+        return jsonify({
+            'success': True,
+            'is_running': is_running,
+            'current_repeats': current_repeats,
+            'settings': settings,
+            'job_info': auto_send_jobs.get(user_id) if is_running else None
+        })
+        
+    except Exception as error:
+        logger.error(f'❌ 자동전송 상태 조회 실패: {error}')
+        return jsonify({
+            'success': False,
+            'error': f'자동전송 상태 조회 실패: {str(error)}'
+        }), 500
 
 # Keep-Alive 엔드포인트 (Render Free Plan용)
 @app.route('/ping')
@@ -2179,5 +2645,10 @@ if __name__ == '__main__':
         logger.error('⚠️  Telethon 모듈 로드 실패 - MTProto API 사용 불가')
     else:
         logger.info('✅ MTProto API 사용 준비 완료!')
+    
+    # 자동전송 스케줄러 백그라운드 실행
+    scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
+    scheduler_thread.start()
+    logger.info('🤖 자동전송 스케줄러 시작됨')
     
     app.run(host='0.0.0.0', port=port, debug=False)
