@@ -1889,10 +1889,22 @@ function setupTelegramGroupsEventListeners() {
         clearMessageBtn.addEventListener('click', clearMessage);
     }
     
-    // 무한 전송 버튼
-    const infiniteSendBtn = document.getElementById('infiniteSendBtn');
-    if (infiniteSendBtn) {
-        infiniteSendBtn.addEventListener('click', toggleInfiniteSend);
+    // 무한 전송 토글 스위치
+    const infiniteSendToggle = document.getElementById('infiniteSendToggle');
+    if (infiniteSendToggle) {
+        infiniteSendToggle.addEventListener('change', toggleInfiniteSend);
+    }
+    
+    // 무한 전송 설정 모달 닫기 버튼
+    const closeInfiniteSendBtn = document.getElementById('closeInfiniteSendBtn');
+    if (closeInfiniteSendBtn) {
+        closeInfiniteSendBtn.addEventListener('click', closeInfiniteSendModal);
+    }
+    
+    // 설정 저장 버튼
+    const saveSettingsBtn = document.getElementById('saveSettingsBtn');
+    if (saveSettingsBtn) {
+        saveSettingsBtn.addEventListener('click', saveInfiniteSendSettings);
     }
     
     // 저장된 메시지 버튼
@@ -2002,6 +2014,13 @@ async function refreshGroups() {
 // 선택된 그룹들에 메시지 전송
 async function sendMessageToGroup() {
     console.log('📤 선택된 그룹들에 메시지 전송');
+    
+    // 무한 전송이 활성화되어 있으면 무한 전송 시작
+    if (window.infiniteSendEnabled && !window.isInfiniteSending) {
+        console.log('🔄 무한 전송 모드로 전환');
+        startInfiniteSend();
+        return;
+    }
     
     const messageInput = document.querySelector('.message-input');
     const sendBtn = document.getElementById('sendMessageBtn');
@@ -2551,41 +2570,58 @@ function selectTelegramSavedMessage(messageIndex, savedMessages) {
 }
 
 // 무한 전송 토글 함수
-function toggleInfiniteSend() {
-    console.log('🔄 무한 전송 토글');
+function toggleInfiniteSend(event) {
+    console.log('🔄 무한 전송 토글:', event.target.checked);
     
-    if (window.isInfiniteSending) {
+    if (event.target.checked) {
+        // 설정 모달 열기
+        showInfiniteSendModal();
+    } else {
         // 무한 전송 중단
         stopInfiniteSend();
-    } else {
-        // 무한 전송 시작
-        startInfiniteSend();
     }
 }
 
-// 무한 전송 시작
-function startInfiniteSend() {
-    console.log('🔄 무한 전송 시작');
+// 무한 전송 설정 모달 표시
+function showInfiniteSendModal() {
+    console.log('🔄 무한 전송 설정 모달 표시');
     
-    const messageInput = document.querySelector('.message-input');
+    const modal = document.getElementById('infiniteSendModal');
+    if (!modal) return;
+    
+    // 모달 표시
+    modal.style.display = 'flex';
+    
+    // 모달 배경 클릭 시 닫기
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            closeInfiniteSendModal();
+        }
+    });
+}
+
+// 무한 전송 설정 모달 닫기
+function closeInfiniteSendModal() {
+    console.log('🔄 무한 전송 설정 모달 닫기');
+    
+    const modal = document.getElementById('infiniteSendModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+    
+    // 토글 스위치를 OFF로 되돌리기
+    const infiniteSendToggle = document.getElementById('infiniteSendToggle');
+    if (infiniteSendToggle) {
+        infiniteSendToggle.checked = false;
+    }
+}
+
+// 무한 전송 설정 저장
+function saveInfiniteSendSettings() {
+    console.log('🔄 무한 전송 설정 저장');
+    
     const groupIntervalInput = document.getElementById('groupInterval');
     const cycleIntervalInput = document.getElementById('cycleInterval');
-    
-    // 메시지 확인 (저장된 메시지가 선택되어 있으면 입력칸이 비어있어도 OK)
-    const hasSavedMessage = window.selectedMediaInfo && window.selectedMediaInfo.raw_message_data;
-    
-    if (!messageInput || (!messageInput.value.trim() && !hasSavedMessage)) {
-        alert('전송할 메시지를 입력하거나 저장된 메시지를 선택해주세요.');
-        messageInput?.focus();
-        return;
-    }
-    
-    // 선택된 그룹들 확인
-    const selectedGroups = document.querySelectorAll('.group-item.selected');
-    if (selectedGroups.length === 0) {
-        alert('전송할 그룹을 선택해주세요.');
-        return;
-    }
     
     // 그룹간 전송 간격 확인
     const groupInterval = parseInt(groupIntervalInput.value);
@@ -2600,6 +2636,51 @@ function startInfiniteSend() {
     if (!cycleInterval || cycleInterval < 1 || cycleInterval > 60) {
         alert('전체 대기 시간을 1분~60분 사이로 설정해주세요.');
         cycleIntervalInput.focus();
+        return;
+    }
+    
+    // 설정을 전역 변수에 저장
+    window.infiniteGroupInterval = groupInterval;
+    window.infiniteCycleInterval = cycleInterval;
+    window.infiniteSendEnabled = true;
+    
+    console.log('🔄 무한 전송 설정 저장됨:', {
+        groupInterval: groupInterval,
+        cycleInterval: cycleInterval
+    });
+    
+    // 모달 닫기
+    closeInfiniteSendModal();
+    
+    // 성공 알림
+    showNotification(`🔄 무한 전송 설정이 저장되었습니다! (그룹간격: ${groupInterval}초, 전체대기: ${cycleInterval}분)`, 'success');
+}
+
+// 무한 전송 시작 (실제 전송 시작)
+function startInfiniteSend() {
+    console.log('🔄 무한 전송 시작');
+    
+    // 무한 전송이 활성화되어 있는지 확인
+    if (!window.infiniteSendEnabled) {
+        console.log('🔄 무한 전송이 활성화되지 않음');
+        return;
+    }
+    
+    const messageInput = document.querySelector('.message-input');
+    
+    // 메시지 확인 (저장된 메시지가 선택되어 있으면 입력칸이 비어있어도 OK)
+    const hasSavedMessage = window.selectedMediaInfo && window.selectedMediaInfo.raw_message_data;
+    
+    if (!messageInput || (!messageInput.value.trim() && !hasSavedMessage)) {
+        alert('전송할 메시지를 입력하거나 저장된 메시지를 선택해주세요.');
+        messageInput?.focus();
+        return;
+    }
+    
+    // 선택된 그룹들 확인
+    const selectedGroups = document.querySelectorAll('.group-item.selected');
+    if (selectedGroups.length === 0) {
+        alert('전송할 그룹을 선택해주세요.');
         return;
     }
     
@@ -2639,35 +2720,22 @@ function startInfiniteSend() {
     }));
     
     console.log('🔄 무한 전송할 그룹들:', groupsToSend);
-    console.log('🔄 그룹간 전송 간격:', groupInterval, '초');
-    console.log('🔄 전체 사이클 대기 시간:', cycleInterval, '분');
+    console.log('🔄 그룹간 전송 간격:', window.infiniteGroupInterval, '초');
+    console.log('🔄 전체 사이클 대기 시간:', window.infiniteCycleInterval, '분');
     
     // 전역 변수 설정
     window.isInfiniteSending = true;
     window.infiniteMessage = message;
     window.infiniteMediaInfo = mediaInfo;
     window.infiniteGroups = groupsToSend;
-    window.infiniteGroupInterval = groupInterval;
-    window.infiniteCycleInterval = cycleInterval;
     window.infiniteSendCount = 0;
     window.infiniteCycleCount = 0;
     window.infiniteCurrentGroupIndex = 0;
     
-    // 버튼 상태 변경
-    const infiniteSendBtn = document.getElementById('infiniteSendBtn');
-    if (infiniteSendBtn) {
-        infiniteSendBtn.textContent = '⏹️ 무한 전송 ON';
-        infiniteSendBtn.classList.add('active');
-    }
-    
-    // 입력 필드 비활성화
-    groupIntervalInput.disabled = true;
-    cycleIntervalInput.disabled = true;
-    
     // 첫 번째 사이클 시작
     startInfiniteCycle();
     
-    showNotification(`🔄 무한 전송이 시작되었습니다! (그룹간격: ${groupInterval}초, 전체대기: ${cycleInterval}분)`, 'success');
+    showNotification(`🔄 무한 전송이 시작되었습니다! (그룹간격: ${window.infiniteGroupInterval}초, 전체대기: ${window.infiniteCycleInterval}분)`, 'success');
 }
 
 // 무한 전송 사이클 시작
@@ -2691,11 +2759,11 @@ async function sendToNextGroup() {
     if (window.infiniteCurrentGroupIndex >= window.infiniteGroups.length) {
         console.log(`🔄 사이클 ${window.infiniteCycleCount} 완료, ${window.infiniteCycleInterval}분 대기`);
         
-        // 버튼에 상태 표시
-        const infiniteSendBtn = document.getElementById('infiniteSendBtn');
-        if (infiniteSendBtn) {
-            infiniteSendBtn.textContent = `⏹️ 무한 전송 ON (사이클 ${window.infiniteCycleCount} 완료, ${window.infiniteCycleInterval}분 대기)`;
-        }
+    // 토글 스위치에 상태 표시 (라벨 업데이트)
+    const toggleLabel = document.querySelector('.toggle-label');
+    if (toggleLabel) {
+        toggleLabel.textContent = `무한 전송 (사이클 ${window.infiniteCycleCount} 완료, ${window.infiniteCycleInterval}분 대기)`;
+    }
         
         // 전체 사이클 대기 시간 후 다음 사이클 시작
         setTimeout(() => {
@@ -2745,10 +2813,10 @@ async function sendToNextGroup() {
             window.infiniteSendCount++;
             console.log(`🔄 그룹 전송 성공 (${window.infiniteSendCount}번째):`, currentGroup.title);
             
-            // 버튼에 상태 표시
-            const infiniteSendBtn = document.getElementById('infiniteSendBtn');
-            if (infiniteSendBtn) {
-                infiniteSendBtn.textContent = `⏹️ 무한 전송 ON (사이클 ${window.infiniteCycleCount}, 그룹 ${window.infiniteCurrentGroupIndex + 1}/${window.infiniteGroups.length})`;
+            // 토글 스위치에 상태 표시 (라벨 업데이트)
+            const toggleLabel = document.querySelector('.toggle-label');
+            if (toggleLabel) {
+                toggleLabel.textContent = `무한 전송 (사이클 ${window.infiniteCycleCount}, 그룹 ${window.infiniteCurrentGroupIndex + 1}/${window.infiniteGroups.length})`;
             }
         } else {
             console.error('🔄 그룹 전송 실패:', currentGroup.title, result);
@@ -2778,27 +2846,21 @@ function stopInfiniteSend() {
     window.infiniteMessage = null;
     window.infiniteMediaInfo = null;
     window.infiniteGroups = null;
-    window.infiniteGroupInterval = null;
-    window.infiniteCycleInterval = null;
     window.infiniteSendCount = 0;
     window.infiniteCycleCount = 0;
     window.infiniteCurrentGroupIndex = 0;
+    window.infiniteSendEnabled = false;
     
-    // 버튼 상태 복원
-    const infiniteSendBtn = document.getElementById('infiniteSendBtn');
-    if (infiniteSendBtn) {
-        infiniteSendBtn.textContent = '🔄 무한 전송 OFF';
-        infiniteSendBtn.classList.remove('active');
+    // 토글 스위치 상태 복원
+    const infiniteSendToggle = document.getElementById('infiniteSendToggle');
+    if (infiniteSendToggle) {
+        infiniteSendToggle.checked = false;
     }
     
-    // 입력 필드 활성화
-    const groupIntervalInput = document.getElementById('groupInterval');
-    const cycleIntervalInput = document.getElementById('cycleInterval');
-    if (groupIntervalInput) {
-        groupIntervalInput.disabled = false;
-    }
-    if (cycleIntervalInput) {
-        cycleIntervalInput.disabled = false;
+    // 라벨 복원
+    const toggleLabel = document.querySelector('.toggle-label');
+    if (toggleLabel) {
+        toggleLabel.textContent = '무한 전송';
     }
     
     showNotification('⏹️ 무한 전송이 중단되었습니다.', 'info');

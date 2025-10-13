@@ -297,30 +297,24 @@
                             </div>
                             
                             <div class="message-input-container">
+                                <div class="infinite-send-controls">
+                                    <div class="toggle-switch-container">
+                                        <span class="toggle-label">무한 전송</span>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" id="infiniteSendToggle">
+                                            <span class="slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
                                 <div class="message-inputs" id="messageInputs">
                                     <div class="message-input-row">
                                         <textarea class="message-input" placeholder="전송할 메시지를 입력하세요..."></textarea>
                                     </div>
                                 </div>
                                 <div class="message-actions">
-                                    <div class="infinite-send-container">
-                                        <div class="interval-settings">
-                                            <div class="interval-group">
-                                                <label class="interval-label">그룹간격</label>
-                                                <input type="number" id="groupInterval" class="interval-input" placeholder="초" min="1" max="300" value="5">
-                                            </div>
-                                            <div class="interval-group">
-                                                <label class="interval-label">전체대기</label>
-                                                <input type="number" id="cycleInterval" class="interval-input" placeholder="분" min="1" max="60" value="1">
-                                            </div>
-                                        </div>
-                                        <button class="infinite-send-btn" id="infiniteSendBtn">🔄 무한 전송 OFF</button>
-                                    </div>
-                                    <div class="right-buttons">
-                                        <button class="saved-messages-btn" id="savedMessagesBtn">💾 저장된 메시지</button>
-                                        <button class="send-message-btn" id="sendMessageBtn">📤 선택된 그룹에 전송</button>
-                                        <button class="clear-message-btn" id="clearMessageBtn">🗑️ 메시지 지우기</button>
-                                    </div>
+                                    <button class="saved-messages-btn" id="savedMessagesBtn">💾 저장된 메시지</button>
+                                    <button class="send-message-btn" id="sendMessageBtn">📤 선택된 그룹에 전송</button>
+                                    <button class="clear-message-btn" id="clearMessageBtn">🗑️ 메시지 지우기</button>
                                 </div>
                             </div>
                         </div>
@@ -339,6 +333,38 @@
             </div>
             <div class="saved-messages-list" id="savedMessagesList">
                 <!-- 텔레그램 저장된 메시지 목록이 여기에 동적으로 추가됩니다 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 무한 전송 설정 모달 -->
+    <div class="infinite-send-modal" id="infiniteSendModal" style="display: none;">
+        <div class="infinite-send-content">
+            <div class="infinite-send-header">
+                <h3>🔄 무한 전송 설정</h3>
+                <button class="close-infinite-send-btn" id="closeInfiniteSendBtn">×</button>
+            </div>
+            <div class="infinite-send-body">
+                <div class="interval-settings">
+                    <div class="interval-group">
+                        <label class="interval-label">그룹간 전송 간격</label>
+                        <input type="number" id="groupInterval" class="interval-input" placeholder="초" min="1" max="300" value="5">
+                        <span class="interval-unit">초</span>
+                    </div>
+                    <div class="interval-group">
+                        <label class="interval-label">전체 사이클 대기 시간</label>
+                        <input type="number" id="cycleInterval" class="interval-input" placeholder="분" min="1" max="60" value="1">
+                        <span class="interval-unit">분</span>
+                    </div>
+                </div>
+                <div class="infinite-send-info">
+                    <p>• 그룹간 전송 간격: 각 그룹에 메시지를 보낸 후 다음 그룹으로 넘어가기까지의 대기 시간</p>
+                    <p>• 전체 사이클 대기 시간: 모든 그룹에 전송을 완료한 후 다음 사이클을 시작하기까지의 대기 시간</p>
+                    <p>• 무한 전송을 ON으로 설정한 후 "선택된 그룹에 전송" 버튼을 눌러야 실제 전송이 시작됩니다</p>
+                </div>
+                <div class="infinite-send-actions">
+                    <button class="save-settings-btn" id="saveSettingsBtn">설정 저장</button>
+                </div>
             </div>
         </div>
     </div>
