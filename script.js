@@ -1842,6 +1842,9 @@ function showTelegramGroupsWindow(groups, account) {
         document.getElementById('selectedAccountName').textContent = `${account.first_name} ${account.last_name || ''}`;
         document.getElementById('selectedAccountPhone').textContent = `📱 ${account.phone_number}`;
         
+        // 계정 변경 시 저장된 메시지 캐시 초기화
+        clearSavedMessagesCache();
+        
         // 그룹 개수 설정
         document.getElementById('groupsCount').textContent = `${groups.length}개의 그룹`;
         
@@ -1976,6 +1979,14 @@ function setupTelegramGroupsEventListeners() {
     const closeSavedMessagesBtn = document.getElementById('closeSavedMessagesBtn');
     if (closeSavedMessagesBtn) {
         closeSavedMessagesBtn.addEventListener('click', closeSavedMessages);
+    }
+    
+    // 저장된 메시지 새로고침 버튼
+    const refreshSavedMessagesBtn = document.getElementById('refreshSavedMessagesBtn');
+    if (refreshSavedMessagesBtn) {
+        refreshSavedMessagesBtn.addEventListener('click', () => {
+            showSavedMessages(true); // 강제 새로고침
+        });
     }
 }
 
@@ -2330,9 +2341,15 @@ function clearMessage() {
     console.log('🗑️ 미디어 정보 초기화');
 }
 
-// 저장된 메시지 표시
-async function showSavedMessages() {
-    console.log('💾 텔레그램 저장된 메시지 표시');
+// 저장된 메시지 캐시 초기화
+function clearSavedMessagesCache() {
+    console.log('🗑️ 저장된 메시지 캐시 초기화');
+    window.cachedSavedMessages = null;
+}
+
+// 저장된 메시지 표시 (캐싱 기능 추가)
+async function showSavedMessages(forceReload = false) {
+    console.log('💾 텔레그램 저장된 메시지 표시', forceReload ? '(강제 새로고침)' : '');
     
     const modal = document.getElementById('savedMessagesModal');
     if (!modal) return;
@@ -2340,8 +2357,15 @@ async function showSavedMessages() {
     // 모달 표시
     modal.style.display = 'flex';
     
-    // 로딩 표시
+    // 강제 새로고침이 아닌 경우 캐시된 메시지가 있는지 확인
     const messagesList = document.getElementById('savedMessagesList');
+    if (!forceReload && messagesList && window.cachedSavedMessages && window.cachedSavedMessages.length > 0) {
+        console.log('💾 캐시된 저장된 메시지 사용');
+        displayTelegramSavedMessages(window.cachedSavedMessages);
+        return;
+    }
+    
+    // 로딩 표시
     if (messagesList) {
         messagesList.innerHTML = `
             <div style="text-align: center; color: #888; padding: 20px;">
@@ -2420,6 +2444,10 @@ async function loadTelegramSavedMessages() {
                     });
                 }
             });
+            
+            // 캐시에 저장
+            window.cachedSavedMessages = savedResult.saved_messages;
+            console.log('💾 저장된 메시지 캐시에 저장됨');
             
             displayTelegramSavedMessages(savedResult.saved_messages);
         } else {
@@ -2603,7 +2631,7 @@ function selectTelegramSavedMessage(messageIndex, savedMessages) {
             messageInput.style.cursor = 'not-allowed';
         }
         
-        // 저장된 메시지 버튼을 해제 버튼으로 변경
+        // 저장된 메시지 버튼을 해제 버튼으로 변경 (이벤트 리스너 방식으로 변경)
         const savedMessagesBtn = document.getElementById('savedMessagesBtn');
         console.log('💾 저장된 메시지 버튼 요소 찾기:', savedMessagesBtn);
         
@@ -2612,7 +2640,11 @@ function selectTelegramSavedMessage(messageIndex, savedMessages) {
             savedMessagesBtn.textContent = '❌ 저장된 메시지 해제';
             savedMessagesBtn.style.backgroundColor = '#ff4444';
             savedMessagesBtn.style.borderColor = '#ff4444';
-            savedMessagesBtn.onclick = clearSavedMessage;
+            
+            // 기존 이벤트 리스너 제거 후 새로 추가 (중복 방지)
+            savedMessagesBtn.removeEventListener('click', showSavedMessages);
+            savedMessagesBtn.addEventListener('click', clearSavedMessage);
+            
             console.log('💾 버튼 변경 후:', savedMessagesBtn.textContent);
             console.log('💾 저장된 메시지 버튼이 해제 버튼으로 변경됨');
         } else {
@@ -2671,13 +2703,17 @@ function clearSavedMessage() {
         messageInput.focus();
     }
     
-    // 저장된 메시지 버튼을 원래대로 복원
+    // 저장된 메시지 버튼을 원래대로 복원 (이벤트 리스너 방식으로 변경)
     const savedMessagesBtn = document.getElementById('savedMessagesBtn');
     if (savedMessagesBtn) {
         savedMessagesBtn.textContent = '💾 저장된 메시지';
         savedMessagesBtn.style.backgroundColor = '';
         savedMessagesBtn.style.borderColor = '';
-        savedMessagesBtn.onclick = showSavedMessages;
+        
+        // 기존 이벤트 리스너 제거 후 새로 추가 (중복 방지)
+        savedMessagesBtn.removeEventListener('click', clearSavedMessage);
+        savedMessagesBtn.addEventListener('click', showSavedMessages);
+        
         console.log('💾 저장된 메시지 버튼이 원래대로 복원됨');
     }
     
