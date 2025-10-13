@@ -1865,6 +1865,11 @@ function showTelegramGroupsWindow(groups, account) {
             forceEnableSendButton();
         }, 500);
         
+        // 디버깅용: 자동전송 토글 강제 ON
+        setTimeout(() => {
+            forceEnableAutoSendToggle();
+        }, 1000);
+        
         // 자동전송 상태 복원
         setTimeout(() => {
             restoreAutoSendStatusOnLoad();
@@ -2227,10 +2232,18 @@ async function sendMessageToGroup() {
     const autoSendToggle = document.getElementById('autoSendToggle');
     console.log('🔍 자동전송 토글 상태 확인:', {
         toggle: autoSendToggle,
-        checked: autoSendToggle ? autoSendToggle.checked : 'toggle not found'
+        checked: autoSendToggle ? autoSendToggle.checked : 'toggle not found',
+        element: autoSendToggle
     });
     
-    if (autoSendToggle && autoSendToggle.checked) {
+    // 토글 상태 강제 확인
+    if (!autoSendToggle) {
+        console.error('❌ 자동전송 토글 요소를 찾을 수 없습니다!');
+        alert('자동전송 토글을 찾을 수 없습니다. 페이지를 새로고침해주세요.');
+        return;
+    }
+    
+    if (autoSendToggle.checked) {
         console.log('🔍 자동 전송 모드: 서버 자동전송 API 호출');
         console.log('🔍 전송할 그룹 수:', validGroupIds.length);
         console.log('🔍 전송할 메시지:', message);
@@ -2245,6 +2258,7 @@ async function sendMessageToGroup() {
         }
     } else {
         console.log('❌ 자동전송 토글이 OFF 상태 - 수동 전송으로 진행');
+        console.log('❌ 토글 상태:', autoSendToggle.checked);
     }
     
     // 버튼 상태 변경
@@ -3136,8 +3150,16 @@ function setupAutoSendEventListeners() {
             if (this.checked) {
                 showAutoSendSettingsModal();
             } else {
+                console.log('🛑 자동전송 토글 OFF - 자동전송 중지 시작');
+                
                 // 자동전송 중지
-                stopAutoSend();
+                const stopSuccess = await stopAutoSend();
+                if (stopSuccess) {
+                    console.log('✅ 자동전송 중지 성공');
+                } else {
+                    console.log('❌ 자동전송 중지 실패');
+                }
+                
                 hideAutoSendSettingsModal();
                 // 설정 표시 숨기기
                 const settingsDisplay = document.getElementById('autoSendSettingsDisplay');
@@ -3276,6 +3298,10 @@ function saveAutoSendSettings() {
     
     console.log('🔧 자동전송 설정 저장:', settings);
     console.log('🔧 그룹 간격 원본 값:', groupInterval, '변환된 값:', parseInt(groupInterval));
+    console.log('🔧 반복 간격:', repeatInterval, '변환된 값:', parseInt(repeatInterval));
+    console.log('🔧 최대 반복:', maxRepeats, '변환된 값:', parseInt(maxRepeats));
+    console.log('🔧 메시지 임계값:', messageThreshold, '변환된 값:', parseInt(messageThreshold));
+    console.log('🔧 메시지 개수 확인:', enableMessageCheck);
     
     localStorage.setItem('autoSendSettings', JSON.stringify(settings));
     
@@ -3726,6 +3752,50 @@ function forceEnableSendButton() {
     }
 }
 
+// 자동전송 토글 강제 ON (디버깅용)
+function forceEnableAutoSendToggle() {
+    const autoSendToggle = document.getElementById('autoSendToggle');
+    if (autoSendToggle) {
+        autoSendToggle.checked = true;
+        localStorage.setItem('autoSendToggleState', 'true');
+        console.log('🔧 자동전송 토글 강제 ON 완료');
+        
+        // 저장된 자동전송 설정값도 복원
+        const savedSettings = localStorage.getItem('autoSendSettings');
+        if (savedSettings) {
+            try {
+                const settings = JSON.parse(savedSettings);
+                console.log('🔧 저장된 자동전송 설정 복원:', settings);
+                
+                // 설정값들을 입력 필드에 복원
+                const groupInterval = document.getElementById('groupInterval');
+                const repeatInterval = document.getElementById('repeatInterval');
+                const maxRepeats = document.getElementById('maxRepeats');
+                const messageThreshold = document.getElementById('messageThreshold');
+                const enableMessageCheck = document.getElementById('enableMessageCheck');
+                
+                if (groupInterval) groupInterval.value = settings.groupInterval || 30;
+                if (repeatInterval) repeatInterval.value = settings.repeatInterval || 30;
+                if (maxRepeats) maxRepeats.value = settings.maxRepeats || 10;
+                if (messageThreshold) messageThreshold.value = settings.messageThreshold || 5;
+                if (enableMessageCheck) enableMessageCheck.checked = settings.enableMessageCheck !== false;
+                
+                console.log('✅ 자동전송 설정값 복원 완료');
+                
+                // 설정 표시 업데이트
+                updateAutoSendSettingsDisplay();
+                
+            } catch (error) {
+                console.error('❌ 자동전송 설정 복원 실패:', error);
+            }
+        } else {
+            console.log('ℹ️ 저장된 자동전송 설정 없음');
+        }
+    } else {
+        console.error('❌ 자동전송 토글을 찾을 수 없습니다!');
+    }
+}
+
 // 전송 버튼 상태 업데이트 함수
 function updateSendButtonState(selectedCount) {
     const sendBtn = document.getElementById('sendMessageBtn');
@@ -3876,6 +3946,66 @@ async function saveAutoSendSettingsToFirebase(settings) {
     }
 }
 
+// 자동전송 중지 함수
+async function stopAutoSend() {
+    try {
+        console.log('🛑 자동전송 중지 시작');
+        
+        // 현재 계정 정보 가져오기
+        const accountName = document.getElementById('selectedAccountName').textContent;
+        if (!accountName || accountName === '계정을 선택하세요') {
+            console.log('❌ 계정이 선택되지 않음, 자동전송 중지 건너뜀');
+            return false;
+        }
+        
+        // 계정 목록에서 해당 계정 찾기
+        const response = await fetch('/api/telegram/load-accounts', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        const result = await response.json();
+        if (!response.ok || !result.success || !result.accounts) {
+            throw new Error(result.error || '계정 목록 로딩 실패');
+        }
+        
+        const account = result.accounts.find(acc => 
+            `${acc.first_name} ${acc.last_name || ''}`.trim() === accountName.trim()
+        );
+        
+        if (!account) {
+            throw new Error('계정을 찾을 수 없습니다.');
+        }
+        
+        // 자동전송 중지 API 호출
+        const stopResponse = await fetch('/api/auto-send/stop', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                account_name: accountName
+            })
+        });
+        
+        const stopResult = await stopResponse.json();
+        
+        if (stopResponse.ok && stopResult.success) {
+            console.log('✅ 자동전송 중지 성공:', stopResult);
+            return true;
+        } else {
+            console.error('❌ 자동전송 중지 실패:', stopResult);
+            return false;
+        }
+        
+    } catch (error) {
+        console.error('❌ 자동전송 중지 에러:', error);
+        return false;
+    }
+}
+
 // 자동전송 상태 주기적 업데이트
 function startAutoSendStatusUpdate() {
     // 30초마다 자동전송 상태 확인
@@ -4017,10 +4147,16 @@ function restoreAutoSendToggleState() {
                 
                 // 설정값도 복원
                 const settings = JSON.parse(savedSettings);
+                console.log('🔧 복원할 자동전송 설정:', settings);
                 loadAutoSendSettings(settings);
+                
+                // 설정 표시 업데이트
+                updateAutoSendSettingsDisplay();
             }
         } else {
             console.log('ℹ️ 자동전송 토글 상태 복원: OFF 또는 설정 없음');
+            console.log('ℹ️ 토글 상태:', savedToggleState);
+            console.log('ℹ️ 설정 존재:', !!savedSettings);
         }
     } catch (error) {
         console.error('❌ 자동전송 토글 상태 복원 실패:', error);
