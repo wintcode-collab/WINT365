@@ -3251,16 +3251,31 @@ async function checkSelectedGroupsMessageCount() {
 
 // 자동 전송 설정 표시 업데이트
 function updateAutoSendSettingsDisplay() {
+    console.log('🔍 자동 전송 설정 표시 업데이트 중...');
+    
     const settingsDisplay = document.getElementById('autoSendSettingsDisplay');
     const settingsInfo = document.getElementById('settingsInfo');
     const autoSendToggle = document.getElementById('autoSendToggle');
     
-    if (!settingsDisplay || !settingsInfo || !autoSendToggle) return;
+    console.log('📋 요소 확인:', {
+        settingsDisplay: !!settingsDisplay,
+        settingsInfo: !!settingsInfo,
+        autoSendToggle: !!autoSendToggle,
+        toggleChecked: autoSendToggle?.checked
+    });
+    
+    if (!settingsDisplay || !settingsInfo || !autoSendToggle) {
+        console.log('❌ 필요한 요소가 없습니다');
+        return;
+    }
     
     if (autoSendToggle.checked) {
         const savedSettings = localStorage.getItem('autoSendSettings');
+        console.log('💾 저장된 설정:', savedSettings);
+        
         if (savedSettings) {
             const settings = JSON.parse(savedSettings);
+            console.log('📊 파싱된 설정:', settings);
             
             // 모든 설정 정보를 표시
             const settingsTexts = [];
@@ -3280,11 +3295,19 @@ function updateAutoSendSettingsDisplay() {
             settingsTexts.push(messageCheckText);
             
             // 모든 설정을 줄바꿈으로 구분하여 표시
-            settingsInfo.innerHTML = settingsTexts.join('<br>');
+            const displayText = settingsTexts.join('<br>');
+            console.log('📝 표시할 텍스트:', displayText);
+            
+            settingsInfo.innerHTML = displayText;
             settingsDisplay.style.display = 'block';
+            
+            console.log('✅ 설정 표시 완료');
+        } else {
+            console.log('❌ 저장된 설정이 없습니다');
         }
     } else {
         settingsDisplay.style.display = 'none';
+        console.log('🔴 자동 전송 OFF - 설정 표시 숨김');
     }
 }
 
