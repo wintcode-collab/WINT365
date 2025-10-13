@@ -2165,6 +2165,21 @@ async function sendMessageToGroup() {
         return;
     }
     
+    // 선택된 그룹 ID들 추출
+    const selectedGroupIds = Array.from(checkedBoxes).map(checkbox => checkbox.dataset.groupId);
+    
+    console.log('🔍 선택된 그룹 ID들:', selectedGroupIds);
+    console.log('🔍 체크된 체크박스들:', checkedBoxes);
+    
+    // 그룹 ID 유효성 검사
+    const validGroupIds = selectedGroupIds.filter(id => id && id !== 'undefined');
+    if (validGroupIds.length === 0) {
+        alert('선택된 그룹의 ID를 찾을 수 없습니다. 페이지를 새로고침하고 다시 시도해주세요.');
+        return;
+    }
+    
+    console.log('🔍 유효한 그룹 ID들:', validGroupIds);
+    
     // 자동 전송 ON 상태에서는 서버의 자동전송 API 호출
     const autoSendToggle = document.getElementById('autoSendToggle');
     if (autoSendToggle && autoSendToggle.checked) {
@@ -2206,20 +2221,6 @@ async function sendMessageToGroup() {
         message = messageInput.value.trim();
         console.log('📤 입력칸 텍스트 사용:', message);
     }
-    const selectedGroupIds = Array.from(checkedBoxes).map(checkbox => checkbox.dataset.groupId);
-    
-    console.log('🔍 선택된 그룹 ID들:', selectedGroupIds);
-    console.log('🔍 체크된 체크박스들:', checkedBoxes);
-    
-    // 그룹 ID 유효성 검사
-    const validGroupIds = selectedGroupIds.filter(id => id && id !== 'undefined');
-    if (validGroupIds.length === 0) {
-        alert('선택된 그룹의 ID를 찾을 수 없습니다. 페이지를 새로고침하고 다시 시도해주세요.');
-        return;
-    }
-    
-    console.log('🔍 유효한 그룹 ID들:', validGroupIds);
-    
     // 버튼 상태 변경
     if (sendBtn) {
         sendBtn.textContent = '📤 전송 중...';
