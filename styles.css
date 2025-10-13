@@ -1196,18 +1196,26 @@ input:focus, button:focus, textarea:focus, select:focus {
 .auto-send-toggle-container {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 25px;
+    flex-direction: row;
+    flex-wrap: wrap;
 }
 
 .auto-send-settings-display {
-    margin-left: 15px;
-    padding: 6px 10px;
-    background: rgba(16, 185, 129, 0.1);
-    border: 1px solid rgba(16, 185, 129, 0.3);
-    border-radius: 6px;
+    margin-left: 0;
+    margin-top: 0;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 0;
     font-size: 11px;
-    max-width: 200px;
+    max-width: 100%;
     line-height: 1.3;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    box-shadow: none;
 }
 
 .settings-info {
@@ -1216,6 +1224,16 @@ input:focus, button:focus, textarea:focus, select:focus {
     white-space: nowrap;
     opacity: 0;
     animation: fadeInText 0.3s ease-in-out forwards;
+}
+
+.settings-info .setting-item {
+    display: inline-block;
+    padding: 4px 8px;
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    border-radius: 4px;
+    margin: 0 2px;
+    font-size: 10px;
 }
 
 @keyframes fadeInText {
@@ -1326,11 +1344,11 @@ input:focus, button:focus, textarea:focus, select:focus {
 .auto-send-settings-content {
     background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
     border-radius: 20px;
-    padding: 30px;
-    max-width: 600px;
+    padding: 25px;
+    max-width: 700px;
     width: 90%;
-    max-height: 80vh;
-    overflow-y: auto;
+    max-height: 90vh;
+    overflow: visible;
     border: 2px solid #10B981;
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
 }
@@ -1339,8 +1357,8 @@ input:focus, button:focus, textarea:focus, select:focus {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 25px;
-    padding-bottom: 15px;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
     border-bottom: 1px solid #333;
 }
 
@@ -1368,12 +1386,12 @@ input:focus, button:focus, textarea:focus, select:focus {
 }
 
 .auto-send-settings-body {
-    margin-bottom: 25px;
+    margin-bottom: 15px;
 }
 
 .setting-section {
-    margin-bottom: 25px;
-    padding: 20px;
+    margin-bottom: 15px;
+    padding: 15px;
     background: rgba(255, 255, 255, 0.02);
     border-radius: 12px;
     border: 1px solid #333;
@@ -1387,7 +1405,7 @@ input:focus, button:focus, textarea:focus, select:focus {
 }
 
 .setting-item {
-    margin-bottom: 15px;
+    margin-bottom: 10px;
 }
 
 .setting-item label {
@@ -1399,7 +1417,9 @@ input:focus, button:focus, textarea:focus, select:focus {
 }
 
 .setting-input {
-    width: 100%;
+    width: 120px;
+    min-width: 80px;
+    max-width: 200px;
     padding: 10px 15px;
     background: #2a2a2a;
     border: 1px solid #444;
@@ -1407,6 +1427,9 @@ input:focus, button:focus, textarea:focus, select:focus {
     color: #fff;
     font-size: 14px;
     transition: all 0.3s ease;
+    box-sizing: border-box;
+    resize: horizontal;
+    overflow: hidden;
 }
 
 .setting-input:focus {
@@ -1439,14 +1462,15 @@ input:focus, button:focus, textarea:focus, select:focus {
 }
 
 .checkmark {
-    height: 18px;
-    width: 18px;
+    height: 20px;
+    width: 20px;
     background-color: #2a2a2a;
-    border: 1px solid #444;
+    border: 2px solid #666;
     border-radius: 4px;
-    margin-right: 10px;
+    margin-right: 20px;
     position: relative;
     transition: all 0.3s ease;
+    flex-shrink: 0;
 }
 
 .checkbox-label:hover .checkmark {
@@ -1463,9 +1487,9 @@ input:focus, button:focus, textarea:focus, select:focus {
     position: absolute;
     display: none;
     left: 6px;
-    top: 2px;
-    width: 4px;
-    height: 8px;
+    top: 1px;
+    width: 5px;
+    height: 10px;
     border: solid white;
     border-width: 0 2px 2px 0;
     transform: rotate(45deg);
@@ -1508,7 +1532,7 @@ input:focus, button:focus, textarea:focus, select:focus {
     display: flex;
     gap: 15px;
     justify-content: center;
-    padding-top: 20px;
+    padding-top: 15px;
     border-top: 1px solid #333;
 }
 

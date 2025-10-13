@@ -3057,14 +3057,14 @@ function setupAutoSendEventListeners() {
         closeAutoSendSettingsBtn.addEventListener('click', closeAutoSendSettingsModal);
     }
 
-    // 모달 배경 클릭 시 닫기
-    if (autoSendSettingsModal) {
-        autoSendSettingsModal.addEventListener('click', function(e) {
-            if (e.target === autoSendSettingsModal) {
-                closeAutoSendSettingsModal();
-            }
-        });
-    }
+    // 모달 배경 클릭 시 닫기 기능 제거 (X 버튼이나 설정 저장으로만 닫기)
+    // if (autoSendSettingsModal) {
+    //     autoSendSettingsModal.addEventListener('click', function(e) {
+    //         if (e.target === autoSendSettingsModal) {
+    //             closeAutoSendSettingsModal();
+    //         }
+    //     });
+    // }
 
 
     // 설정 저장 버튼
@@ -3072,11 +3072,14 @@ function setupAutoSendEventListeners() {
         autoSendSaveBtn.addEventListener('click', saveAutoSendSettings);
     }
 
-    // 메시지 개수 확인 체크박스
-    const enableMessageCheck = document.getElementById('enableMessageCheck');
-    if (enableMessageCheck) {
-        enableMessageCheck.addEventListener('change', updateMessageCheckStatus);
-    }
+    // 메시지 개수 확인 체크박스 (상태 표시 제거로 이벤트 리스너 불필요)
+    // const enableMessageCheck = document.getElementById('enableMessageCheck');
+    // if (enableMessageCheck) {
+    //     enableMessageCheck.addEventListener('change', updateMessageCheckStatus);
+    // }
+    
+    // 입력창 자동 크기 조절
+    setupAutoResizeInputs();
 }
 
 // 자동 전송 설정 모달 표시
@@ -3131,8 +3134,8 @@ function loadAutoSendSettings() {
         if (messageThreshold) messageThreshold.value = settings.messageThreshold || 5;
         if (enableMessageCheck) enableMessageCheck.checked = settings.enableMessageCheck !== false;
         
-        // 메시지 개수 확인 상태 업데이트
-        updateMessageCheckStatus();
+        // 메시지 개수 확인 상태 업데이트 (제거됨)
+        // updateMessageCheckStatus();
     }
 }
 
@@ -3154,8 +3157,8 @@ function saveAutoSendSettings() {
     
     localStorage.setItem('autoSendSettings', JSON.stringify(settings));
     
-    // 메시지 개수 확인 상태 업데이트
-    updateMessageCheckStatus();
+    // 메시지 개수 확인 상태 업데이트 (제거됨)
+    // updateMessageCheckStatus();
     
     // 자동 전송 토글을 ON으로 설정
     const autoSendToggle = document.getElementById('autoSendToggle');
@@ -3173,21 +3176,43 @@ function saveAutoSendSettings() {
     alert('자동 전송 설정이 저장되었습니다!');
 }
 
-// 메시지 개수 확인 상태 업데이트
-function updateMessageCheckStatus() {
-    const enableMessageCheck = document.getElementById('enableMessageCheck');
-    const messageCheckStatus = document.getElementById('messageCheckStatus');
+// 입력창 자동 크기 조절 설정
+function setupAutoResizeInputs() {
+    const inputs = document.querySelectorAll('.setting-input');
     
-    if (enableMessageCheck && messageCheckStatus) {
-        if (enableMessageCheck.checked) {
-            messageCheckStatus.textContent = '활성화';
-            messageCheckStatus.style.color = '#10B981';
-        } else {
-            messageCheckStatus.textContent = '비활성화';
-            messageCheckStatus.style.color = '#dc3545';
-        }
-    }
+    inputs.forEach(input => {
+        // 입력 시 크기 자동 조절
+        input.addEventListener('input', function() {
+            autoResizeInput(this);
+        });
+        
+        // 초기 크기 설정
+        autoResizeInput(input);
+    });
 }
+
+// 입력창 크기 자동 조절 함수
+function autoResizeInput(input) {
+    // 임시 span 요소를 생성하여 텍스트 너비 측정
+    const tempSpan = document.createElement('span');
+    tempSpan.style.visibility = 'hidden';
+    tempSpan.style.position = 'absolute';
+    tempSpan.style.fontSize = window.getComputedStyle(input).fontSize;
+    tempSpan.style.fontFamily = window.getComputedStyle(input).fontFamily;
+    tempSpan.style.padding = window.getComputedStyle(input).padding;
+    tempSpan.style.border = window.getComputedStyle(input).border;
+    tempSpan.textContent = input.value || input.placeholder || '0';
+    
+    document.body.appendChild(tempSpan);
+    const textWidth = tempSpan.offsetWidth;
+    document.body.removeChild(tempSpan);
+    
+    // 최소 80px, 최대 200px로 제한
+    const newWidth = Math.max(80, Math.min(200, textWidth + 20));
+    input.style.width = newWidth + 'px';
+}
+
+// 메시지 개수 확인 상태 업데이트 함수 제거됨 (UI에서 해당 섹션 제거)
 
 // 그룹의 메시지 개수 확인
 async function checkGroupMessageCount(groupId) {
@@ -3304,7 +3329,7 @@ function updateAutoSendSettingsDisplay() {
                     if (index === 0) {
                         settingsInfo.innerHTML = `<span class="setting-item">${text}</span>`;
                     } else {
-                        settingsInfo.innerHTML += `<br><span class="setting-item">${text}</span>`;
+                        settingsInfo.innerHTML += `<span class="setting-item">${text}</span>`;
                     }
                 }, index * 500); // 0.5초 간격
             });
