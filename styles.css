@@ -1379,16 +1379,17 @@ input:focus, button:focus, textarea:focus, select:focus {
 
 .setting-section {
     margin-bottom: 25px;
-    padding: 30px;
-    background: rgba(42, 42, 42, 0.8);
-    border-radius: 12px;
-    border: 1px solid #555;
+    padding: 20px;
+    background: rgba(26, 26, 26, 0.95);
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    overflow: hidden;
 }
 
 .setting-section h4 {
-    color: #10B981;
+    color: #FFFFFF;
     margin: 0 0 15px 0;
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 600;
 }
 
