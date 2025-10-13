@@ -1874,11 +1874,31 @@ function renderGroupsList(groups) {
     // 체크박스 이벤트 추가
     const groupCheckboxes = groupsList.querySelectorAll('.group-checkbox');
     groupCheckboxes.forEach(checkbox => {
-        checkbox.addEventListener('change', updateSelectedGroupsCount);
+        checkbox.addEventListener('change', function() {
+            updateSelectedGroupsCount();
+            updateGroupItemVisualState(this);
+        });
     });
     
     // 초기 선택된 그룹 수 업데이트
     updateSelectedGroupsCount();
+    
+    // 초기 시각적 상태 업데이트
+    groupCheckboxes.forEach(checkbox => {
+        updateGroupItemVisualState(checkbox);
+    });
+}
+
+// 그룹 아이템의 시각적 상태 업데이트
+function updateGroupItemVisualState(checkbox) {
+    const groupItem = checkbox.closest('.group-item');
+    if (groupItem) {
+        if (checkbox.checked) {
+            groupItem.classList.add('selected');
+        } else {
+            groupItem.classList.remove('selected');
+        }
+    }
 }
 
 // 선택된 그룹 수 업데이트

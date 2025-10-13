@@ -916,6 +916,18 @@ input:focus, button:focus, textarea:focus, select:focus {
 .group-item.selected {
     border-color: #10B981;
     background: linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(16, 185, 129, 0.1) 100%);
+    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.3);
+    transform: translateY(-1px);
+}
+
+.group-item.selected .group-name {
+    color: #10B981;
+    font-weight: 600;
+}
+
+.group-item.selected .group-checkbox {
+    accent-color: #10B981;
+    transform: scale(1.1);
 }
 
 .group-name {
@@ -1165,7 +1177,13 @@ input:focus, button:focus, textarea:focus, select:focus {
 .message-actions {
     display: flex;
     gap: 10px;
-    justify-content: flex-end;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.left-buttons {
+    display: flex;
+    gap: 10px;
 }
 
 .send-message-btn, .cancel-message-btn {
