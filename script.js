@@ -1848,6 +1848,17 @@ function showTelegramGroupsWindow(groups, account) {
         // 그룹 목록 렌더링
         renderGroupsList(groups);
         
+        // 자동전송 상태 복원
+        setTimeout(() => {
+            restoreAutoSendStatusOnLoad();
+        }, 1000);
+        
+        // 자동전송 상태 주기적 업데이트 시작
+        startAutoSendStatusUpdate();
+        
+        // 그룹 전체선택 버튼 이벤트 리스너 추가
+        setupGroupSelectionButtons();
+        
         // 창 표시 (제일 위로 올라오기)
         groupsWindow.style.display = 'flex';
         setTimeout(() => {
@@ -2107,12 +2118,19 @@ async function sendMessageToGroup() {
         return;
     }
     
-    // 자동 전송 ON 상태에서는 서버에서 조건 확인하므로 클라이언트 확인 생략
+    // 자동 전송 ON 상태에서는 서버의 자동전송 API 호출
     const autoSendToggle = document.getElementById('autoSendToggle');
     if (autoSendToggle && autoSendToggle.checked) {
-        console.log('🔍 자동 전송 모드: 서버에서 조건 확인하므로 클라이언트 확인 생략');
+        console.log('🔍 자동 전송 모드: 서버 자동전송 API 호출');
         
-        console.log(`📤 자동전송: 서버에서 조건 확인 후 전송`);
+        // 자동전송 시작
+        const autoSendSuccess = await startAutoSendWithGroups(validGroupIds, message, mediaInfo);
+        if (autoSendSuccess) {
+            console.log('✅ 자동전송 시작 성공');
+            return; // 자동전송이 시작되면 여기서 종료
+        } else {
+            console.log('❌ 자동전송 시작 실패, 수동 전송으로 진행');
+        }
     }
     
     // 원본 메시지 데이터가 있으면 우선 사용, 없으면 입력칸의 텍스트 사용
@@ -3029,6 +3047,12 @@ function setupAutoSendEventListeners() {
     // 자동 전송 토글 클릭 시 설정 모달 열기
     if (autoSendToggle) {
         autoSendToggle.addEventListener('change', function() {
+            // 페이지가 언로드 중인지 확인
+            if (isPageUnloading || document.visibilityState === 'hidden' || document.readyState === 'unload') {
+                console.log('🔄 페이지 언로드 중, 자동전송 중지 건너뜀');
+                return;
+            }
+            
             if (this.checked) {
                 showAutoSendSettingsModal();
             } else {
@@ -3141,7 +3165,7 @@ function loadAutoSendSettings() {
         const messageThreshold = document.getElementById('messageThreshold');
         const enableMessageCheck = document.getElementById('enableMessageCheck');
         
-        if (groupInterval) groupInterval.value = settings.groupInterval || 5;
+        if (groupInterval) groupInterval.value = settings.groupInterval || 30;
         if (repeatInterval) repeatInterval.value = settings.repeatInterval || 30;
         if (maxRepeats) maxRepeats.value = settings.maxRepeats || 10;
         if (messageThreshold) messageThreshold.value = settings.messageThreshold || 5;
@@ -3524,6 +3548,252 @@ function resetSendButtonState() {
     
     console.log('🔄 전송 버튼 상태 초기화 완료');
 }
+
+// 그룹 전체선택 버튼 설정
+function setupGroupSelectionButtons() {
+    const selectAllBtn = document.getElementById('selectAllGroupsBtn');
+    const deselectAllBtn = document.getElementById('deselectAllGroupsBtn');
+    
+    if (selectAllBtn) {
+        selectAllBtn.addEventListener('click', function() {
+            selectAllGroups();
+        });
+    }
+    
+    if (deselectAllBtn) {
+        deselectAllBtn.addEventListener('click', function() {
+            deselectAllGroups();
+        });
+    }
+}
+
+// 모든 그룹 선택
+function selectAllGroups() {
+    const groupCheckboxes = document.querySelectorAll('.group-checkbox');
+    let selectedCount = 0;
+    
+    groupCheckboxes.forEach(checkbox => {
+        if (!checkbox.disabled) {
+            checkbox.checked = true;
+            selectedCount++;
+        }
+    });
+    
+    // 선택된 그룹 수 업데이트
+    updateSelectedGroupsCount();
+    
+    console.log(`✅ 전체 그룹 선택 완료: ${selectedCount}개 그룹`);
+}
+
+// 모든 그룹 선택 해제
+function deselectAllGroups() {
+    const groupCheckboxes = document.querySelectorAll('.group-checkbox');
+    
+    groupCheckboxes.forEach(checkbox => {
+        checkbox.checked = false;
+    });
+    
+    // 선택된 그룹 수 업데이트
+    updateSelectedGroupsCount();
+    
+    console.log('❌ 전체 그룹 선택 해제 완료');
+}
+
+// 선택된 그룹 수 업데이트
+function updateSelectedGroupsCount() {
+    const groupCheckboxes = document.querySelectorAll('.group-checkbox:checked');
+    const selectedCount = groupCheckboxes.length;
+    
+    // 선택된 그룹 수 표시 업데이트
+    const selectedGroupsInfo = document.getElementById('selectedGroupsInfo');
+    if (selectedGroupsInfo) {
+        selectedGroupsInfo.textContent = `${selectedCount}개 그룹 선택됨`;
+    }
+    
+    // 전송 버튼 상태 업데이트
+    updateSendButtonState(selectedCount);
+    
+    return selectedCount;
+}
+
+// 자동전송 시작 함수
+async function startAutoSendWithGroups(selectedGroups, message, mediaInfo) {
+    try {
+        console.log('🚀 자동전송 시작:', { selectedGroups, message, mediaInfo });
+        
+        // 현재 계정 정보 가져오기
+        const accountName = document.getElementById('selectedAccountName').textContent;
+        const accountPhone = document.getElementById('selectedAccountPhone').textContent;
+        
+        if (!accountName || accountName === '계정을 선택하세요') {
+            throw new Error('계정이 선택되지 않았습니다.');
+        }
+        
+        // 계정 목록에서 해당 계정 찾기
+        const response = await fetch('/api/telegram/load-accounts', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        const result = await response.json();
+        if (!response.ok || !result.success || !result.accounts) {
+            throw new Error(result.error || '계정 목록 로딩 실패');
+        }
+        
+        const account = result.accounts.find(acc => 
+            `${acc.first_name} ${acc.last_name || ''}`.trim() === accountName.trim()
+        );
+        
+        if (!account) {
+            throw new Error('계정을 찾을 수 없습니다.');
+        }
+        
+        // 자동전송 시작 API 호출
+        const autoSendResponse = await fetch('/api/auto-send/start', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                account_name: accountName,
+                group_ids: selectedGroups,
+                message: message,
+                media_info: mediaInfo
+            })
+        });
+        
+        const autoSendResult = await autoSendResponse.json();
+        
+        if (autoSendResponse.ok && autoSendResult.success) {
+            console.log('✅ 자동전송 시작 성공:', autoSendResult);
+            return true;
+        } else {
+            console.error('❌ 자동전송 시작 실패:', autoSendResult);
+            return false;
+        }
+        
+    } catch (error) {
+        console.error('❌ 자동전송 시작 에러:', error);
+        return false;
+    }
+}
+
+// 자동전송 상태 주기적 업데이트
+function startAutoSendStatusUpdate() {
+    // 30초마다 자동전송 상태 확인
+    setInterval(async () => {
+        try {
+            const accountName = document.getElementById('selectedAccountName').textContent;
+            if (!accountName || accountName === '계정을 선택하세요') {
+                return;
+            }
+            
+            const response = await fetch('/api/auto-send/status', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    account_name: accountName
+                })
+            });
+            
+            if (response.ok) {
+                const statusData = await response.json();
+                if (statusData.is_running && statusData.groups) {
+                    // 그룹 상태 업데이트
+                    statusData.groups.forEach(group => {
+                        updateGroupAutoStatus(group.id, true);
+                        if (group.next_send_time) {
+                            updateGroupNextSendTime(group.id, group.next_send_time);
+                        }
+                    });
+                }
+            }
+        } catch (error) {
+            console.error('❌ 자동전송 상태 업데이트 실패:', error);
+        }
+    }, 30000); // 30초마다 업데이트
+}
+
+// 자동전송 상태 복원 함수
+async function restoreAutoSendStatusOnLoad() {
+    try {
+        console.log('🔄 페이지 로드 시 자동전송 상태 복원 시작');
+        
+        // 현재 선택된 계정 정보 가져오기
+        const accountName = document.getElementById('selectedAccountName').textContent;
+        if (!accountName || accountName === '계정을 선택하세요') {
+            console.log('❌ 계정이 선택되지 않음, 자동전송 상태 복원 건너뜀');
+            return;
+        }
+        
+        // 서버에서 자동전송 상태 조회
+        const response = await fetch('/api/auto-send/status', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                account_name: accountName
+            })
+        });
+        
+        if (response.ok) {
+            const statusData = await response.json();
+            console.log('📊 서버에서 가져온 자동전송 상태:', statusData);
+            
+            if (statusData.is_running) {
+                // 자동전송이 실행 중인 경우 UI 업데이트
+                const autoSendToggle = document.getElementById('autoSendToggle');
+                if (autoSendToggle) {
+                    autoSendToggle.checked = true;
+                    console.log('✅ 자동전송 토글 ON으로 설정');
+                }
+                
+                // 그룹 상태 업데이트
+                if (statusData.groups && statusData.groups.length > 0) {
+                    statusData.groups.forEach(group => {
+                        updateGroupAutoStatus(group.id, true);
+                        if (group.next_send_time) {
+                            updateGroupNextSendTime(group.id, group.next_send_time);
+                        }
+                    });
+                }
+                
+                console.log('✅ 자동전송 상태 복원 완료');
+            } else {
+                console.log('ℹ️ 자동전송이 실행 중이 아님');
+            }
+        } else {
+            console.log('❌ 자동전송 상태 조회 실패:', response.status);
+        }
+    } catch (error) {
+        console.error('❌ 자동전송 상태 복원 실패:', error);
+    }
+}
+
+// 페이지 언로드 감지 변수
+let isPageUnloading = false;
+
+// 페이지 언로드 이벤트 감지
+window.addEventListener('beforeunload', function() {
+    isPageUnloading = true;
+    console.log('🔄 페이지 언로드 시작, 자동전송 중지 방지');
+});
+
+// 페이지 가시성 변경 감지
+document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'hidden') {
+        isPageUnloading = true;
+        console.log('🔄 페이지 숨김, 자동전송 중지 방지');
+    } else if (document.visibilityState === 'visible') {
+        isPageUnloading = false;
+        console.log('🔄 페이지 표시, 자동전송 중지 방지 해제');
+    }
+});
 
 // 페이지 로드 시 전송 버튼 상태 초기화
 document.addEventListener('DOMContentLoaded', function() {
