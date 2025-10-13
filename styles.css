@@ -1099,6 +1099,12 @@ input:focus, button:focus, textarea:focus, select:focus {
     background: #c82333;
 }
 
+.right-buttons {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
 
 /* 저장된 메시지 모달 */
 .saved-messages-modal {
@@ -1246,7 +1252,8 @@ input:focus, button:focus, textarea:focus, select:focus {
 .message-actions {
     display: flex;
     gap: 10px;
-    justify-content: flex-end;
+    justify-content: space-between;
+    align-items: center;
 }
 
 .send-message-btn, .cancel-message-btn {
