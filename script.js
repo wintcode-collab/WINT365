@@ -3261,8 +3261,26 @@ function updateAutoSendSettingsDisplay() {
         const savedSettings = localStorage.getItem('autoSendSettings');
         if (savedSettings) {
             const settings = JSON.parse(savedSettings);
-            const messageCheckText = settings.enableMessageCheck ? `메시지 ${settings.messageThreshold}개 이하 보류` : '메시지 개수 확인 비활성화';
-            settingsInfo.textContent = messageCheckText;
+            
+            // 모든 설정 정보를 표시
+            const settingsTexts = [];
+            
+            // 그룹 간 전송 간격
+            settingsTexts.push(`그룹간격 ${settings.groupInterval}초`);
+            
+            // 반복 전송 간격
+            settingsTexts.push(`반복간격 ${settings.repeatInterval}분`);
+            
+            // 최대 반복 횟수
+            const maxRepeatsText = settings.maxRepeats === 0 ? '무제한' : `${settings.maxRepeats}회`;
+            settingsTexts.push(`최대반복 ${maxRepeatsText}`);
+            
+            // 메시지 개수 확인
+            const messageCheckText = settings.enableMessageCheck ? `메시지 ${settings.messageThreshold}개 이하 보류` : '메시지 확인 비활성화';
+            settingsTexts.push(messageCheckText);
+            
+            // 모든 설정을 줄바꿈으로 구분하여 표시
+            settingsInfo.innerHTML = settingsTexts.join('<br>');
             settingsDisplay.style.display = 'block';
         }
     } else {
