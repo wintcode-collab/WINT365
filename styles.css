@@ -1429,8 +1429,8 @@ input:focus, button:focus, textarea:focus, select:focus {
 
 .setting-input:focus {
     outline: none !important;
-    border-color: #666 !important;
-    box-shadow: 0 0 0 2px rgba(102, 102, 102, 0.2) !important;
+    border-color: #10B981 !important;
+    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2) !important;
     background: #2a2a2a !important;
 }
 
@@ -1518,7 +1518,7 @@ input:focus, button:focus, textarea:focus, select:focus {
 }
 
 .status-value {
-    color: #10B981;
+    color: #fff;
     font-size: 14px;
     font-weight: 600;
 }
