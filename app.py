@@ -2367,8 +2367,10 @@ def execute_auto_send_job(user_id, group_ids, message, media_info=None):
             logger.error(f'❌ 자동전송 실패: 설정 없음 - {user_id}')
             return False
         
-        group_interval = settings.get('groupInterval', 5)
+        group_interval = settings.get('groupInterval', 5)  # 초 단위
         max_repeats = settings.get('maxRepeats', 10)
+        
+        logger.info(f'⏰ 그룹 간격: {group_interval}초, 최대 반복: {max_repeats}회')
         
         # 현재 반복 횟수 조회
         current_repeats = auto_send_jobs.get(f'{user_id}_repeats', 0)
@@ -2449,7 +2451,9 @@ def execute_auto_send_job(user_id, group_ids, message, media_info=None):
                         schedule_retry_for_group(user_id, group_id, message, media_info, wait_seconds)
                 
                 # 그룹 간 대기
-                time.sleep(group_interval)
+                if i < len(group_ids) - 1:  # 마지막 그룹이 아닌 경우에만 대기
+                    logger.info(f'⏰ 그룹 간 대기: {group_interval}초')
+                    time.sleep(group_interval)
                 
             except Exception as e:
                 logger.error(f'❌ 자동전송 그룹 {group_id} 에러: {e}')
