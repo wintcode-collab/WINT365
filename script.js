@@ -1889,12 +1889,6 @@ function setupTelegramGroupsEventListeners() {
         clearMessageBtn.addEventListener('click', clearMessage);
     }
     
-    // 24시간 전송 버튼
-    const schedule24hBtn = document.getElementById('schedule24hBtn');
-    if (schedule24hBtn) {
-        schedule24hBtn.addEventListener('click', schedule24hMessage);
-    }
-    
     // 저장된 메시지 버튼
     const savedMessagesBtn = document.getElementById('savedMessagesBtn');
     if (savedMessagesBtn) {
@@ -2509,10 +2503,7 @@ function selectTelegramSavedMessage(messageIndex, savedMessages) {
             savedMessagesBtn.textContent = '❌ 저장된 메시지 해제';
             savedMessagesBtn.style.backgroundColor = '#ff4444';
             savedMessagesBtn.style.borderColor = '#ff4444';
-            // 기존 이벤트 리스너 제거 후 새로운 이벤트 리스너 추가
-            savedMessagesBtn.onclick = null;
-            savedMessagesBtn.removeEventListener('click', showSavedMessages);
-            savedMessagesBtn.addEventListener('click', clearSavedMessage);
+            savedMessagesBtn.onclick = clearSavedMessage;
             console.log('💾 버튼 변경 후:', savedMessagesBtn.textContent);
             console.log('💾 저장된 메시지 버튼이 해제 버튼으로 변경됨');
         } else {
@@ -2553,213 +2544,6 @@ function selectTelegramSavedMessage(messageIndex, savedMessages) {
     }
 }
 
-// 24시간 전송 함수 (24시간 동안 계속 전송)
-function schedule24hMessage() {
-    console.log('⏰ 24시간 전송 버튼 클릭됨');
-    
-    // 이미 24시간 전송이 진행 중인지 확인
-    if (window.is24hSending) {
-        if (confirm('24시간 전송이 이미 진행 중입니다. 중단하시겠습니까?')) {
-            stop24hSending();
-        }
-        return;
-    }
-    
-    const messageInput = document.querySelector('.message-input');
-    
-    // 메시지 확인 (저장된 메시지가 선택되어 있으면 입력칸이 비어있어도 OK)
-    const hasSavedMessage = window.selectedMediaInfo && window.selectedMediaInfo.raw_message_data;
-    
-    if (!messageInput || (!messageInput.value.trim() && !hasSavedMessage)) {
-        alert('전송할 메시지를 입력하거나 저장된 메시지를 선택해주세요.');
-        messageInput?.focus();
-        return;
-    }
-    
-    // 선택된 그룹들 확인
-    const selectedGroups = document.querySelectorAll('.group-item.selected');
-    if (selectedGroups.length === 0) {
-        alert('전송할 그룹을 선택해주세요.');
-        return;
-    }
-    
-    // 24시간 전송 확인
-    const confirmMessage = `24시간 동안 선택된 ${selectedGroups.length}개 그룹에 메시지를 계속 전송하시겠습니까?\n\n⚠️ 주의: 이 기능은 24시간 동안 계속 메시지를 전송합니다.`;
-    
-    if (!confirm(confirmMessage)) {
-        return;
-    }
-    
-    // 원본 메시지 데이터가 있으면 우선 사용, 없으면 입력칸의 텍스트 사용
-    let message;
-    let mediaInfo = null;
-    
-    if (window.selectedMediaInfo) {
-        // 저장된 메시지가 선택된 경우 - 원본 메시지 객체 전체를 그대로 전송
-        mediaInfo = window.selectedMediaInfo;
-        
-        // 커스텀 이모지가 있는 경우 원본 메시지 객체 전체를 전송
-        if (mediaInfo.has_custom_emoji) {
-            // 텍스트 처리를 완전히 우회하고 원본 메시지 객체를 그대로 전송
-            message = null; // 텍스트는 null로 설정
-            console.log('⏰ 커스텀 이모지 원본 객체 전체 전송 모드 (24시간)');
-            console.log('⏰ 원본 메시지 객체:', mediaInfo.raw_message_data);
-        } else {
-            message = mediaInfo.text || messageInput.value.trim();
-            console.log('⏰ 일반 저장된 메시지 사용 (24시간):', message);
-        }
-        
-        console.log('⏰ 최종 전송 메시지 (24시간):', message);
-        console.log('⏰ 미디어 정보 (24시간):', mediaInfo);
-        console.log('⏰ 커스텀 이모지 여부 (24시간):', mediaInfo.has_custom_emoji);
-    } else {
-        // 일반 텍스트 메시지
-        message = messageInput.value.trim();
-        console.log('⏰ 일반 텍스트 메시지 (24시간):', message);
-    }
-    
-    // 선택된 그룹들의 정보 수집
-    const groupsToSend = Array.from(selectedGroups).map(group => ({
-        id: group.dataset.groupId,
-        title: group.dataset.groupTitle,
-        username: group.dataset.groupUsername
-    }));
-    
-    console.log('⏰ 24시간 전송할 그룹들:', groupsToSend);
-    
-    // 24시간 전송 시작
-    start24hSending(message, mediaInfo, groupsToSend);
-}
-
-// 24시간 전송 시작
-function start24hSending(message, mediaInfo, groups) {
-    console.log('⏰ 24시간 전송 시작');
-    
-    // 전역 변수 설정
-    window.is24hSending = true;
-    window.24hStartTime = Date.now();
-    window.24hEndTime = Date.now() + (24 * 60 * 60 * 1000); // 24시간 후
-    window.24hMessage = message;
-    window.24hMediaInfo = mediaInfo;
-    window.24hGroups = groups;
-    window.24hSendCount = 0;
-    
-    // 버튼 상태 변경
-    const schedule24hBtn = document.getElementById('schedule24hBtn');
-    if (schedule24hBtn) {
-        schedule24hBtn.textContent = '⏹️ 24시간 전송 중단';
-        schedule24hBtn.style.backgroundColor = '#dc3545';
-        schedule24hBtn.style.borderColor = '#dc3545';
-        schedule24hBtn.style.color = '#fff';
-    }
-    
-    // 첫 번째 전송
-    send24hMessage();
-    
-    // 1분마다 전송 (24시간 동안)
-    window.24hInterval = setInterval(() => {
-        if (Date.now() >= window.24hEndTime) {
-            stop24hSending();
-            showNotification('⏰ 24시간 전송이 완료되었습니다!', 'success');
-            return;
-        }
-        send24hMessage();
-    }, 60 * 1000); // 1분 = 60초 * 1000ms
-    
-    showNotification('⏰ 24시간 전송이 시작되었습니다!', 'success');
-}
-
-// 24시간 전송 중 메시지 전송
-async function send24hMessage() {
-    if (!window.is24hSending) return;
-    
-    console.log('⏰ 24시간 전송 중 메시지 전송:', window.24hSendCount + 1);
-    
-    try {
-        // 현재 계정 정보 가져오기
-        const accountName = document.getElementById('selectedAccountName').textContent;
-        const accountPhone = document.getElementById('selectedAccountPhone').textContent;
-        
-        // 계정 정보에서 user_id 찾기
-        const accounts = JSON.parse(localStorage.getItem('telegramAccounts') || '[]');
-        const account = accounts.find(acc => 
-            acc.name === accountName && acc.phone === accountPhone
-        );
-        
-        if (!account) {
-            throw new Error('계정을 찾을 수 없습니다.');
-        }
-        
-        // 메시지 전송 API 호출
-        const response = await fetch('/api/telegram/send-message', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                userId: account.user_id,
-                groups: window.24hGroups,
-                message: window.24hMessage,
-                mediaInfo: window.24hMediaInfo
-            })
-        });
-        
-        const result = await response.json();
-        
-        if (response.ok && result.success) {
-            window.24hSendCount++;
-            console.log(`⏰ 24시간 전송 성공 (${window.24hSendCount}번째):`, result);
-            
-            // 남은 시간 계산
-            const remainingTime = window.24hEndTime - Date.now();
-            const remainingHours = Math.floor(remainingTime / (60 * 60 * 1000));
-            const remainingMinutes = Math.floor((remainingTime % (60 * 60 * 1000)) / (60 * 1000));
-            
-            // 버튼에 남은 시간 표시
-            const schedule24hBtn = document.getElementById('schedule24hBtn');
-            if (schedule24hBtn) {
-                schedule24hBtn.textContent = `⏹️ ${remainingHours}시간 ${remainingMinutes}분 남음`;
-            }
-        } else {
-            console.error('⏰ 24시간 전송 실패:', result);
-        }
-        
-    } catch (error) {
-        console.error('❌ 24시간 전송 중 오류:', error);
-    }
-}
-
-// 24시간 전송 중단
-function stop24hSending() {
-    console.log('⏹️ 24시간 전송 중단');
-    
-    // 전역 변수 초기화
-    window.is24hSending = false;
-    window.24hStartTime = null;
-    window.24hEndTime = null;
-    window.24hMessage = null;
-    window.24hMediaInfo = null;
-    window.24hGroups = null;
-    window.24hSendCount = 0;
-    
-    // 인터벌 정리
-    if (window.24hInterval) {
-        clearInterval(window.24hInterval);
-        window.24hInterval = null;
-    }
-    
-    // 버튼 상태 복원
-    const schedule24hBtn = document.getElementById('schedule24hBtn');
-    if (schedule24hBtn) {
-        schedule24hBtn.textContent = '⏰ 24시간 전송';
-        schedule24hBtn.style.backgroundColor = '';
-        schedule24hBtn.style.borderColor = '';
-        schedule24hBtn.style.color = '';
-    }
-    
-    showNotification('⏹️ 24시간 전송이 중단되었습니다.', 'info');
-}
-
 // 저장된 메시지 해제 함수
 function clearSavedMessage() {
     console.log('🗑️ 저장된 메시지 해제');
@@ -2784,10 +2568,7 @@ function clearSavedMessage() {
         savedMessagesBtn.textContent = '💾 저장된 메시지';
         savedMessagesBtn.style.backgroundColor = '';
         savedMessagesBtn.style.borderColor = '';
-        // onclick 이벤트를 제거하고 addEventListener로 다시 등록
-        savedMessagesBtn.onclick = null;
-        savedMessagesBtn.removeEventListener('click', clearSavedMessage);
-        savedMessagesBtn.addEventListener('click', showSavedMessages);
+        savedMessagesBtn.onclick = showSavedMessages;
         console.log('💾 저장된 메시지 버튼이 원래대로 복원됨');
     }
     
