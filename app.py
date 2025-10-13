@@ -2491,10 +2491,16 @@ def start_auto_send_job(user_id, group_ids, message, media_info=None):
         # 설정 조회
         settings = get_auto_send_settings_from_firebase(user_id)
         if not settings:
-            logger.error(f'❌ 자동전송 시작 실패: 설정 없음 - {user_id}')
-            return False
+            logger.warning(f'⚠️ 자동전송 설정 없음, 기본 설정 사용 - {user_id}')
+            settings = {
+                'repeatInterval': 30,  # 30분
+                'groupInterval': 1,    # 1분
+                'maxRepeats': 10,      # 최대 10회
+                'messageThreshold': 5, # 메시지 임계값 5개
+                'enableMessageCheck': True
+            }
         
-        logger.info(f'🔥 Firebase에서 가져온 설정: {settings}')
+        logger.info(f'🔥 사용할 자동전송 설정: {settings}')
         
         repeat_interval = settings.get('repeatInterval', 30)  # 분 단위
         
@@ -2534,6 +2540,9 @@ def start_auto_send_job(user_id, group_ids, message, media_info=None):
         
     except Exception as e:
         logger.error(f'❌ 자동전송 시작 에러: {e}')
+        logger.error(f'❌ 에러 상세: {str(e)}')
+        import traceback
+        logger.error(f'❌ 스택 트레이스: {traceback.format_exc()}')
         return False
 
 def stop_auto_send_job(user_id):
@@ -2777,17 +2786,22 @@ def start_auto_send():
             }), 404
         
         # 자동전송 작업 시작
+        logger.info(f'🔧 자동전송 작업 시작 시도: user_id={user_id}, group_ids={group_ids}')
         result = start_auto_send_job(user_id, group_ids, message, media_info)
         
         if result:
+            logger.info(f'✅ 자동전송 작업 시작 성공: {user_id}')
             return jsonify({
                 'success': True,
-                'message': '자동전송이 시작되었습니다.'
+                'message': '자동전송이 시작되었습니다.',
+                'user_id': user_id,
+                'group_count': len(group_ids)
             })
         else:
+            logger.error(f'❌ 자동전송 작업 시작 실패: {user_id}')
             return jsonify({
                 'success': False,
-                'error': '자동전송 시작에 실패했습니다.'
+                'error': '자동전송 작업 시작에 실패했습니다. 서버 로그를 확인해주세요.'
             }), 500
             
     except Exception as error:
@@ -2803,23 +2817,46 @@ def stop_auto_send():
     """자동전송 중지"""
     try:
         data = request.get_json()
-        user_id = data.get('userId')
+        account_name = data.get('account_name')
+        user_id = data.get('userId')  # 기존 방식도 지원
+        
+        logger.info(f'🛑 자동전송 중지 요청: account_name={account_name}, user_id={user_id}')
+        
+        # account_name이 있으면 user_id 찾기
+        if account_name and not user_id:
+            try:
+                accounts_response = requests.get(f"{FIREBASE_URL}/authenticated_accounts.json", timeout=10)
+                if accounts_response.status_code == 200:
+                    accounts_data = accounts_response.json()
+                    if accounts_data:
+                        for uid, account_data in accounts_data.items():
+                            if account_data and isinstance(account_data, dict):
+                                full_name = f"{account_data.get('first_name', '')} {account_data.get('last_name', '')}".strip()
+                                if full_name == account_name:
+                                    user_id = uid
+                                    break
+            except Exception as e:
+                logger.error(f'❌ 계정 조회 실패: {e}')
         
         if not user_id:
             return jsonify({
                 'success': False,
-                'error': '사용자 ID가 필요합니다.'
-            }), 400
+                'error': '계정을 찾을 수 없습니다.'
+            }), 404
         
         # 자동전송 작업 중지
+        logger.info(f'🔧 자동전송 작업 중지 시도: user_id={user_id}')
         result = stop_auto_send_job(user_id)
         
         if result:
+            logger.info(f'✅ 자동전송 작업 중지 성공: {user_id}')
             return jsonify({
                 'success': True,
-                'message': '자동전송이 중지되었습니다.'
+                'message': '자동전송이 중지되었습니다.',
+                'user_id': user_id
             })
         else:
+            logger.error(f'❌ 자동전송 작업 중지 실패: {user_id}')
             return jsonify({
                 'success': False,
                 'error': '자동전송 중지에 실패했습니다.'

@@ -2227,7 +2227,9 @@ async function sendMessageToGroup() {
             return; // 자동전송이 시작되면 여기서 종료
         } else {
             console.log('❌ 자동전송 시작 실패');
-            alert('❌ 자동전송 시작에 실패했습니다.\n\n자동전송 설정을 확인하고 다시 시도해주세요.');
+            console.log('❌ 자동전송 응답:', autoSendSuccess);
+            const errorMessage = autoSendSuccess.error || '알 수 없는 오류가 발생했습니다.';
+            alert(`❌ 자동전송 시작에 실패했습니다.\n\n오류: ${errorMessage}\n\n브라우저 개발자 도구(F12)의 콘솔에서 자세한 오류 정보를 확인해주세요.`);
             return; // 자동전송 실패 시 수동 전송으로 진행하지 않고 종료
         }
     }
@@ -3838,17 +3840,12 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo) {
         const autoSendSettings = getAutoSendSettings();
         console.log('🔧 자동전송 설정:', autoSendSettings);
         
-        if (!autoSendSettings || !autoSendSettings.repeatInterval) {
-            // 자동전송 설정 모달 열기
-            const autoSendSettingsModal = document.getElementById('autoSendSettingsModal');
-            if (autoSendSettingsModal) {
-                autoSendSettingsModal.style.display = 'flex';
-                setTimeout(() => {
-                    autoSendSettingsModal.classList.add('show');
-                }, 100);
-            }
-            
-            throw new Error('자동전송 설정이 완료되지 않았습니다.\n\n설정 모달에서 자동전송 설정을 완료해주세요.');
+        if (!autoSendSettings) {
+            console.log('⚠️ 자동전송 설정이 없음, 기본 설정 사용');
+            // 기본 설정으로 진행
+        } else if (!autoSendSettings.repeatInterval) {
+            console.log('⚠️ repeatInterval이 없음, 기본값(30분) 사용');
+            autoSendSettings.repeatInterval = 30;
         }
         
         // 자동전송 시작 API 호출
@@ -3867,6 +3864,8 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo) {
         });
         
         const autoSendResult = await autoSendResponse.json();
+        console.log('📊 자동전송 API 응답:', autoSendResult);
+        console.log('📊 응답 상태:', autoSendResponse.status);
         
         if (autoSendResponse.ok && autoSendResult.success) {
             console.log('✅ 자동전송 시작 성공:', autoSendResult);
@@ -3906,7 +3905,8 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo) {
             return true;
         } else {
             console.error('❌ 자동전송 시작 실패:', autoSendResult);
-            return false;
+            const errorMessage = autoSendResult.error || '알 수 없는 오류가 발생했습니다.';
+            throw new Error(`자동전송 시작 실패: ${errorMessage}`);
         }
         
     } catch (error) {
@@ -4108,6 +4108,7 @@ async function stopAutoSend() {
         }
         
         // 서버에 자동전송 중지 요청
+        console.log('🛑 자동전송 중지 요청:', { account_name: accountName });
         const response = await fetch('/api/auto-send/stop', {
             method: 'POST',
             headers: {
@@ -4119,6 +4120,8 @@ async function stopAutoSend() {
         });
         
         const result = await response.json();
+        console.log('📊 자동전송 중지 응답:', result);
+        console.log('📊 응답 상태:', response.status);
         
         if (response.ok && result.success) {
             console.log('✅ 자동전송 중지 성공');
