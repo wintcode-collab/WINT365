@@ -2180,21 +2180,6 @@ async function sendMessageToGroup() {
     
     console.log('🔍 유효한 그룹 ID들:', validGroupIds);
     
-    // 자동 전송 ON 상태에서는 서버의 자동전송 API 호출
-    const autoSendToggle = document.getElementById('autoSendToggle');
-    if (autoSendToggle && autoSendToggle.checked) {
-        console.log('🔍 자동 전송 모드: 서버 자동전송 API 호출');
-        
-        // 자동전송 시작
-        const autoSendSuccess = await startAutoSendWithGroups(validGroupIds, message, mediaInfo);
-        if (autoSendSuccess) {
-            console.log('✅ 자동전송 시작 성공');
-            return; // 자동전송이 시작되면 여기서 종료
-        } else {
-            console.log('❌ 자동전송 시작 실패, 수동 전송으로 진행');
-        }
-    }
-    
     // 원본 메시지 데이터가 있으면 우선 사용, 없으면 입력칸의 텍스트 사용
     let message;
     let mediaInfo = null;
@@ -2221,6 +2206,22 @@ async function sendMessageToGroup() {
         message = messageInput.value.trim();
         console.log('📤 입력칸 텍스트 사용:', message);
     }
+    
+    // 자동 전송 ON 상태에서는 서버의 자동전송 API 호출
+    const autoSendToggle = document.getElementById('autoSendToggle');
+    if (autoSendToggle && autoSendToggle.checked) {
+        console.log('🔍 자동 전송 모드: 서버 자동전송 API 호출');
+        
+        // 자동전송 시작
+        const autoSendSuccess = await startAutoSendWithGroups(validGroupIds, message, mediaInfo);
+        if (autoSendSuccess) {
+            console.log('✅ 자동전송 시작 성공');
+            return; // 자동전송이 시작되면 여기서 종료
+        } else {
+            console.log('❌ 자동전송 시작 실패, 수동 전송으로 진행');
+        }
+    }
+    
     // 버튼 상태 변경
     if (sendBtn) {
         sendBtn.textContent = '📤 전송 중...';
