@@ -1865,9 +1865,8 @@ function showTelegramGroupsWindow(groups, account) {
             forceEnableSendButton();
         }, 500);
         
-        // 디버깅용: 자동전송 토글 강제 ON
+        // 자동전송 토글 상태 복원 (저장된 상태가 있으면)
         setTimeout(() => {
-            // 자동전송 토글 상태 복원 (저장된 상태가 있으면)
             restoreAutoSendToggleState();
         }, 1000);
         
@@ -2236,6 +2235,13 @@ async function sendMessageToGroup() {
         checked: autoSendToggle ? autoSendToggle.checked : 'toggle not found',
         element: autoSendToggle
     });
+    
+    // 강제로 토글 상태 확인
+    if (autoSendToggle) {
+        console.log('🔍 토글 요소 발견, 상태:', autoSendToggle.checked);
+    } else {
+        console.error('❌ 토글 요소를 찾을 수 없습니다!');
+    }
     
     // 토글 상태 강제 확인
     if (!autoSendToggle) {
@@ -3170,6 +3176,9 @@ function setupAutoSendEventListeners() {
                 // 토글 상태 저장
                 localStorage.setItem('autoSendToggleState', 'false');
                 
+                // 전송 버튼 텍스트 변경
+                updateSendButtonText();
+                
                 // 모든 그룹의 자동전송 상태를 대기로 변경
                 const groupItems = document.querySelectorAll('.group-item');
                 groupItems.forEach(item => {
@@ -3318,6 +3327,10 @@ function saveAutoSendSettings() {
         autoSendToggle.checked = true;
         // 토글 상태도 localStorage에 저장
         localStorage.setItem('autoSendToggleState', 'true');
+        console.log('✅ 자동전송 토글 ON으로 설정 및 저장 완료');
+        
+        // 전송 버튼 텍스트 변경
+        updateSendButtonText();
     }
     
     // 설정 표시 업데이트
@@ -3642,7 +3655,8 @@ function resetSendButtonState() {
     const sendButton = document.getElementById('sendMessageBtn');
     if (sendButton) {
         sendButton.disabled = false;
-        sendButton.textContent = '📤 선택된 그룹에 전송';
+        // 자동전송 토글 상태에 따라 텍스트 설정
+        updateSendButtonText();
         sendButton.classList.remove('sending', 'disabled');
         sendButton.style.opacity = '1';
         sendButton.style.backgroundColor = '';
@@ -3753,6 +3767,26 @@ function forceEnableSendButton() {
     }
 }
 
+
+// 전송 버튼 텍스트 업데이트 함수
+function updateSendButtonText() {
+    const sendBtn = document.getElementById('sendMessageBtn');
+    const autoSendToggle = document.getElementById('autoSendToggle');
+    
+    if (sendBtn && autoSendToggle) {
+        if (autoSendToggle.checked) {
+            sendBtn.textContent = '🚀 자동전송 시작';
+            sendBtn.style.backgroundColor = '#28a745';
+            sendBtn.style.borderColor = '#28a745';
+            console.log('✅ 전송 버튼 텍스트 변경: 자동전송 시작');
+        } else {
+            sendBtn.textContent = '📤 선택된 그룹에 전송';
+            sendBtn.style.backgroundColor = '';
+            sendBtn.style.borderColor = '';
+            console.log('✅ 전송 버튼 텍스트 변경: 수동 전송');
+        }
+    }
+}
 
 // 전송 버튼 상태 업데이트 함수
 function updateSendButtonState(selectedCount) {
@@ -4124,6 +4158,15 @@ function restoreAutoSendToggleState() {
                 console.log('✅ 자동전송 토글 상태 복원: OFF (기본값)');
             }
             console.log('ℹ️ 저장된 자동전송 설정 없음 또는 토글 OFF');
+        }
+        
+        // 토글 상태 강제 확인 (디버깅용)
+        const autoSendToggle = document.getElementById('autoSendToggle');
+        if (autoSendToggle) {
+            console.log('🔍 토글 상태 최종 확인:', autoSendToggle.checked);
+            
+            // 전송 버튼 텍스트 업데이트
+            updateSendButtonText();
         }
     } catch (error) {
         console.error('❌ 자동전송 토글 상태 복원 실패:', error);
