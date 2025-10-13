@@ -1661,7 +1661,20 @@ function showAccountList(accounts) {
             `).join('')}
         </div>
         
-        <div style="text-align: center;">
+        <div style="text-align: center; display: flex; gap: 15px; justify-content: center;">
+            <button id="confirmAccountSelection" style="
+                background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+                color: white;
+                border: none;
+                padding: 12px 30px;
+                border-radius: 8px;
+                font-size: 14px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.3s ease;
+                opacity: 0.5;
+                pointer-events: none;
+            ">확인</button>
             <button id="closeAccountList" style="
                 background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);
                 color: white;
@@ -1679,33 +1692,69 @@ function showAccountList(accounts) {
     modal.appendChild(modalContent);
     document.body.appendChild(modal);
     
+    // 선택된 계정을 저장할 변수
+    let selectedAccount = null;
+    
     // 계정 클릭 이벤트
     const accountItems = modal.querySelectorAll('.account-item');
     accountItems.forEach(item => {
         item.addEventListener('mouseenter', () => {
-            item.style.borderColor = '#10B981';
-            item.style.transform = 'translateY(-2px)';
-            item.style.boxShadow = '0 5px 15px rgba(16, 185, 129, 0.3)';
+            if (!item.classList.contains('selected')) {
+                item.style.borderColor = '#10B981';
+                item.style.transform = 'translateY(-2px)';
+                item.style.boxShadow = '0 5px 15px rgba(16, 185, 129, 0.3)';
+            }
         });
         
         item.addEventListener('mouseleave', () => {
-            item.style.borderColor = '#444';
-            item.style.transform = 'translateY(0)';
-            item.style.boxShadow = 'none';
+            if (!item.classList.contains('selected')) {
+                item.style.borderColor = '#444';
+                item.style.transform = 'translateY(0)';
+                item.style.boxShadow = 'none';
+            }
         });
         
         item.addEventListener('click', () => {
-            const userId = item.dataset.userId;
-            const account = accounts.find(acc => acc.user_id === userId);
+            // 이전 선택 해제
+            accountItems.forEach(otherItem => {
+                otherItem.classList.remove('selected');
+                otherItem.style.borderColor = '#444';
+                otherItem.style.background = 'linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%)';
+                otherItem.style.transform = 'translateY(0)';
+                otherItem.style.boxShadow = 'none';
+            });
             
-            console.log('📱 선택된 계정:', account);
+            // 현재 항목 선택
+            item.classList.add('selected');
+            item.style.borderColor = '#10B981';
+            item.style.background = 'linear-gradient(135deg, #10B981 0%, #059669 100%)';
+            item.style.transform = 'translateY(-2px)';
+            item.style.boxShadow = '0 5px 15px rgba(16, 185, 129, 0.5)';
+            
+            // 선택된 계정 저장
+            const userId = item.dataset.userId;
+            selectedAccount = accounts.find(acc => acc.user_id === userId);
+            
+            console.log('📱 선택된 계정:', selectedAccount);
+            
+            // 확인 버튼 활성화
+            const confirmBtn = modal.querySelector('#confirmAccountSelection');
+            confirmBtn.style.opacity = '1';
+            confirmBtn.style.pointerEvents = 'auto';
+        });
+    });
+    
+    // 확인 버튼 이벤트
+    modal.querySelector('#confirmAccountSelection').addEventListener('click', () => {
+        if (selectedAccount) {
+            console.log('📱 확인된 계정:', selectedAccount);
             
             // 모달 닫기
             document.body.removeChild(modal);
             
             // 선택된 계정으로 그룹 로드
-            loadGroupsForAccount(account);
-        });
+            loadGroupsForAccount(selectedAccount);
+        }
     });
     
     // 닫기 버튼 이벤트
@@ -2791,7 +2840,20 @@ function showAccountListAboveStatusBar(accounts) {
             `).join('')}
         </div>
         
-        <div style="text-align: center;">
+        <div style="text-align: center; display: flex; gap: 15px; justify-content: center;">
+            <button id="confirmAccountSelection" style="
+                background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+                color: white;
+                border: none;
+                padding: 12px 30px;
+                border-radius: 8px;
+                font-size: 14px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.3s ease;
+                opacity: 0.5;
+                pointer-events: none;
+            ">확인</button>
             <button id="closeAccountList" style="
                 background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);
                 color: white;
@@ -2809,26 +2871,62 @@ function showAccountListAboveStatusBar(accounts) {
     accountContainer.appendChild(modalContent);
     document.body.appendChild(accountContainer);
     
+    // 선택된 계정을 저장할 변수
+    let selectedAccount = null;
+    
     // 계정 클릭 이벤트
     const accountItems = accountContainer.querySelectorAll('.account-item');
     accountItems.forEach(item => {
         item.addEventListener('mouseenter', () => {
-            item.style.borderColor = '#10B981';
-            item.style.transform = 'translateY(-2px)';
-            item.style.boxShadow = '0 5px 15px rgba(16, 185, 129, 0.3)';
+            if (!item.classList.contains('selected')) {
+                item.style.borderColor = '#10B981';
+                item.style.transform = 'translateY(-2px)';
+                item.style.boxShadow = '0 5px 15px rgba(16, 185, 129, 0.3)';
+            }
         });
         
         item.addEventListener('mouseleave', () => {
-            item.style.borderColor = '#444';
-            item.style.transform = 'translateY(0)';
-            item.style.boxShadow = 'none';
+            if (!item.classList.contains('selected')) {
+                item.style.borderColor = '#444';
+                item.style.transform = 'translateY(0)';
+                item.style.boxShadow = 'none';
+            }
         });
         
         item.addEventListener('click', () => {
-            const userId = item.dataset.userId;
-            const account = accounts.find(acc => acc.user_id === userId);
+            // 이전 선택 해제
+            accountItems.forEach(otherItem => {
+                otherItem.classList.remove('selected');
+                otherItem.style.borderColor = '#444';
+                otherItem.style.background = 'linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%)';
+                otherItem.style.transform = 'translateY(0)';
+                otherItem.style.boxShadow = 'none';
+            });
             
-            console.log('📱 선택된 계정:', account);
+            // 현재 항목 선택
+            item.classList.add('selected');
+            item.style.borderColor = '#10B981';
+            item.style.background = 'linear-gradient(135deg, #10B981 0%, #059669 100%)';
+            item.style.transform = 'translateY(-2px)';
+            item.style.boxShadow = '0 5px 15px rgba(16, 185, 129, 0.5)';
+            
+            // 선택된 계정 저장
+            const userId = item.dataset.userId;
+            selectedAccount = accounts.find(acc => acc.user_id === userId);
+            
+            console.log('📱 선택된 계정:', selectedAccount);
+            
+            // 확인 버튼 활성화
+            const confirmBtn = accountContainer.querySelector('#confirmAccountSelection');
+            confirmBtn.style.opacity = '1';
+            confirmBtn.style.pointerEvents = 'auto';
+        });
+    });
+    
+    // 확인 버튼 이벤트
+    accountContainer.querySelector('#confirmAccountSelection').addEventListener('click', () => {
+        if (selectedAccount) {
+            console.log('📱 확인된 계정:', selectedAccount);
             
             // 컨테이너 제거
             document.body.removeChild(accountContainer);
@@ -2840,8 +2938,8 @@ function showAccountListAboveStatusBar(accounts) {
             }
             
             // 선택된 계정으로 그룹 로드
-            loadGroupsForAccount(account);
-        });
+            loadGroupsForAccount(selectedAccount);
+        }
     });
     
     // 닫기 버튼 이벤트
