@@ -1206,11 +1206,10 @@ input:focus, button:focus, textarea:focus, select:focus {
     border: 1px solid rgba(16, 185, 129, 0.3);
     border-radius: 6px;
     font-size: 11px;
-    max-width: 400px;
+    width: fit-content;
+    max-width: none;
     line-height: 1.3;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
+    display: inline-block;
 }
 
 .settings-info {
@@ -1219,10 +1218,6 @@ input:focus, button:focus, textarea:focus, select:focus {
     white-space: nowrap;
     opacity: 0;
     animation: fadeInText 0.3s ease-in-out forwards;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    align-items: center;
 }
 
 @keyframes fadeInText {
