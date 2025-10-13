@@ -1726,10 +1726,10 @@ function showAccountList(accounts) {
             
             // 현재 항목 선택
             item.classList.add('selected');
-            item.style.borderColor = '#10B981';
-            item.style.background = 'linear-gradient(135deg, #10B981 0%, #059669 100%)';
+            item.style.borderColor = '#3B82F6';
+            item.style.background = 'linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)';
             item.style.transform = 'translateY(-2px)';
-            item.style.boxShadow = '0 5px 15px rgba(16, 185, 129, 0.5)';
+            item.style.boxShadow = '0 5px 15px rgba(59, 130, 246, 0.5)';
             
             // 선택된 계정 저장
             const userId = item.dataset.userId;
@@ -2905,10 +2905,10 @@ function showAccountListAboveStatusBar(accounts) {
             
             // 현재 항목 선택
             item.classList.add('selected');
-            item.style.borderColor = '#10B981';
-            item.style.background = 'linear-gradient(135deg, #10B981 0%, #059669 100%)';
+            item.style.borderColor = '#3B82F6';
+            item.style.background = 'linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)';
             item.style.transform = 'translateY(-2px)';
-            item.style.boxShadow = '0 5px 15px rgba(16, 185, 129, 0.5)';
+            item.style.boxShadow = '0 5px 15px rgba(59, 130, 246, 0.5)';
             
             // 선택된 계정 저장
             const userId = item.dataset.userId;
