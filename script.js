@@ -1713,7 +1713,14 @@ function showAccountSelectionModal(accounts) {
         
         // 버튼 컨테이너에 그룹 선택 섹션과 확인 버튼 추가
         buttonContainer.parentNode.insertBefore(groupSelection, buttonContainer);
-        buttonContainer.insertBefore(confirmBtn, buttonContainer.firstChild);
+        
+        // 닫기 버튼 앞에 확인 버튼 추가
+        const closeBtn = buttonContainer.querySelector('#closeAccountList');
+        if (closeBtn) {
+            buttonContainer.insertBefore(confirmBtn, closeBtn);
+        } else {
+            buttonContainer.appendChild(confirmBtn);
+        }
     }
     
     document.body.appendChild(modal);
