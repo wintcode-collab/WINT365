@@ -1437,12 +1437,22 @@ input:checked + .slider:hover {
     display: flex;
     gap: 10px;
     align-items: center;
+    flex: 1;
+}
+
+.center-buttons {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
 }
 
 .right-buttons {
     display: flex;
     gap: 10px;
     align-items: center;
+    flex: 1;
 }
 
 .send-message-btn, .cancel-message-btn {

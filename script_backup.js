@@ -1614,10 +1614,10 @@ function showAccountSelectionModal(accounts) {
     modalContent.innerHTML = `
         <div style="text-align: center; margin-bottom: 25px;">
             <h2 style="color: #10B981; margin: 0 0 10px 0; font-size: 24px; font-weight: 600;">
-                📱 계정 및 그룹 선택
+                📱 연동된 텔레그램 계정
             </h2>
             <p style="color: #888; margin: 0; font-size: 14px;">
-                계정을 선택하고 그룹을 확인한 후 불러오세요
+                ${accounts.length}개의 계정이 연동되어 있습니다
             </p>
         </div>
         
@@ -2720,21 +2720,15 @@ function closeInfiniteSendModal() {
         modal.style.display = 'none';
     }
     
-    // 토글 스위치를 항상 OFF로 되돌리기 (X 버튼으로 닫은 경우)
+    // 토글 스위치를 OFF로 되돌리기 (설정 저장하지 않고 닫은 경우)
     const infiniteSendToggle = document.getElementById('infiniteSendToggle');
     const toggleLabel = document.querySelector('.toggle-label');
     
-    if (infiniteSendToggle) {
+    if (infiniteSendToggle && !window.infiniteSendEnabled) {
         infiniteSendToggle.checked = false;
         if (toggleLabel) {
             toggleLabel.textContent = '무한 전송';
         }
-    }
-    
-    // 저장된 설정 숨기기
-    const savedSettings = document.getElementById('savedSettings');
-    if (savedSettings) {
-        savedSettings.style.display = 'none';
     }
 }
 
@@ -2782,11 +2776,8 @@ function saveInfiniteSendSettings() {
         minNewMessages: minNewMessages
     });
     
-    // 모달 닫기 (설정 저장 후)
-    const modal = document.getElementById('infiniteSendModal');
-    if (modal) {
-        modal.style.display = 'none';
-    }
+    // 모달 닫기
+    closeInfiniteSendModal();
     
     // 토글 스위치를 ON으로 유지
     const infiniteSendToggle = document.getElementById('infiniteSendToggle');
@@ -3307,10 +3298,10 @@ function showAccountListAboveStatusBar(accounts) {
     modalContent.innerHTML = `
         <div style="text-align: center; margin-bottom: 25px;">
             <h2 style="color: #10B981; margin: 0 0 10px 0; font-size: 24px; font-weight: 600;">
-                📱 계정 및 그룹 선택
+                📱 연동된 텔레그램 계정
             </h2>
             <p style="color: #888; margin: 0; font-size: 14px;">
-                계정을 선택하고 그룹을 확인한 후 불러오세요
+                ${accounts.length}개의 계정이 연동되어 있습니다
             </p>
         </div>
         
