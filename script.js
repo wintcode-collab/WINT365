@@ -2503,7 +2503,10 @@ function selectTelegramSavedMessage(messageIndex, savedMessages) {
             savedMessagesBtn.textContent = '❌ 저장된 메시지 해제';
             savedMessagesBtn.style.backgroundColor = '#ff4444';
             savedMessagesBtn.style.borderColor = '#ff4444';
-            savedMessagesBtn.onclick = clearSavedMessage;
+            // 기존 이벤트 리스너 제거 후 새로운 이벤트 리스너 추가
+            savedMessagesBtn.onclick = null;
+            savedMessagesBtn.removeEventListener('click', showSavedMessages);
+            savedMessagesBtn.addEventListener('click', clearSavedMessage);
             console.log('💾 버튼 변경 후:', savedMessagesBtn.textContent);
             console.log('💾 저장된 메시지 버튼이 해제 버튼으로 변경됨');
         } else {
@@ -2568,7 +2571,10 @@ function clearSavedMessage() {
         savedMessagesBtn.textContent = '💾 저장된 메시지';
         savedMessagesBtn.style.backgroundColor = '';
         savedMessagesBtn.style.borderColor = '';
-        savedMessagesBtn.onclick = showSavedMessages;
+        // onclick 이벤트를 제거하고 addEventListener로 다시 등록
+        savedMessagesBtn.onclick = null;
+        savedMessagesBtn.removeEventListener('click', clearSavedMessage);
+        savedMessagesBtn.addEventListener('click', showSavedMessages);
         console.log('💾 저장된 메시지 버튼이 원래대로 복원됨');
     }
     
