@@ -479,6 +479,10 @@ async function handleNormalLogin() {
         // 로그인 성공 시 이메일 저장
         saveUserEmail(email);
         
+        // 로그인 정보 저장 (자동 로그인용)
+        localStorage.setItem('savedEmail', email);
+        localStorage.setItem('savedPassword', password);
+        
         // 성공 애니메이션
         elements.loginBtn.textContent = '✓ SUCCESS';
         elements.loginBtn.classList.add('success');
@@ -1839,8 +1843,12 @@ function showTelegramGroupsWindow(groups, account) {
     const groupsWindow = document.getElementById('telegramGroupsWindow');
     if (groupsWindow) {
         // 계정 정보 설정
-        document.getElementById('selectedAccountName').textContent = `${account.first_name} ${account.last_name || ''}`;
+        const accountName = `${account.first_name} ${account.last_name || ''}`;
+        document.getElementById('selectedAccountName').textContent = accountName;
         document.getElementById('selectedAccountPhone').textContent = `📱 ${account.phone_number}`;
+        
+        // 계정 선택 상태 저장
+        localStorage.setItem('selectedAccountName', accountName);
         
         // 그룹 개수 설정
         document.getElementById('groupsCount').textContent = `${groups.length}개의 그룹`;
@@ -1867,6 +1875,9 @@ function showTelegramGroupsWindow(groups, account) {
         
         // 그룹 전체선택 버튼 이벤트 리스너 추가
         setupGroupSelectionButtons();
+        
+        // 계정 선택 상태 복원
+        restoreAccountSelection();
         
         // 창 표시 (제일 위로 올라오기)
         groupsWindow.style.display = 'flex';
@@ -2703,6 +2714,9 @@ function selectTelegramSavedMessage(messageIndex, savedMessages) {
         
         console.log('💾 최종 저장된 메시지 정보:', window.selectedMediaInfo);
         
+        // 저장된 메시지 상태 저장
+        localStorage.setItem('selectedMessageInfo', JSON.stringify(window.selectedMediaInfo));
+        
         // 모달 닫기
         closeSavedMessages();
         
@@ -2716,6 +2730,9 @@ function clearSavedMessage() {
     
     // 전역 변수 초기화
     window.selectedMediaInfo = null;
+    
+    // 저장된 메시지 상태 삭제
+    localStorage.removeItem('selectedMessageInfo');
     
     // 입력칸 초기화 및 활성화
     const messageInput = document.querySelector('.message-input');
@@ -3675,6 +3692,10 @@ function updateSelectedGroupsCount() {
     // 전송 버튼 상태 업데이트
     updateSendButtonState(selectedCount);
     
+    // 선택된 그룹 상태 저장
+    const selectedGroupIds = Array.from(groupCheckboxes).map(checkbox => checkbox.dataset.groupId);
+    localStorage.setItem('selectedGroups', JSON.stringify(selectedGroupIds));
+    
     return selectedCount;
 }
 
@@ -3963,6 +3984,8 @@ document.addEventListener('DOMContentLoaded', function() {
         resetSendButtonState();
         // 자동전송 토글 상태 복원
         restoreAutoSendToggleState();
+        // 로그인 상태 복원
+        restoreLoginState();
     }, 1000);
 });
 
@@ -3987,5 +4010,95 @@ function restoreAutoSendToggleState() {
         }
     } catch (error) {
         console.error('❌ 자동전송 토글 상태 복원 실패:', error);
+    }
+}
+
+// 로그인 상태 복원
+async function restoreLoginState() {
+    try {
+        console.log('🔄 로그인 상태 복원 시작');
+        
+        const savedEmail = localStorage.getItem('savedEmail');
+        const savedPassword = localStorage.getItem('savedPassword');
+        
+        if (savedEmail && savedPassword) {
+            console.log('📧 저장된 로그인 정보 발견:', savedEmail);
+            
+            // 자동 로그인 시도
+            const loginSuccess = await handleLogin();
+            if (loginSuccess) {
+                console.log('✅ 자동 로그인 성공');
+                
+                // 계정 목록 자동 로드
+                setTimeout(async () => {
+                    await handleTestTelegramConnection();
+                    console.log('✅ 계정 목록 자동 로드 완료');
+                }, 2000);
+            } else {
+                console.log('❌ 자동 로그인 실패');
+            }
+        } else {
+            console.log('ℹ️ 저장된 로그인 정보 없음');
+        }
+    } catch (error) {
+        console.error('❌ 로그인 상태 복원 실패:', error);
+    }
+}
+
+// 계정 선택 상태 복원
+function restoreAccountSelection() {
+    try {
+        console.log('🔄 계정 선택 상태 복원 시작');
+        
+        const savedAccountName = localStorage.getItem('selectedAccountName');
+        const savedGroupSelections = localStorage.getItem('selectedGroups');
+        const savedMessageInfo = localStorage.getItem('selectedMessageInfo');
+        
+        if (savedAccountName) {
+            console.log('📱 저장된 계정 정보 발견:', savedAccountName);
+            
+            // 계정명 복원
+            const accountNameElement = document.getElementById('selectedAccountName');
+            if (accountNameElement) {
+                accountNameElement.textContent = savedAccountName;
+            }
+        }
+        
+        if (savedGroupSelections) {
+            console.log('👥 저장된 그룹 선택 정보 발견');
+            
+            // 그룹 선택 복원
+            setTimeout(() => {
+                const selectedGroups = JSON.parse(savedGroupSelections);
+                selectedGroups.forEach(groupId => {
+                    const checkbox = document.querySelector(`input[data-group-id="${groupId}"]`);
+                    if (checkbox) {
+                        checkbox.checked = true;
+                    }
+                });
+                updateSelectedGroupsCount();
+            }, 1000);
+        }
+        
+        if (savedMessageInfo) {
+            console.log('💾 저장된 메시지 정보 발견');
+            
+            // 저장된 메시지 복원
+            const messageInfo = JSON.parse(savedMessageInfo);
+            window.selectedMediaInfo = messageInfo;
+            
+            // 메시지 입력 필드에 표시
+            const messageInput = document.querySelector('.message-input');
+            if (messageInput) {
+                messageInput.value = messageInfo.text || '';
+                messageInput.placeholder = '💾 저장된 메시지가 선택되었습니다. 해제 후 입력하세요.';
+                messageInput.disabled = true;
+                messageInput.style.backgroundColor = '#f0f0f0';
+                messageInput.style.cursor = 'not-allowed';
+            }
+        }
+        
+    } catch (error) {
+        console.error('❌ 계정 선택 상태 복원 실패:', error);
     }
 }
