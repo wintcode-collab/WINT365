@@ -3616,6 +3616,21 @@ function updateSelectedGroupsCount() {
     return selectedCount;
 }
 
+// 전송 버튼 상태 업데이트 함수
+function updateSendButtonState(selectedCount) {
+    const sendBtn = document.getElementById('sendMessageBtn');
+    
+    if (sendBtn) {
+        if (selectedCount > 0) {
+            sendBtn.disabled = false;
+            sendBtn.style.opacity = '1';
+        } else {
+            sendBtn.disabled = true;
+            sendBtn.style.opacity = '0.5';
+        }
+    }
+}
+
 // 자동전송 시작 함수
 async function startAutoSendWithGroups(selectedGroups, message, mediaInfo) {
     try {
