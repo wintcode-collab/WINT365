@@ -83,6 +83,11 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeApp();
     setupEventListeners();
     startTypingAnimation();
+    
+    // 자동 전송 설정 표시 초기화
+    setTimeout(() => {
+        updateAutoSendSettingsDisplay();
+    }, 100);
 });
 
 function initializeApp() {
@@ -3038,20 +3043,25 @@ function setupAutoSendEventListeners() {
                 showAutoSendSettingsModal();
             } else {
                 hideAutoSendSettingsModal();
+                // 설정 표시 숨기기
+                const settingsDisplay = document.getElementById('autoSendSettingsDisplay');
+                if (settingsDisplay) {
+                    settingsDisplay.style.display = 'none';
+                }
             }
         });
     }
 
     // 모달 닫기 버튼
     if (closeAutoSendSettingsBtn) {
-        closeAutoSendSettingsBtn.addEventListener('click', hideAutoSendSettingsModal);
+        closeAutoSendSettingsBtn.addEventListener('click', closeAutoSendSettingsModal);
     }
 
     // 모달 배경 클릭 시 닫기
     if (autoSendSettingsModal) {
         autoSendSettingsModal.addEventListener('click', function(e) {
             if (e.target === autoSendSettingsModal) {
-                hideAutoSendSettingsModal();
+                closeAutoSendSettingsModal();
             }
         });
     }
@@ -3081,12 +3091,25 @@ function showAutoSendSettingsModal() {
 // 자동 전송 설정 모달 숨기기
 function hideAutoSendSettingsModal() {
     const modal = document.getElementById('autoSendSettingsModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+// 자동 전송 설정 모달 닫기 (X 버튼으로 닫을 때)
+function closeAutoSendSettingsModal() {
+    const modal = document.getElementById('autoSendSettingsModal');
     const toggle = document.getElementById('autoSendToggle');
     if (modal) {
         modal.style.display = 'none';
     }
     if (toggle) {
         toggle.checked = false;
+    }
+    // 설정 표시 숨기기
+    const settingsDisplay = document.getElementById('autoSendSettingsDisplay');
+    if (settingsDisplay) {
+        settingsDisplay.style.display = 'none';
     }
 }
 
@@ -3133,6 +3156,18 @@ function saveAutoSendSettings() {
     
     // 메시지 개수 확인 상태 업데이트
     updateMessageCheckStatus();
+    
+    // 자동 전송 토글을 ON으로 설정
+    const autoSendToggle = document.getElementById('autoSendToggle');
+    if (autoSendToggle) {
+        autoSendToggle.checked = true;
+    }
+    
+    // 설정 표시 업데이트
+    updateAutoSendSettingsDisplay();
+    
+    // 모달 닫기
+    hideAutoSendSettingsModal();
     
     // 성공 메시지 표시
     alert('자동 전송 설정이 저장되었습니다!');
@@ -3212,6 +3247,27 @@ async function checkSelectedGroupsMessageCount() {
     console.log(`⏸️ 보류된 그룹: ${pendingGroups.length}개`);
     
     return { sendableGroups, pendingGroups };
+}
+
+// 자동 전송 설정 표시 업데이트
+function updateAutoSendSettingsDisplay() {
+    const settingsDisplay = document.getElementById('autoSendSettingsDisplay');
+    const settingsInfo = document.getElementById('settingsInfo');
+    const autoSendToggle = document.getElementById('autoSendToggle');
+    
+    if (!settingsDisplay || !settingsInfo || !autoSendToggle) return;
+    
+    if (autoSendToggle.checked) {
+        const savedSettings = localStorage.getItem('autoSendSettings');
+        if (savedSettings) {
+            const settings = JSON.parse(savedSettings);
+            const messageCheckText = settings.enableMessageCheck ? `메시지 ${settings.messageThreshold}개 이하 보류` : '메시지 개수 확인 비활성화';
+            settingsInfo.textContent = messageCheckText;
+            settingsDisplay.style.display = 'block';
+        }
+    } else {
+        settingsDisplay.style.display = 'none';
+    }
 }
 
 
