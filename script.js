@@ -3294,12 +3294,20 @@ function updateAutoSendSettingsDisplay() {
             const messageCheckText = settings.enableMessageCheck ? `메시지 ${settings.messageThreshold}개 이하 보류` : '메시지 확인 비활성화';
             settingsTexts.push(messageCheckText);
             
-            // 모든 설정을 줄바꿈으로 구분하여 표시
-            const displayText = settingsTexts.join('<br>');
-            console.log('📝 표시할 텍스트:', displayText);
-            
-            settingsInfo.innerHTML = displayText;
+            // 설정을 하나씩 순차적으로 표시
+            settingsInfo.innerHTML = '';
             settingsDisplay.style.display = 'block';
+            
+            // 각 설정을 0.5초 간격으로 순차적으로 추가
+            settingsTexts.forEach((text, index) => {
+                setTimeout(() => {
+                    if (index === 0) {
+                        settingsInfo.innerHTML = `<span class="setting-item">${text}</span>`;
+                    } else {
+                        settingsInfo.innerHTML += `<br><span class="setting-item">${text}</span>`;
+                    }
+                }, index * 500); // 0.5초 간격
+            });
             
             console.log('✅ 설정 표시 완료');
         } else {

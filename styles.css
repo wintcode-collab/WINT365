@@ -1214,6 +1214,36 @@ input:focus, button:focus, textarea:focus, select:focus {
     color: #10B981;
     font-weight: 500;
     white-space: nowrap;
+    opacity: 0;
+    animation: fadeInText 0.3s ease-in-out forwards;
+}
+
+@keyframes fadeInText {
+    from {
+        opacity: 0;
+        transform: translateY(-5px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.setting-item {
+    display: inline-block;
+    opacity: 0;
+    animation: fadeInItem 0.4s ease-in-out forwards;
+}
+
+@keyframes fadeInItem {
+    from {
+        opacity: 0;
+        transform: translateX(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
 }
 
 .auto-send-label {
