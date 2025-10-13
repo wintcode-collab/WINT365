@@ -1680,6 +1680,7 @@ function showAccountSelectionModal(accounts) {
     
     // 확인 버튼과 그룹 선택 섹션을 동적으로 추가
     const buttonContainer = modal.querySelector('div[style*="text-align: center"]');
+    console.log('🔍 버튼 컨테이너 찾기:', buttonContainer);
     if (buttonContainer) {
         // 그룹 선택 섹션 추가
         const groupSelection = document.createElement('div');
@@ -1734,7 +1735,18 @@ function showAccountSelectionModal(accounts) {
         
         item.addEventListener('click', () => {
             const accountData = item.dataset.account;
-            const account = JSON.parse(accountData);
+            if (!accountData) {
+                console.error('❌ 계정 데이터를 찾을 수 없습니다.');
+                return;
+            }
+            
+            let account;
+            try {
+                account = JSON.parse(accountData);
+            } catch (error) {
+                console.error('❌ 계정 데이터 파싱 실패:', error);
+                return;
+            }
             
             console.log('📱 선택된 계정:', account);
             
@@ -1766,12 +1778,24 @@ function showAccountSelectionModal(accounts) {
     
     // 확인 버튼 이벤트
     const confirmBtn = modal.querySelector('#confirmSelection');
+    console.log('🔍 확인 버튼 찾기:', confirmBtn);
     if (confirmBtn) {
         confirmBtn.addEventListener('click', () => {
         const selectedAccountItem = modal.querySelector('.account-item[style*="1a4d3a"]');
         if (selectedAccountItem) {
             const accountData = selectedAccountItem.dataset.account;
-            const account = JSON.parse(accountData);
+            if (!accountData) {
+                console.error('❌ 선택된 계정 데이터를 찾을 수 없습니다.');
+                return;
+            }
+            
+            let account;
+            try {
+                account = JSON.parse(accountData);
+            } catch (error) {
+                console.error('❌ 선택된 계정 데이터 파싱 실패:', error);
+                return;
+            }
             
             console.log('📱 최종 선택된 계정:', account);
             
@@ -1786,6 +1810,7 @@ function showAccountSelectionModal(accounts) {
     
     // 닫기 버튼 이벤트
     const closeBtn = modal.querySelector('#closeAccountList');
+    console.log('🔍 닫기 버튼 찾기:', closeBtn);
     if (closeBtn) {
         closeBtn.addEventListener('click', () => {
             document.body.removeChild(modal);
@@ -1804,8 +1829,16 @@ function showAccountSelectionModal(accounts) {
 async function loadGroupsForSelection(account, modal) {
     console.log('📱 모달 내에서 그룹 목록 로드:', account);
     
+    if (!account || !account.user_id) {
+        console.error('❌ 유효하지 않은 계정 데이터:', account);
+        return;
+    }
+    
     const groupList = modal.querySelector('#groupList');
-    if (!groupList) return;
+    if (!groupList) {
+        console.error('❌ 그룹 목록 컨테이너를 찾을 수 없습니다.');
+        return;
+    }
     
     // 로딩 표시
     groupList.innerHTML = `
