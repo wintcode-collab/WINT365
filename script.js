@@ -126,6 +126,9 @@ function setupEventListeners() {
     // 텔레그램 그룹 관리 창 이벤트 리스너들
     setupTelegramGroupsEventListeners();
     
+    // 자동 전송 토글 이벤트 리스너
+    setupAutoSendEventListeners();
+    
     // Enter 키 이벤트
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Enter') {
@@ -2985,6 +2988,145 @@ function showAccountListAboveStatusBar(accounts) {
             }
         }
     });
+}
+
+// 자동 전송 이벤트 리스너 설정
+function setupAutoSendEventListeners() {
+    const autoSendToggle = document.getElementById('autoSendToggle');
+    const autoSendSettingsModal = document.getElementById('autoSendSettingsModal');
+    const closeAutoSendSettingsBtn = document.getElementById('closeAutoSendSettingsBtn');
+    const autoSendStartBtn = document.getElementById('autoSendStartBtn');
+    const autoSendStopBtn = document.getElementById('autoSendStopBtn');
+    const autoSendSaveBtn = document.getElementById('autoSendSaveBtn');
+
+    // 자동 전송 토글 클릭 시 설정 모달 열기
+    if (autoSendToggle) {
+        autoSendToggle.addEventListener('change', function() {
+            if (this.checked) {
+                showAutoSendSettingsModal();
+            } else {
+                hideAutoSendSettingsModal();
+            }
+        });
+    }
+
+    // 모달 닫기 버튼
+    if (closeAutoSendSettingsBtn) {
+        closeAutoSendSettingsBtn.addEventListener('click', hideAutoSendSettingsModal);
+    }
+
+    // 모달 배경 클릭 시 닫기
+    if (autoSendSettingsModal) {
+        autoSendSettingsModal.addEventListener('click', function(e) {
+            if (e.target === autoSendSettingsModal) {
+                hideAutoSendSettingsModal();
+            }
+        });
+    }
+
+    // 자동 전송 시작 버튼
+    if (autoSendStartBtn) {
+        autoSendStartBtn.addEventListener('click', startAutoSend);
+    }
+
+    // 자동 전송 중지 버튼
+    if (autoSendStopBtn) {
+        autoSendStopBtn.addEventListener('click', stopAutoSend);
+    }
+
+    // 설정 저장 버튼
+    if (autoSendSaveBtn) {
+        autoSendSaveBtn.addEventListener('click', saveAutoSendSettings);
+    }
+}
+
+// 자동 전송 설정 모달 표시
+function showAutoSendSettingsModal() {
+    const modal = document.getElementById('autoSendSettingsModal');
+    if (modal) {
+        modal.style.display = 'flex';
+        loadAutoSendSettings();
+    }
+}
+
+// 자동 전송 설정 모달 숨기기
+function hideAutoSendSettingsModal() {
+    const modal = document.getElementById('autoSendSettingsModal');
+    const toggle = document.getElementById('autoSendToggle');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+    if (toggle) {
+        toggle.checked = false;
+    }
+}
+
+// 자동 전송 설정 로드
+function loadAutoSendSettings() {
+    const savedSettings = localStorage.getItem('autoSendSettings');
+    if (savedSettings) {
+        const settings = JSON.parse(savedSettings);
+        
+        const groupInterval = document.getElementById('groupInterval');
+        const repeatInterval = document.getElementById('repeatInterval');
+        const maxRepeats = document.getElementById('maxRepeats');
+        
+        if (groupInterval) groupInterval.value = settings.groupInterval || 5;
+        if (repeatInterval) repeatInterval.value = settings.repeatInterval || 30;
+        if (maxRepeats) maxRepeats.value = settings.maxRepeats || 10;
+    }
+}
+
+// 자동 전송 설정 저장
+function saveAutoSendSettings() {
+    const groupInterval = document.getElementById('groupInterval').value;
+    const repeatInterval = document.getElementById('repeatInterval').value;
+    const maxRepeats = document.getElementById('maxRepeats').value;
+    
+    const settings = {
+        groupInterval: parseInt(groupInterval),
+        repeatInterval: parseInt(repeatInterval),
+        maxRepeats: parseInt(maxRepeats)
+    };
+    
+    localStorage.setItem('autoSendSettings', JSON.stringify(settings));
+    
+    // 성공 메시지 표시
+    alert('자동 전송 설정이 저장되었습니다!');
+}
+
+// 자동 전송 시작
+function startAutoSend() {
+    console.log('🚀 자동 전송 시작');
+    
+    // 버튼 상태 변경
+    const startBtn = document.getElementById('autoSendStartBtn');
+    const stopBtn = document.getElementById('autoSendStopBtn');
+    const status = document.getElementById('autoSendStatus');
+    
+    if (startBtn) startBtn.style.display = 'none';
+    if (stopBtn) stopBtn.style.display = 'inline-block';
+    if (status) status.textContent = '실행 중';
+    
+    // TODO: 실제 자동 전송 로직 구현
+    alert('자동 전송이 시작되었습니다! (기능 구현 예정)');
+}
+
+// 자동 전송 중지
+function stopAutoSend() {
+    console.log('⏹️ 자동 전송 중지');
+    
+    // 버튼 상태 변경
+    const startBtn = document.getElementById('autoSendStartBtn');
+    const stopBtn = document.getElementById('autoSendStopBtn');
+    const status = document.getElementById('autoSendStatus');
+    
+    if (startBtn) startBtn.style.display = 'inline-block';
+    if (stopBtn) stopBtn.style.display = 'none';
+    if (status) status.textContent = '중지됨';
+    
+    // TODO: 실제 자동 전송 중지 로직 구현
+    alert('자동 전송이 중지되었습니다!');
 }
 
 // 저장된 텔레그램 설정 로드
