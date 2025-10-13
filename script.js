@@ -1867,7 +1867,8 @@ function showTelegramGroupsWindow(groups, account) {
         
         // 디버깅용: 자동전송 토글 강제 ON
         setTimeout(() => {
-            forceEnableAutoSendToggle();
+            // 자동전송 토글 상태 복원 (저장된 상태가 있으면)
+            restoreAutoSendToggleState();
         }, 1000);
         
         // 자동전송 상태 복원
@@ -3752,49 +3753,6 @@ function forceEnableSendButton() {
     }
 }
 
-// 자동전송 토글 강제 ON (디버깅용)
-function forceEnableAutoSendToggle() {
-    const autoSendToggle = document.getElementById('autoSendToggle');
-    if (autoSendToggle) {
-        autoSendToggle.checked = true;
-        localStorage.setItem('autoSendToggleState', 'true');
-        console.log('🔧 자동전송 토글 강제 ON 완료');
-        
-        // 저장된 자동전송 설정값도 복원
-        const savedSettings = localStorage.getItem('autoSendSettings');
-        if (savedSettings) {
-            try {
-                const settings = JSON.parse(savedSettings);
-                console.log('🔧 저장된 자동전송 설정 복원:', settings);
-                
-                // 설정값들을 입력 필드에 복원
-                const groupInterval = document.getElementById('groupInterval');
-                const repeatInterval = document.getElementById('repeatInterval');
-                const maxRepeats = document.getElementById('maxRepeats');
-                const messageThreshold = document.getElementById('messageThreshold');
-                const enableMessageCheck = document.getElementById('enableMessageCheck');
-                
-                if (groupInterval) groupInterval.value = settings.groupInterval || 30;
-                if (repeatInterval) repeatInterval.value = settings.repeatInterval || 30;
-                if (maxRepeats) maxRepeats.value = settings.maxRepeats || 10;
-                if (messageThreshold) messageThreshold.value = settings.messageThreshold || 5;
-                if (enableMessageCheck) enableMessageCheck.checked = settings.enableMessageCheck !== false;
-                
-                console.log('✅ 자동전송 설정값 복원 완료');
-                
-                // 설정 표시 업데이트
-                updateAutoSendSettingsDisplay();
-                
-            } catch (error) {
-                console.error('❌ 자동전송 설정 복원 실패:', error);
-            }
-        } else {
-            console.log('ℹ️ 저장된 자동전송 설정 없음');
-        }
-    } else {
-        console.error('❌ 자동전송 토글을 찾을 수 없습니다!');
-    }
-}
 
 // 전송 버튼 상태 업데이트 함수
 function updateSendButtonState(selectedCount) {
@@ -4139,6 +4097,11 @@ function restoreAutoSendToggleState() {
         const savedToggleState = localStorage.getItem('autoSendToggleState');
         const savedSettings = localStorage.getItem('autoSendSettings');
         
+        console.log('🔍 자동전송 토글 상태 복원 시도:', {
+            savedToggleState: savedToggleState,
+            hasSettings: !!savedSettings
+        });
+        
         if (savedToggleState === 'true' && savedSettings) {
             const autoSendToggle = document.getElementById('autoSendToggle');
             if (autoSendToggle) {
@@ -4154,12 +4117,22 @@ function restoreAutoSendToggleState() {
                 updateAutoSendSettingsDisplay();
             }
         } else {
-            console.log('ℹ️ 자동전송 토글 상태 복원: OFF 또는 설정 없음');
-            console.log('ℹ️ 토글 상태:', savedToggleState);
-            console.log('ℹ️ 설정 존재:', !!savedSettings);
+            // 기본적으로 OFF 상태로 설정
+            const autoSendToggle = document.getElementById('autoSendToggle');
+            if (autoSendToggle) {
+                autoSendToggle.checked = false;
+                console.log('✅ 자동전송 토글 상태 복원: OFF (기본값)');
+            }
+            console.log('ℹ️ 저장된 자동전송 설정 없음 또는 토글 OFF');
         }
     } catch (error) {
         console.error('❌ 자동전송 토글 상태 복원 실패:', error);
+        // 에러 발생 시 기본적으로 OFF 상태로 설정
+        const autoSendToggle = document.getElementById('autoSendToggle');
+        if (autoSendToggle) {
+            autoSendToggle.checked = false;
+            console.log('🔧 에러로 인해 자동전송 토글을 OFF로 설정');
+        }
     }
 }
 
