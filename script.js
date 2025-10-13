@@ -1866,7 +1866,7 @@ function renderGroupsList(groups) {
     groupsList.innerHTML = groups.map((group, index) => `
         <div class="group-item" data-group-id="${group.id}" data-group-index="${index}">
             <div class="group-checkbox-container">
-                <input type="checkbox" class="group-checkbox" id="group-${group.id}" data-group-id="${group.id}">
+                <input type="checkbox" class="group-checkbox" id="group-${group.id}" data-group-id="${group.id}" data-group-title="${group.title}">
                 <label for="group-${group.id}" class="group-label">
                     <div class="group-name">${group.title}</div>
                     <div class="group-info">
@@ -1875,6 +1875,20 @@ function renderGroupsList(groups) {
                         </div>
                     </div>
                 </label>
+            </div>
+            <div class="group-status-info">
+                <div class="group-message-count">
+                    <span class="status-label">메시지 수:</span>
+                    <span class="status-value" id="messageCount-${group.id}">확인 중...</span>
+                </div>
+                <div class="group-next-send">
+                    <span class="status-label">다음 전송:</span>
+                    <span class="status-value" id="nextSend-${group.id}">-</span>
+                </div>
+                <div class="group-auto-status">
+                    <span class="status-label">자동전송:</span>
+                    <span class="status-value" id="autoStatus-${group.id}">대기</span>
+                </div>
             </div>
         </div>
     `).join('');
@@ -3018,12 +3032,26 @@ function setupAutoSendEventListeners() {
             if (this.checked) {
                 showAutoSendSettingsModal();
             } else {
+                // 자동전송 중지
+                stopAutoSend();
                 hideAutoSendSettingsModal();
                 // 설정 표시 숨기기
                 const settingsDisplay = document.getElementById('autoSendSettingsDisplay');
                 if (settingsDisplay) {
                     settingsDisplay.style.display = 'none';
                 }
+                
+                // 모든 그룹의 자동전송 상태를 대기로 변경
+                const groupItems = document.querySelectorAll('.group-item');
+                groupItems.forEach(item => {
+                    const groupId = item.dataset.groupId;
+                    if (groupId) {
+                        updateGroupAutoStatus(groupId, false);
+                    }
+                });
+                
+                // 전송 버튼 상태 초기화
+                resetSendButtonState();
             }
         });
     }
@@ -3457,4 +3485,19 @@ function dragEnd(e) {
     initialY = currentY;
     
     isDragging = false;
+}
+
+function resetSendButtonState() {
+    // 전송 버튼 상태 초기화
+    const sendButton = document.getElementById('sendButton');
+    if (sendButton) {
+        sendButton.disabled = false;
+        sendButton.textContent = '전송';
+        sendButton.classList.remove('sending');
+    }
+    
+    // 진행상황 창 숨기기
+    hideProgressSection();
+    
+    console.log('🔄 전송 버튼 상태 초기화 완료');
 }
