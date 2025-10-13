@@ -885,6 +885,9 @@ input:focus, button:focus, textarea:focus, select:focus {
     padding: 15px;
     transition: all 0.3s ease;
     position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
 }
 
 .group-checkbox-container {
@@ -943,6 +946,51 @@ input:focus, button:focus, textarea:focus, select:focus {
     align-items: center;
     font-size: 14px;
     color: #888;
+}
+
+.group-status-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 200px;
+    margin-left: 15px;
+}
+
+.group-message-count,
+.group-next-send,
+.group-auto-status {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+}
+
+.status-label {
+    color: #888;
+    font-weight: 500;
+}
+
+.status-value {
+    color: #fff;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.status-value.success {
+    color: #10B981;
+    background: rgba(16, 185, 129, 0.2);
+}
+
+.status-value.warning {
+    color: #F59E0B;
+    background: rgba(245, 158, 11, 0.2);
+}
+
+.status-value.error {
+    color: #EF4444;
+    background: rgba(239, 68, 68, 0.2);
 }
 
 .group-members {
@@ -1324,6 +1372,157 @@ input:focus, button:focus, textarea:focus, select:focus {
 
 .auto-send-switch input:checked + .auto-send-slider:hover {
     box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+}
+
+/* 실시간 진행상황 스타일 */
+.progress-section {
+    background: rgba(26, 26, 26, 0.95);
+    border: 1px solid #10B981;
+    border-radius: 8px;
+    margin: 15px 0;
+    padding: 0;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+}
+
+.progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    border-bottom: 1px solid #333;
+    background: rgba(16, 185, 129, 0.1);
+    border-radius: 8px 8px 0 0;
+}
+
+.progress-header h4 {
+    color: #10B981;
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.close-progress-btn {
+    background: none;
+    border: none;
+    color: #888;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 5px;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+    width: 25px;
+    height: 25px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.close-progress-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+}
+
+.progress-content {
+    padding: 20px;
+}
+
+.progress-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.stat-label {
+    font-size: 12px;
+    color: #888;
+    margin-bottom: 5px;
+}
+
+.stat-value {
+    font-size: 18px;
+    font-weight: 600;
+    color: #fff;
+}
+
+.stat-value.success {
+    color: #10B981;
+}
+
+.stat-value.error {
+    color: #ff4444;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 20px;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #10B981, #34D399);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+    width: 0%;
+}
+
+.progress-log {
+    max-height: 200px;
+    overflow-y: auto;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 6px;
+    padding: 15px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.progress-log-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    font-size: 14px;
+}
+
+.progress-log-item:last-child {
+    border-bottom: none;
+}
+
+.progress-log-item.success {
+    color: #10B981;
+}
+
+.progress-log-item.error {
+    color: #ff4444;
+}
+
+.progress-log-item.info {
+    color: #60A5FA;
+}
+
+.progress-log-item .log-time {
+    color: #888;
+    font-size: 12px;
+    margin-right: 10px;
+    min-width: 60px;
+}
+
+.progress-log-item .log-icon {
+    margin-right: 8px;
+    font-size: 16px;
 }
 
 /* 자동 전송 설정 모달 */

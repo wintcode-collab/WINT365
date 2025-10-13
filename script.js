@@ -1869,7 +1869,7 @@ function renderGroupsList(groups) {
     groupsList.innerHTML = groups.map((group, index) => `
         <div class="group-item" data-group-id="${group.id}" data-group-index="${index}">
             <div class="group-checkbox-container">
-                <input type="checkbox" class="group-checkbox" id="group-${group.id}" data-group-id="${group.id}">
+                <input type="checkbox" class="group-checkbox" id="group-${group.id}" data-group-id="${group.id}" data-group-title="${group.title}">
                 <label for="group-${group.id}" class="group-label">
                     <div class="group-name">${group.title}</div>
                     <div class="group-info">
@@ -1878,6 +1878,20 @@ function renderGroupsList(groups) {
                         </div>
                     </div>
                 </label>
+            </div>
+            <div class="group-status-info">
+                <div class="group-message-count">
+                    <span class="status-label">메시지 수:</span>
+                    <span class="status-value" id="messageCount-${group.id}">확인 중...</span>
+                </div>
+                <div class="group-next-send">
+                    <span class="status-label">다음 전송:</span>
+                    <span class="status-value" id="nextSend-${group.id}">-</span>
+                </div>
+                <div class="group-auto-status">
+                    <span class="status-label">자동전송:</span>
+                    <span class="status-value" id="autoStatus-${group.id}">대기</span>
+                </div>
             </div>
         </div>
     `).join('');
@@ -1898,6 +1912,105 @@ function renderGroupsList(groups) {
     groupCheckboxes.forEach(checkbox => {
         updateGroupItemVisualState(checkbox);
     });
+    
+    // 각 그룹의 메시지 수 확인
+    updateAllGroupsMessageCount();
+    
+    // 자동전송 상태 주기적 업데이트 시작
+    startAutoSendStatusUpdate();
+}
+
+// 모든 그룹의 메시지 수 확인
+async function updateAllGroupsMessageCount() {
+    const groupItems = document.querySelectorAll('.group-item');
+    
+    for (const groupItem of groupItems) {
+        const groupId = groupItem.dataset.groupId;
+        if (groupId) {
+            await updateGroupMessageCount(groupId);
+        }
+    }
+}
+
+// 특정 그룹의 메시지 수 확인 및 업데이트
+async function updateGroupMessageCount(groupId) {
+    try {
+        const messageCount = await checkGroupMessageCount(groupId);
+        const messageCountElement = document.getElementById(`messageCount-${groupId}`);
+        
+        if (messageCountElement) {
+            messageCountElement.textContent = `${messageCount}개`;
+            
+            // 메시지 수에 따른 색상 변경
+            if (messageCount >= 5) {
+                messageCountElement.className = 'status-value success';
+            } else if (messageCount >= 3) {
+                messageCountElement.className = 'status-value warning';
+            } else {
+                messageCountElement.className = 'status-value error';
+            }
+        }
+    } catch (error) {
+        console.error(`❌ 그룹 ${groupId} 메시지 수 확인 실패:`, error);
+        const messageCountElement = document.getElementById(`messageCount-${groupId}`);
+        if (messageCountElement) {
+            messageCountElement.textContent = '오류';
+            messageCountElement.className = 'status-value error';
+        }
+    }
+}
+
+// 그룹의 다음 전송 시간 업데이트
+function updateGroupNextSendTime(groupId, nextSendTime) {
+    const nextSendElement = document.getElementById(`nextSend-${groupId}`);
+    if (nextSendElement && nextSendTime) {
+        const now = new Date();
+        const nextSend = new Date(nextSendTime);
+        const diffMs = nextSend - now;
+        
+        if (diffMs > 0) {
+            const minutes = Math.floor(diffMs / 60000);
+            const seconds = Math.floor((diffMs % 60000) / 1000);
+            nextSendElement.textContent = `${minutes}분 ${seconds}초`;
+            nextSendElement.className = 'status-value warning';
+        } else {
+            nextSendElement.textContent = '전송 가능';
+            nextSendElement.className = 'status-value success';
+        }
+    }
+}
+
+// 그룹의 자동전송 상태 업데이트
+function updateGroupAutoStatus(groupId, isActive) {
+    const autoStatusElement = document.getElementById(`autoStatus-${groupId}`);
+    if (autoStatusElement) {
+        if (isActive) {
+            autoStatusElement.textContent = '활성';
+            autoStatusElement.className = 'status-value success';
+        } else {
+            autoStatusElement.textContent = '대기';
+            autoStatusElement.className = 'status-value';
+        }
+    }
+}
+
+// 자동전송 상태 주기적 업데이트 시작
+function startAutoSendStatusUpdate() {
+    // 30초마다 자동전송 상태 확인
+    setInterval(async () => {
+        const autoSendToggle = document.getElementById('autoSendToggle');
+        if (autoSendToggle && autoSendToggle.checked) {
+            const isAutoSendRunning = await checkAutoSendStatus();
+            const groupItems = document.querySelectorAll('.group-item');
+            
+            groupItems.forEach(item => {
+                const groupId = item.dataset.groupId;
+                if (groupId) {
+                    updateGroupAutoStatus(groupId, isAutoSendRunning);
+                }
+            });
+        }
+    }, 30000); // 30초마다 업데이트
 }
 
 // 그룹 아이템의 시각적 상태 업데이트
@@ -1979,6 +2092,12 @@ function setupTelegramGroupsEventListeners() {
     const closeSavedMessagesBtn = document.getElementById('closeSavedMessagesBtn');
     if (closeSavedMessagesBtn) {
         closeSavedMessagesBtn.addEventListener('click', closeSavedMessages);
+    }
+    
+    // 진행상황 닫기 버튼
+    const closeProgressBtn = document.getElementById('closeProgressBtn');
+    if (closeProgressBtn) {
+        closeProgressBtn.addEventListener('click', hideProgressSection);
     }
     
 }
@@ -2220,10 +2339,19 @@ async function sendMessageToGroup() {
             
             const autoSendResult = await startAutoSendWithGroups(selectedGroups, message, mediaInfo);
             if (autoSendResult) {
-                alert('자동전송이 시작되었습니다! PC를 종료해도 계속 실행됩니다.');
-                return;
+        // 자동전송 시작 성공 - 진행상황 표시
+        showProgressSection();
+        initProgress(selectedGroups.length);
+        addProgressLog('success', '🤖', '자동전송이 시작되었습니다! PC를 종료해도 계속 실행됩니다.');
+        
+        // 각 그룹의 자동전송 상태 업데이트
+        selectedGroups.forEach(group => {
+            updateGroupAutoStatus(group.id, true);
+        });
+        
+        return;
             } else {
-                alert('자동전송 시작에 실패했습니다. 수동 전송을 진행합니다.');
+                addProgressLog('error', '❌', '자동전송 시작에 실패했습니다. 수동 전송을 진행합니다.');
             }
         }
         
@@ -2231,10 +2359,16 @@ async function sendMessageToGroup() {
         let successCount = 0;
         let failCount = 0;
         
+        // 진행상황 표시 시작
+        showProgressSection();
+        initProgress(validGroupIds.length);
+        
         for (let i = 0; i < validGroupIds.length; i++) {
             const groupId = validGroupIds[i];
+            const groupTitle = Array.from(checkedBoxes).find(cb => cb.dataset.groupId === groupId)?.dataset.groupTitle || `그룹 ${i + 1}`;
             
             console.log(`🔍 그룹 ${i + 1} 전송 시도: ${groupId}`);
+            addProgressLog('info', '📤', `전송 중...`, groupTitle);
             
             try {
                 // 서버로 전송할 데이터 준비
@@ -2302,10 +2436,22 @@ async function sendMessageToGroup() {
                 if (sendResponse.ok && sendResult.success) {
                     successCount++;
                     console.log(`✅ 그룹 ${i + 1} 전송 성공: ${groupId}`);
+                    addProgressLog('success', '✅', '전송 성공!', groupTitle);
                 } else {
                     failCount++;
                     console.error(`❌ 그룹 ${i + 1} 전송 실패:`, sendResult);
                     console.error(`❌ 응답 상태: ${sendResponse.status}`);
+                    addProgressLog('error', '❌', `전송 실패: ${sendResult.error || '알 수 없는 오류'}`, groupTitle);
+                }
+                
+                // 진행상황 업데이트
+                updateProgress(successCount, failCount);
+                
+                // 전송 성공 시 해당 그룹의 메시지 수 다시 확인
+                if (sendResponse.ok && sendResult.success) {
+                    setTimeout(() => {
+                        updateGroupMessageCount(groupId);
+                    }, 2000); // 2초 후 메시지 수 다시 확인
                 }
                 
                 // 그룹 간 간격 (1초)
@@ -2316,17 +2462,13 @@ async function sendMessageToGroup() {
             } catch (error) {
                 failCount++;
                 console.error(`❌ 그룹 ${i + 1} 전송 에러: ${error.message}`);
+                addProgressLog('error', '❌', `전송 에러: ${error.message}`, groupTitle);
+                updateProgress(successCount, failCount);
             }
         }
         
-        // 결과 알림
-        if (successCount > 0 && failCount === 0) {
-            alert(`✅ 모든 그룹에 메시지 전송 성공!\n\n전송된 그룹: ${successCount}개\n메시지: ${message.substring(0, 50)}${message.length > 50 ? '...' : ''}`);
-        } else if (successCount > 0 && failCount > 0) {
-            alert(`⚠️ 부분 전송 완료\n\n성공: ${successCount}개 그룹\n실패: ${failCount}개 그룹\n메시지: ${message.substring(0, 50)}${message.length > 50 ? '...' : ''}`);
-        } else {
-            throw new Error('모든 그룹 전송 실패');
-        }
+        // 진행상황 완료 표시
+        completeProgress(successCount, failCount);
         
         // 메시지 입력 필드 초기화
         if (messageInput) {
@@ -3098,14 +3240,23 @@ function setupAutoSendEventListeners() {
                 // 설정 모달 열기
                 showAutoSendSettingsModal();
             } else {
-                // 자동전송 중지
-                stopAutoSend();
-                hideAutoSendSettingsModal();
-                // 설정 표시 숨기기
-                const settingsDisplay = document.getElementById('autoSendSettingsDisplay');
-                if (settingsDisplay) {
-                    settingsDisplay.style.display = 'none';
-                }
+        // 자동전송 중지
+        stopAutoSend();
+        hideAutoSendSettingsModal();
+        // 설정 표시 숨기기
+        const settingsDisplay = document.getElementById('autoSendSettingsDisplay');
+        if (settingsDisplay) {
+            settingsDisplay.style.display = 'none';
+        }
+        
+        // 모든 그룹의 자동전송 상태를 대기로 변경
+        const groupItems = document.querySelectorAll('.group-item');
+        groupItems.forEach(item => {
+            const groupId = item.dataset.groupId;
+            if (groupId) {
+                updateGroupAutoStatus(groupId, false);
+            }
+        });
             }
         });
     }
@@ -3351,7 +3502,7 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo) {
             autoSendToggle.checked = true;
         }
         
-        alert('자동전송이 시작되었습니다! PC를 종료해도 계속 실행됩니다.');
+        // 자동전송 시작 성공 - 진행상황에 표시됨
         return true;
         
     } catch (error) {
@@ -3438,7 +3589,7 @@ async function startAutoSend() {
             autoSendToggle.checked = true;
         }
         
-        alert('자동전송이 시작되었습니다! PC를 종료해도 계속 실행됩니다.');
+        // 자동전송 시작 성공 - 진행상황에 표시됨
         return true;
         
     } catch (error) {
@@ -3501,6 +3652,80 @@ async function checkAutoSendStatus() {
     } catch (error) {
         console.error('❌ 자동전송 상태 확인 실패:', error);
         return false;
+    }
+}
+
+// 실시간 진행상황 관리 함수들
+function showProgressSection() {
+    const progressSection = document.getElementById('progressSection');
+    if (progressSection) {
+        progressSection.style.display = 'block';
+    }
+}
+
+function hideProgressSection() {
+    const progressSection = document.getElementById('progressSection');
+    if (progressSection) {
+        progressSection.style.display = 'none';
+    }
+}
+
+function initProgress(totalGroups) {
+    document.getElementById('totalGroups').textContent = totalGroups;
+    document.getElementById('successCount').textContent = '0';
+    document.getElementById('failCount').textContent = '0';
+    document.getElementById('progressPercent').textContent = '0%';
+    document.getElementById('progressFill').style.width = '0%';
+    document.getElementById('progressLog').innerHTML = '';
+    
+    addProgressLog('info', '🚀 전송 시작', '전송을 시작합니다...');
+}
+
+function updateProgress(successCount, failCount) {
+    const totalGroups = parseInt(document.getElementById('totalGroups').textContent);
+    const totalProcessed = successCount + failCount;
+    const progressPercent = totalGroups > 0 ? Math.round((totalProcessed / totalGroups) * 100) : 0;
+    
+    document.getElementById('successCount').textContent = successCount;
+    document.getElementById('failCount').textContent = failCount;
+    document.getElementById('progressPercent').textContent = progressPercent + '%';
+    document.getElementById('progressFill').style.width = progressPercent + '%';
+}
+
+function addProgressLog(type, icon, message, groupTitle = '') {
+    const progressLog = document.getElementById('progressLog');
+    if (!progressLog) return;
+    
+    const logItem = document.createElement('div');
+    logItem.className = `progress-log-item ${type}`;
+    
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('ko-KR', { 
+        hour: '2-digit', 
+        minute: '2-digit', 
+        second: '2-digit' 
+    });
+    
+    logItem.innerHTML = `
+        <span class="log-time">${timeStr}</span>
+        <span class="log-icon">${icon}</span>
+        <span class="log-message">${groupTitle ? `[${groupTitle}] ` : ''}${message}</span>
+    `;
+    
+    progressLog.appendChild(logItem);
+    progressLog.scrollTop = progressLog.scrollHeight;
+}
+
+function completeProgress(successCount, failCount) {
+    const totalGroups = parseInt(document.getElementById('totalGroups').textContent);
+    const totalProcessed = successCount + failCount;
+    
+    if (totalProcessed === totalGroups) {
+        if (failCount === 0) {
+            addProgressLog('success', '✅', '모든 그룹에 성공적으로 전송되었습니다!');
+        } else {
+            addProgressLog('info', '📊', `전송 완료: 성공 ${successCount}개, 실패 ${failCount}개`);
+        }
     }
 }
 

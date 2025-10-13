@@ -314,6 +314,40 @@
                                         <textarea class="message-input" placeholder="전송할 메시지를 입력하세요..."></textarea>
                                     </div>
                                 </div>
+                                <!-- 실시간 진행상황 표시 영역 -->
+                                <div class="progress-section" id="progressSection" style="display: none;">
+                                    <div class="progress-header">
+                                        <h4>📊 전송 진행상황</h4>
+                                        <button class="close-progress-btn" id="closeProgressBtn">×</button>
+                                    </div>
+                                    <div class="progress-content">
+                                        <div class="progress-stats">
+                                            <div class="stat-item">
+                                                <span class="stat-label">전체 그룹:</span>
+                                                <span class="stat-value" id="totalGroups">0</span>
+                                            </div>
+                                            <div class="stat-item">
+                                                <span class="stat-label">성공:</span>
+                                                <span class="stat-value success" id="successCount">0</span>
+                                            </div>
+                                            <div class="stat-item">
+                                                <span class="stat-label">실패:</span>
+                                                <span class="stat-value error" id="failCount">0</span>
+                                            </div>
+                                            <div class="stat-item">
+                                                <span class="stat-label">진행률:</span>
+                                                <span class="stat-value" id="progressPercent">0%</span>
+                                            </div>
+                                        </div>
+                                        <div class="progress-bar">
+                                            <div class="progress-fill" id="progressFill"></div>
+                                        </div>
+                                        <div class="progress-log" id="progressLog">
+                                            <!-- 실시간 로그가 여기에 표시됩니다 -->
+                                        </div>
+                                    </div>
+                                </div>
+                                
                                 <div class="message-actions">
                                     <div class="left-buttons">
                                         <button class="saved-messages-btn" id="savedMessagesBtn">💾 저장된 메시지</button>
