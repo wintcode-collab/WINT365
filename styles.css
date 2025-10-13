@@ -1186,6 +1186,81 @@ input:focus, button:focus, textarea:focus, select:focus {
     gap: 10px;
 }
 
+/* 자동 전송 토글 스위치 */
+.message-input-header {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 10px;
+}
+
+.auto-send-toggle-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.auto-send-label {
+    color: #888;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.auto-send-switch {
+    position: relative;
+    display: inline-block;
+    width: 50px;
+    height: 24px;
+}
+
+.auto-send-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.auto-send-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #333;
+    transition: 0.3s;
+    border-radius: 24px;
+    border: 1px solid #555;
+}
+
+.auto-send-slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 2px;
+    bottom: 2px;
+    background-color: #666;
+    transition: 0.3s;
+    border-radius: 50%;
+}
+
+.auto-send-switch input:checked + .auto-send-slider {
+    background-color: #10B981;
+    border-color: #10B981;
+}
+
+.auto-send-switch input:checked + .auto-send-slider:before {
+    transform: translateX(26px);
+    background-color: white;
+}
+
+.auto-send-switch:hover .auto-send-slider {
+    border-color: #10B981;
+}
+
+.auto-send-switch input:checked + .auto-send-slider:hover {
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+}
+
 .send-message-btn, .cancel-message-btn {
     padding: 10px 20px;
     border-radius: 6px;
