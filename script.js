@@ -2088,6 +2088,38 @@ async function sendMessageToGroup() {
         return;
     }
     
+    // 자동 전송 ON 상태에서 메시지 개수 확인
+    const autoSendToggle = document.getElementById('autoSendToggle');
+    if (autoSendToggle && autoSendToggle.checked) {
+        console.log('🔍 자동 전송 모드: 메시지 개수 확인 중...');
+        
+        const { sendableGroups, pendingGroups } = await checkSelectedGroupsMessageCount();
+        
+        if (sendableGroups.length === 0) {
+            alert('전송 가능한 그룹이 없습니다. 메시지 개수를 확인해주세요.');
+            return;
+        }
+        
+        if (pendingGroups.length > 0) {
+            const proceed = confirm(`${pendingGroups.length}개 그룹이 메시지 개수 부족으로 전송이 보류됩니다.\n전송 가능한 그룹: ${sendableGroups.length}개\n계속 진행하시겠습니까?`);
+            if (!proceed) {
+                return;
+            }
+        }
+        
+        // 전송 가능한 그룹만 필터링
+        const filteredCheckboxes = Array.from(checkedBoxes).filter(checkbox => 
+            sendableGroups.includes(checkbox.dataset.groupId)
+        );
+        
+        // 필터링된 그룹들만 전송하도록 체크박스 상태 업데이트
+        checkedBoxes.forEach(checkbox => {
+            checkbox.checked = sendableGroups.includes(checkbox.dataset.groupId);
+        });
+        
+        console.log(`📤 전송 가능한 그룹 ${sendableGroups.length}개에만 메시지 전송`);
+    }
+    
     // 원본 메시지 데이터가 있으면 우선 사용, 없으면 입력칸의 텍스트 사용
     let message;
     let mediaInfo = null;
@@ -3024,19 +3056,16 @@ function setupAutoSendEventListeners() {
         });
     }
 
-    // 자동 전송 시작 버튼
-    if (autoSendStartBtn) {
-        autoSendStartBtn.addEventListener('click', startAutoSend);
-    }
-
-    // 자동 전송 중지 버튼
-    if (autoSendStopBtn) {
-        autoSendStopBtn.addEventListener('click', stopAutoSend);
-    }
 
     // 설정 저장 버튼
     if (autoSendSaveBtn) {
         autoSendSaveBtn.addEventListener('click', saveAutoSendSettings);
+    }
+
+    // 메시지 개수 확인 체크박스
+    const enableMessageCheck = document.getElementById('enableMessageCheck');
+    if (enableMessageCheck) {
+        enableMessageCheck.addEventListener('change', updateMessageCheckStatus);
     }
 }
 
@@ -3070,10 +3099,17 @@ function loadAutoSendSettings() {
         const groupInterval = document.getElementById('groupInterval');
         const repeatInterval = document.getElementById('repeatInterval');
         const maxRepeats = document.getElementById('maxRepeats');
+        const messageThreshold = document.getElementById('messageThreshold');
+        const enableMessageCheck = document.getElementById('enableMessageCheck');
         
         if (groupInterval) groupInterval.value = settings.groupInterval || 5;
         if (repeatInterval) repeatInterval.value = settings.repeatInterval || 30;
         if (maxRepeats) maxRepeats.value = settings.maxRepeats || 10;
+        if (messageThreshold) messageThreshold.value = settings.messageThreshold || 5;
+        if (enableMessageCheck) enableMessageCheck.checked = settings.enableMessageCheck !== false;
+        
+        // 메시지 개수 확인 상태 업데이트
+        updateMessageCheckStatus();
     }
 }
 
@@ -3082,52 +3118,102 @@ function saveAutoSendSettings() {
     const groupInterval = document.getElementById('groupInterval').value;
     const repeatInterval = document.getElementById('repeatInterval').value;
     const maxRepeats = document.getElementById('maxRepeats').value;
+    const messageThreshold = document.getElementById('messageThreshold').value;
+    const enableMessageCheck = document.getElementById('enableMessageCheck').checked;
     
     const settings = {
         groupInterval: parseInt(groupInterval),
         repeatInterval: parseInt(repeatInterval),
-        maxRepeats: parseInt(maxRepeats)
+        maxRepeats: parseInt(maxRepeats),
+        messageThreshold: parseInt(messageThreshold),
+        enableMessageCheck: enableMessageCheck
     };
     
     localStorage.setItem('autoSendSettings', JSON.stringify(settings));
+    
+    // 메시지 개수 확인 상태 업데이트
+    updateMessageCheckStatus();
     
     // 성공 메시지 표시
     alert('자동 전송 설정이 저장되었습니다!');
 }
 
-// 자동 전송 시작
-function startAutoSend() {
-    console.log('🚀 자동 전송 시작');
+// 메시지 개수 확인 상태 업데이트
+function updateMessageCheckStatus() {
+    const enableMessageCheck = document.getElementById('enableMessageCheck');
+    const messageCheckStatus = document.getElementById('messageCheckStatus');
     
-    // 버튼 상태 변경
-    const startBtn = document.getElementById('autoSendStartBtn');
-    const stopBtn = document.getElementById('autoSendStopBtn');
-    const status = document.getElementById('autoSendStatus');
-    
-    if (startBtn) startBtn.style.display = 'none';
-    if (stopBtn) stopBtn.style.display = 'inline-block';
-    if (status) status.textContent = '실행 중';
-    
-    // TODO: 실제 자동 전송 로직 구현
-    alert('자동 전송이 시작되었습니다! (기능 구현 예정)');
+    if (enableMessageCheck && messageCheckStatus) {
+        if (enableMessageCheck.checked) {
+            messageCheckStatus.textContent = '활성화';
+            messageCheckStatus.style.color = '#10B981';
+        } else {
+            messageCheckStatus.textContent = '비활성화';
+            messageCheckStatus.style.color = '#dc3545';
+        }
+    }
 }
 
-// 자동 전송 중지
-function stopAutoSend() {
-    console.log('⏹️ 자동 전송 중지');
-    
-    // 버튼 상태 변경
-    const startBtn = document.getElementById('autoSendStartBtn');
-    const stopBtn = document.getElementById('autoSendStopBtn');
-    const status = document.getElementById('autoSendStatus');
-    
-    if (startBtn) startBtn.style.display = 'inline-block';
-    if (stopBtn) stopBtn.style.display = 'none';
-    if (status) status.textContent = '중지됨';
-    
-    // TODO: 실제 자동 전송 중지 로직 구현
-    alert('자동 전송이 중지되었습니다!');
+// 그룹의 메시지 개수 확인
+async function checkGroupMessageCount(groupId) {
+    try {
+        // TODO: 실제 API 호출로 그룹의 메시지 개수 확인
+        // 현재는 임시로 랜덤 값 반환
+        const messageCount = Math.floor(Math.random() * 20) + 1;
+        console.log(`📊 그룹 ${groupId}의 메시지 개수: ${messageCount}`);
+        return messageCount;
+    } catch (error) {
+        console.error('❌ 메시지 개수 확인 실패:', error);
+        return 0;
+    }
 }
+
+// 메시지 개수 기반 전송 여부 결정
+async function shouldSendToGroup(groupId) {
+    const enableMessageCheck = document.getElementById('enableMessageCheck');
+    const messageThreshold = document.getElementById('messageThreshold');
+    
+    // 메시지 개수 확인이 비활성화되어 있으면 항상 전송
+    if (!enableMessageCheck || !enableMessageCheck.checked) {
+        return true;
+    }
+    
+    const threshold = parseInt(messageThreshold?.value || 5);
+    const messageCount = await checkGroupMessageCount(groupId);
+    
+    // 메시지 개수가 임계값보다 많으면 전송
+    return messageCount > threshold;
+}
+
+// 선택된 그룹들에 대해 메시지 개수 확인
+async function checkSelectedGroupsMessageCount() {
+    const checkedBoxes = document.querySelectorAll('.group-checkbox:checked');
+    const pendingGroups = [];
+    const sendableGroups = [];
+    
+    for (const checkbox of checkedBoxes) {
+        const groupId = checkbox.dataset.groupId;
+        const shouldSend = await shouldSendToGroup(groupId);
+        
+        if (shouldSend) {
+            sendableGroups.push(groupId);
+        } else {
+            pendingGroups.push(groupId);
+        }
+    }
+    
+    // 보류된 그룹 수 업데이트
+    const pendingGroupsElement = document.getElementById('pendingGroups');
+    if (pendingGroupsElement) {
+        pendingGroupsElement.textContent = `${pendingGroups.length}개`;
+    }
+    
+    console.log(`📤 전송 가능한 그룹: ${sendableGroups.length}개`);
+    console.log(`⏸️ 보류된 그룹: ${pendingGroups.length}개`);
+    
+    return { sendableGroups, pendingGroups };
+}
+
 
 // 저장된 텔레그램 설정 로드
 function loadTelegramSettings() {
