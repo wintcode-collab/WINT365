@@ -754,6 +754,43 @@ input:focus, button:focus, textarea:focus, select:focus {
     background: rgba(0, 0, 0, 0.3);
 }
 
+.groups-controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.select-all-groups-btn,
+.deselect-all-groups-btn {
+    padding: 8px 12px;
+    border: none;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.select-all-groups-btn:hover {
+    background: rgba(34, 197, 94, 0.8);
+    border-color: rgba(34, 197, 94, 0.8);
+    transform: translateY(-1px);
+}
+
+.deselect-all-groups-btn:hover {
+    background: rgba(239, 68, 68, 0.8);
+    border-color: rgba(239, 68, 68, 0.8);
+    transform: translateY(-1px);
+}
+
+.select-all-groups-btn:active,
+.deselect-all-groups-btn:active {
+    transform: translateY(0);
+}
+
 .groups-title {
     display: flex;
     align-items: center;
