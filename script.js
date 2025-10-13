@@ -3298,13 +3298,13 @@ function updateAutoSendSettingsDisplay() {
             settingsInfo.innerHTML = '';
             settingsDisplay.style.display = 'block';
             
-            // 각 설정을 0.5초 간격으로 순차적으로 추가
+            // 각 설정을 0.5초 간격으로 순차적으로 추가 (가로 정렬)
             settingsTexts.forEach((text, index) => {
                 setTimeout(() => {
                     if (index === 0) {
                         settingsInfo.innerHTML = `<span class="setting-item">${text}</span>`;
                     } else {
-                        settingsInfo.innerHTML += `<br><span class="setting-item">${text}</span>`;
+                        settingsInfo.innerHTML += ` <span class="setting-item">${text}</span>`;
                     }
                 }, index * 500); // 0.5초 간격
             });
