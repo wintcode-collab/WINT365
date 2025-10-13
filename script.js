@@ -1848,26 +1848,6 @@ function showTelegramGroupsWindow(groups, account) {
         // 그룹 목록 렌더링
         renderGroupsList(groups);
         
-        // 전송 버튼 상태 초기화 (그룹이 있으면 활성화)
-        const initialSelectedCount = document.querySelectorAll('.group-checkbox:checked').length;
-        updateSendButtonState(initialSelectedCount);
-        
-        // 디버깅용: 전송 버튼 강제 활성화
-        setTimeout(() => {
-            forceEnableSendButton();
-        }, 500);
-        
-        // 자동전송 상태 복원
-        setTimeout(() => {
-            restoreAutoSendStatusOnLoad();
-        }, 1000);
-        
-        // 자동전송 상태 주기적 업데이트 시작
-        startAutoSendStatusUpdate();
-        
-        // 그룹 전체선택 버튼 이벤트 리스너 추가
-        setupGroupSelectionButtons();
-        
         // 창 표시 (제일 위로 올라오기)
         groupsWindow.style.display = 'flex';
         setTimeout(() => {
@@ -1886,7 +1866,7 @@ function renderGroupsList(groups) {
     groupsList.innerHTML = groups.map((group, index) => `
         <div class="group-item" data-group-id="${group.id}" data-group-index="${index}">
             <div class="group-checkbox-container">
-                <input type="checkbox" class="group-checkbox" id="group-${group.id}" data-group-id="${group.id}" data-group-title="${group.title}">
+                <input type="checkbox" class="group-checkbox" id="group-${group.id}" data-group-id="${group.id}">
                 <label for="group-${group.id}" class="group-label">
                     <div class="group-name">${group.title}</div>
                     <div class="group-info">
@@ -1896,39 +1876,20 @@ function renderGroupsList(groups) {
                     </div>
                 </label>
             </div>
-            <div class="group-status-info">
-                <div class="group-message-count">
-                    <span class="status-label">메시지 수:</span>
-                    <span class="status-value" id="messageCount-${group.id}">확인 중...</span>
-                </div>
-                <div class="group-next-send">
-                    <span class="status-label">다음 전송:</span>
-                    <span class="status-value" id="nextSend-${group.id}">-</span>
-                </div>
-                <div class="group-auto-status">
-                    <span class="status-label">자동전송:</span>
-                    <span class="status-value" id="autoStatus-${group.id}">대기</span>
-                </div>
-            </div>
         </div>
     `).join('');
     
     // 체크박스 이벤트 추가
     const groupCheckboxes = groupsList.querySelectorAll('.group-checkbox');
-    console.log(`🔍 그룹 체크박스 ${groupCheckboxes.length}개에 이벤트 리스너 추가`);
-    
-    groupCheckboxes.forEach((checkbox, index) => {
+    groupCheckboxes.forEach(checkbox => {
         checkbox.addEventListener('change', function() {
-            console.log(`🔍 그룹 체크박스 ${index + 1} 변경: ${this.checked}`);
             updateSelectedGroupsCount();
             updateGroupItemVisualState(this);
         });
     });
     
     // 초기 선택된 그룹 수 업데이트
-    setTimeout(() => {
-        updateSelectedGroupsCount();
-    }, 100);
+    updateSelectedGroupsCount();
     
     // 초기 시각적 상태 업데이트
     groupCheckboxes.forEach(checkbox => {
@@ -1996,40 +1957,7 @@ function setupTelegramGroupsEventListeners() {
     // 메시지 전송 버튼
     const sendMessageBtn = document.getElementById('sendMessageBtn');
     if (sendMessageBtn) {
-        // 클릭 이벤트
-        sendMessageBtn.addEventListener('click', function(e) {
-            console.log('📤 전송 버튼 클릭됨');
-            console.log('📤 버튼 상태:', {
-                disabled: sendMessageBtn.disabled,
-                opacity: sendMessageBtn.style.opacity,
-                cursor: sendMessageBtn.style.cursor
-            });
-            
-            if (sendMessageBtn.disabled) {
-                console.log('❌ 전송 버튼이 비활성화 상태입니다');
-                e.preventDefault();
-                e.stopPropagation();
-                return false;
-            }
-            
-            e.preventDefault();
-            e.stopPropagation();
-            sendMessageToGroup();
-        });
-        
-        // 마우스 오버 이벤트 (디버깅용)
-        sendMessageBtn.addEventListener('mouseover', function() {
-            console.log('🖱️ 전송 버튼 마우스 오버');
-        });
-        
-        // 포커스 이벤트 (디버깅용)
-        sendMessageBtn.addEventListener('focus', function() {
-            console.log('🎯 전송 버튼 포커스');
-        });
-        
-        console.log('✅ 전송 버튼 이벤트 리스너 설정 완료');
-    } else {
-        console.error('❌ 전송 버튼을 찾을 수 없습니다!');
+        sendMessageBtn.addEventListener('click', sendMessageToGroup);
     }
     
     // 메시지 지우기 버튼
@@ -2165,19 +2093,36 @@ async function sendMessageToGroup() {
         return;
     }
     
-    // 자동 전송 ON 상태에서는 서버의 자동전송 API 호출
+    // 자동 전송 ON 상태에서 메시지 개수 확인
     const autoSendToggle = document.getElementById('autoSendToggle');
     if (autoSendToggle && autoSendToggle.checked) {
-        console.log('🔍 자동 전송 모드: 서버 자동전송 API 호출');
+        console.log('🔍 자동 전송 모드: 메시지 개수 확인 중...');
         
-        // 자동전송 시작
-        const autoSendSuccess = await startAutoSendWithGroups(validGroupIds, message, mediaInfo);
-        if (autoSendSuccess) {
-            console.log('✅ 자동전송 시작 성공');
-            return; // 자동전송이 시작되면 여기서 종료
-        } else {
-            console.log('❌ 자동전송 시작 실패, 수동 전송으로 진행');
+        const { sendableGroups, pendingGroups } = await checkSelectedGroupsMessageCount();
+        
+        if (sendableGroups.length === 0) {
+            alert('전송 가능한 그룹이 없습니다. 메시지 개수를 확인해주세요.');
+            return;
         }
+        
+        if (pendingGroups.length > 0) {
+            const proceed = confirm(`${pendingGroups.length}개 그룹이 메시지 개수 부족으로 전송이 보류됩니다.\n전송 가능한 그룹: ${sendableGroups.length}개\n계속 진행하시겠습니까?`);
+            if (!proceed) {
+                return;
+            }
+        }
+        
+        // 전송 가능한 그룹만 필터링
+        const filteredCheckboxes = Array.from(checkedBoxes).filter(checkbox => 
+            sendableGroups.includes(checkbox.dataset.groupId)
+        );
+        
+        // 필터링된 그룹들만 전송하도록 체크박스 상태 업데이트
+        checkedBoxes.forEach(checkbox => {
+            checkbox.checked = sendableGroups.includes(checkbox.dataset.groupId);
+        });
+        
+        console.log(`📤 전송 가능한 그룹 ${sendableGroups.length}개에만 메시지 전송`);
     }
     
     // 원본 메시지 데이터가 있으면 우선 사용, 없으면 입력칸의 텍스트 사용
@@ -3094,45 +3039,14 @@ function setupAutoSendEventListeners() {
     // 자동 전송 토글 클릭 시 설정 모달 열기
     if (autoSendToggle) {
         autoSendToggle.addEventListener('change', function() {
-            // 페이지가 언로드 중인지 확인
-            if (isPageUnloading || document.visibilityState === 'hidden' || document.readyState === 'unload') {
-                console.log('🔄 페이지 언로드 중, 자동전송 중지 건너뜀');
-                return;
-            }
-            
             if (this.checked) {
                 showAutoSendSettingsModal();
             } else {
-                // 자동전송 중지
-                stopAutoSend();
                 hideAutoSendSettingsModal();
                 // 설정 표시 숨기기
                 const settingsDisplay = document.getElementById('autoSendSettingsDisplay');
                 if (settingsDisplay) {
                     settingsDisplay.style.display = 'none';
-                }
-                // 토글 상태 저장
-                localStorage.setItem('autoSendToggleState', 'false');
-                
-                // 모든 그룹의 자동전송 상태를 대기로 변경
-                const groupItems = document.querySelectorAll('.group-item');
-                groupItems.forEach(item => {
-                    const groupId = item.dataset.groupId;
-                    if (groupId) {
-                        updateGroupAutoStatus(groupId, false);
-                    }
-                });
-                
-                // 전송 버튼 상태 초기화
-                resetSendButtonState();
-                
-                // 추가적인 UI 상태 초기화
-                const sendButton = document.getElementById('sendButton');
-                if (sendButton) {
-                    sendButton.disabled = false;
-                    sendButton.textContent = '전송';
-                    sendButton.classList.remove('sending', 'disabled');
-                    sendButton.style.opacity = '1';
                 }
             }
         });
@@ -3214,7 +3128,7 @@ function loadAutoSendSettings() {
         const messageThreshold = document.getElementById('messageThreshold');
         const enableMessageCheck = document.getElementById('enableMessageCheck');
         
-        if (groupInterval) groupInterval.value = settings.groupInterval || 30;
+        if (groupInterval) groupInterval.value = settings.groupInterval || 5;
         if (repeatInterval) repeatInterval.value = settings.repeatInterval || 30;
         if (maxRepeats) maxRepeats.value = settings.maxRepeats || 10;
         if (messageThreshold) messageThreshold.value = settings.messageThreshold || 5;
@@ -3241,13 +3155,7 @@ function saveAutoSendSettings() {
         enableMessageCheck: enableMessageCheck
     };
     
-    console.log('🔧 자동전송 설정 저장:', settings);
-    console.log('🔧 그룹 간격 원본 값:', groupInterval, '변환된 값:', parseInt(groupInterval));
-    
     localStorage.setItem('autoSendSettings', JSON.stringify(settings));
-    
-    // Firebase에도 설정 저장
-    saveAutoSendSettingsToFirebase(settings);
     
     // 메시지 개수 확인 상태 업데이트 (제거됨)
     // updateMessageCheckStatus();
@@ -3256,8 +3164,6 @@ function saveAutoSendSettings() {
     const autoSendToggle = document.getElementById('autoSendToggle');
     if (autoSendToggle) {
         autoSendToggle.checked = true;
-        // 토글 상태도 localStorage에 저장
-        localStorage.setItem('autoSendToggleState', 'true');
     }
     
     // 설정 표시 업데이트
@@ -3575,415 +3481,4 @@ function dragEnd(e) {
     initialY = currentY;
     
     isDragging = false;
-}
-
-function resetSendButtonState() {
-    // 전송 버튼 상태 초기화
-    const sendButton = document.getElementById('sendMessageBtn');
-    if (sendButton) {
-        sendButton.disabled = false;
-        sendButton.textContent = '📤 선택된 그룹에 전송';
-        sendButton.classList.remove('sending', 'disabled');
-        sendButton.style.opacity = '1';
-        sendButton.style.backgroundColor = '';
-        sendButton.style.borderColor = '';
-        sendButton.style.cursor = 'pointer';
-        console.log('🔄 전송 버튼 상태 초기화 완료');
-    } else {
-        console.error('❌ 전송 버튼을 찾을 수 없습니다!');
-    }
-    
-    // 진행상황 창 숨기기
-    hideProgressSection();
-    
-    // 메시지 입력 필드도 활성화
-    const messageInput = document.getElementById('messageInput');
-    if (messageInput) {
-        messageInput.disabled = false;
-        messageInput.style.backgroundColor = '';
-        messageInput.style.cursor = '';
-    }
-    
-    console.log('🔄 전송 버튼 상태 초기화 완료');
-}
-
-// 그룹 전체선택 버튼 설정
-function setupGroupSelectionButtons() {
-    const selectAllBtn = document.getElementById('selectAllGroupsBtn');
-    const deselectAllBtn = document.getElementById('deselectAllGroupsBtn');
-    
-    if (selectAllBtn) {
-        selectAllBtn.addEventListener('click', function() {
-            selectAllGroups();
-        });
-    }
-    
-    if (deselectAllBtn) {
-        deselectAllBtn.addEventListener('click', function() {
-            deselectAllGroups();
-        });
-    }
-}
-
-// 모든 그룹 선택
-function selectAllGroups() {
-    const groupCheckboxes = document.querySelectorAll('.group-checkbox');
-    let selectedCount = 0;
-    
-    groupCheckboxes.forEach(checkbox => {
-        if (!checkbox.disabled) {
-            checkbox.checked = true;
-            selectedCount++;
-        }
-    });
-    
-    // 선택된 그룹 수 업데이트
-    updateSelectedGroupsCount();
-    
-    console.log(`✅ 전체 그룹 선택 완료: ${selectedCount}개 그룹`);
-}
-
-// 모든 그룹 선택 해제
-function deselectAllGroups() {
-    const groupCheckboxes = document.querySelectorAll('.group-checkbox');
-    
-    groupCheckboxes.forEach(checkbox => {
-        checkbox.checked = false;
-    });
-    
-    // 선택된 그룹 수 업데이트
-    updateSelectedGroupsCount();
-    
-    console.log('❌ 전체 그룹 선택 해제 완료');
-}
-
-// 선택된 그룹 수 업데이트
-function updateSelectedGroupsCount() {
-    const groupCheckboxes = document.querySelectorAll('.group-checkbox:checked');
-    const selectedCount = groupCheckboxes.length;
-    
-    console.log(`🔍 선택된 그룹 수 업데이트: ${selectedCount}개`);
-    
-    // 선택된 그룹 수 표시 업데이트
-    const selectedGroupsInfo = document.getElementById('selectedGroupsInfo');
-    if (selectedGroupsInfo) {
-        selectedGroupsInfo.textContent = `${selectedCount}개 그룹 선택됨`;
-    }
-    
-    // 전송 버튼 상태 업데이트
-    updateSendButtonState(selectedCount);
-    
-    return selectedCount;
-}
-
-// 전송 버튼 강제 활성화 (디버깅용)
-function forceEnableSendButton() {
-    const sendBtn = document.getElementById('sendMessageBtn');
-    if (sendBtn) {
-        sendBtn.disabled = false;
-        sendBtn.style.opacity = '1';
-        sendBtn.style.cursor = 'pointer';
-        sendBtn.style.backgroundColor = '';
-        sendBtn.style.borderColor = '';
-        console.log('🔧 전송 버튼 강제 활성화 완료');
-    }
-}
-
-// 전송 버튼 상태 업데이트 함수
-function updateSendButtonState(selectedCount) {
-    const sendBtn = document.getElementById('sendMessageBtn');
-    
-    console.log(`🔍 전송 버튼 상태 업데이트: selectedCount=${selectedCount}`);
-    
-    if (sendBtn) {
-        if (selectedCount > 0) {
-            sendBtn.disabled = false;
-            sendBtn.style.opacity = '1';
-            sendBtn.style.cursor = 'pointer';
-            sendBtn.style.backgroundColor = '';
-            sendBtn.style.borderColor = '';
-            console.log('✅ 전송 버튼 활성화:', selectedCount, '개 그룹 선택됨');
-        } else {
-            sendBtn.disabled = true;
-            sendBtn.style.opacity = '0.5';
-            sendBtn.style.cursor = 'not-allowed';
-            console.log('❌ 전송 버튼 비활성화: 그룹이 선택되지 않음');
-        }
-    } else {
-        console.error('❌ 전송 버튼을 찾을 수 없습니다!');
-    }
-}
-
-// 자동전송 시작 함수
-async function startAutoSendWithGroups(selectedGroups, message, mediaInfo) {
-    try {
-        console.log('🚀 자동전송 시작:', { selectedGroups, message, mediaInfo });
-        
-        // 현재 계정 정보 가져오기
-        const accountName = document.getElementById('selectedAccountName').textContent;
-        const accountPhone = document.getElementById('selectedAccountPhone').textContent;
-        
-        if (!accountName || accountName === '계정을 선택하세요') {
-            throw new Error('계정이 선택되지 않았습니다.');
-        }
-        
-        // 계정 목록에서 해당 계정 찾기
-        const response = await fetch('/api/telegram/load-accounts', {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        });
-        
-        const result = await response.json();
-        if (!response.ok || !result.success || !result.accounts) {
-            throw new Error(result.error || '계정 목록 로딩 실패');
-        }
-        
-        const account = result.accounts.find(acc => 
-            `${acc.first_name} ${acc.last_name || ''}`.trim() === accountName.trim()
-        );
-        
-        if (!account) {
-            throw new Error('계정을 찾을 수 없습니다.');
-        }
-        
-        // 자동전송 시작 API 호출
-        const autoSendResponse = await fetch('/api/auto-send/start', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                account_name: accountName,
-                group_ids: selectedGroups,
-                message: message,
-                media_info: mediaInfo
-            })
-        });
-        
-        const autoSendResult = await autoSendResponse.json();
-        
-        if (autoSendResponse.ok && autoSendResult.success) {
-            console.log('✅ 자동전송 시작 성공:', autoSendResult);
-            return true;
-        } else {
-            console.error('❌ 자동전송 시작 실패:', autoSendResult);
-            return false;
-        }
-        
-    } catch (error) {
-        console.error('❌ 자동전송 시작 에러:', error);
-        return false;
-    }
-}
-
-// Firebase에 자동전송 설정 저장
-async function saveAutoSendSettingsToFirebase(settings) {
-    try {
-        console.log('🔥 Firebase에 자동전송 설정 저장 시작:', settings);
-        
-        // 현재 계정 정보 가져오기
-        const accountName = document.getElementById('selectedAccountName').textContent;
-        if (!accountName || accountName === '계정을 선택하세요') {
-            console.log('❌ 계정이 선택되지 않음, Firebase 저장 건너뜀');
-            return false;
-        }
-        
-        // 계정 목록에서 해당 계정 찾기
-        const response = await fetch('/api/telegram/load-accounts', {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        });
-        
-        const result = await response.json();
-        if (!response.ok || !result.success || !result.accounts) {
-            throw new Error(result.error || '계정 목록 로딩 실패');
-        }
-        
-        const account = result.accounts.find(acc => 
-            `${acc.first_name} ${acc.last_name || ''}`.trim() === accountName.trim()
-        );
-        
-        if (!account) {
-            throw new Error('계정을 찾을 수 없습니다.');
-        }
-        
-        // Firebase에 설정 저장
-        const saveResponse = await fetch('/api/auto-send/save-settings', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                userId: account.user_id,
-                settings: settings
-            })
-        });
-        
-        const saveResult = await saveResponse.json();
-        
-        if (saveResponse.ok && saveResult.success) {
-            console.log('✅ Firebase 자동전송 설정 저장 성공');
-            return true;
-        } else {
-            console.error('❌ Firebase 자동전송 설정 저장 실패:', saveResult);
-            return false;
-        }
-        
-    } catch (error) {
-        console.error('❌ Firebase 자동전송 설정 저장 에러:', error);
-        return false;
-    }
-}
-
-// 자동전송 상태 주기적 업데이트
-function startAutoSendStatusUpdate() {
-    // 30초마다 자동전송 상태 확인
-    setInterval(async () => {
-        try {
-            const accountName = document.getElementById('selectedAccountName').textContent;
-            if (!accountName || accountName === '계정을 선택하세요') {
-                return;
-            }
-            
-            const response = await fetch('/api/auto-send/status', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    account_name: accountName
-                })
-            });
-            
-            if (response.ok) {
-                const statusData = await response.json();
-                if (statusData.is_running && statusData.groups) {
-                    // 그룹 상태 업데이트
-                    statusData.groups.forEach(group => {
-                        updateGroupAutoStatus(group.id, true);
-                        if (group.next_send_time) {
-                            updateGroupNextSendTime(group.id, group.next_send_time);
-                        }
-                    });
-                }
-            }
-        } catch (error) {
-            console.error('❌ 자동전송 상태 업데이트 실패:', error);
-        }
-    }, 30000); // 30초마다 업데이트
-}
-
-// 자동전송 상태 복원 함수
-async function restoreAutoSendStatusOnLoad() {
-    try {
-        console.log('🔄 페이지 로드 시 자동전송 상태 복원 시작');
-        
-        // 현재 선택된 계정 정보 가져오기
-        const accountName = document.getElementById('selectedAccountName').textContent;
-        if (!accountName || accountName === '계정을 선택하세요') {
-            console.log('❌ 계정이 선택되지 않음, 자동전송 상태 복원 건너뜀');
-            return;
-        }
-        
-        // 서버에서 자동전송 상태 조회
-        const response = await fetch('/api/auto-send/status', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                account_name: accountName
-            })
-        });
-        
-        if (response.ok) {
-            const statusData = await response.json();
-            console.log('📊 서버에서 가져온 자동전송 상태:', statusData);
-            
-            if (statusData.is_running) {
-                // 자동전송이 실행 중인 경우 UI 업데이트
-                const autoSendToggle = document.getElementById('autoSendToggle');
-                if (autoSendToggle) {
-                    autoSendToggle.checked = true;
-                    console.log('✅ 자동전송 토글 ON으로 설정');
-                }
-                
-                // 그룹 상태 업데이트
-                if (statusData.groups && statusData.groups.length > 0) {
-                    statusData.groups.forEach(group => {
-                        updateGroupAutoStatus(group.id, true);
-                        if (group.next_send_time) {
-                            updateGroupNextSendTime(group.id, group.next_send_time);
-                        }
-                    });
-                }
-                
-                console.log('✅ 자동전송 상태 복원 완료');
-            } else {
-                console.log('ℹ️ 자동전송이 실행 중이 아님');
-            }
-        } else {
-            console.log('❌ 자동전송 상태 조회 실패:', response.status);
-        }
-    } catch (error) {
-        console.error('❌ 자동전송 상태 복원 실패:', error);
-    }
-}
-
-// 페이지 언로드 감지 변수
-let isPageUnloading = false;
-
-// 페이지 언로드 이벤트 감지
-window.addEventListener('beforeunload', function() {
-    isPageUnloading = true;
-    console.log('🔄 페이지 언로드 시작, 자동전송 중지 방지');
-});
-
-// 페이지 가시성 변경 감지
-document.addEventListener('visibilitychange', function() {
-    if (document.visibilityState === 'hidden') {
-        isPageUnloading = true;
-        console.log('🔄 페이지 숨김, 자동전송 중지 방지');
-    } else if (document.visibilityState === 'visible') {
-        isPageUnloading = false;
-        console.log('🔄 페이지 표시, 자동전송 중지 방지 해제');
-    }
-});
-
-// 페이지 로드 시 전송 버튼 상태 초기화
-document.addEventListener('DOMContentLoaded', function() {
-    // DOM이 로드된 후 전송 버튼 상태 초기화
-    setTimeout(() => {
-        resetSendButtonState();
-        // 자동전송 토글 상태 복원
-        restoreAutoSendToggleState();
-    }, 1000);
-});
-
-// 자동전송 토글 상태 복원
-function restoreAutoSendToggleState() {
-    try {
-        const savedToggleState = localStorage.getItem('autoSendToggleState');
-        const savedSettings = localStorage.getItem('autoSendSettings');
-        
-        if (savedToggleState === 'true' && savedSettings) {
-            const autoSendToggle = document.getElementById('autoSendToggle');
-            if (autoSendToggle) {
-                autoSendToggle.checked = true;
-                console.log('✅ 자동전송 토글 상태 복원: ON');
-                
-                // 설정값도 복원
-                const settings = JSON.parse(savedSettings);
-                loadAutoSendSettings(settings);
-            }
-        } else {
-            console.log('ℹ️ 자동전송 토글 상태 복원: OFF 또는 설정 없음');
-        }
-    } catch (error) {
-        console.error('❌ 자동전송 토글 상태 복원 실패:', error);
-    }
 }

@@ -2367,19 +2367,8 @@ def execute_auto_send_job(user_id, group_ids, message, media_info=None):
             logger.error(f'❌ 자동전송 실패: 설정 없음 - {user_id}')
             return False
         
-        group_interval = settings.get('groupInterval', 30)  # 초 단위
+        group_interval = settings.get('groupInterval', 5)
         max_repeats = settings.get('maxRepeats', 10)
-        
-        logger.info(f'⏰ 자동전송 설정 확인:')
-        logger.info(f'   - 그룹 간격: {group_interval}초 (타입: {type(group_interval)})')
-        logger.info(f'   - 최대 반복: {max_repeats}회')
-        logger.info(f'   - 전체 설정: {settings}')
-        
-        # 그룹 간격이 숫자인지 확인
-        if not isinstance(group_interval, (int, float)) or group_interval <= 0:
-            logger.error(f'❌ 잘못된 그룹 간격 값: {group_interval} (타입: {type(group_interval)})')
-            group_interval = 30  # 기본값으로 설정
-            logger.info(f'🔧 그룹 간격을 기본값 30초로 설정')
         
         # 현재 반복 횟수 조회
         current_repeats = auto_send_jobs.get(f'{user_id}_repeats', 0)
@@ -2391,7 +2380,7 @@ def execute_auto_send_job(user_id, group_ids, message, media_info=None):
         
         # 각 그룹에 메시지 전송 (메시지 개수 확인 포함)
         success_count = 0
-        for i, group_id in enumerate(group_ids):
+        for group_id in group_ids:
             try:
                 # 두 가지 조건 확인: 메시지 개수 + 재전송 텀
                 settings_data = settings.get('settings', {})
@@ -2399,20 +2388,9 @@ def execute_auto_send_job(user_id, group_ids, message, media_info=None):
                 message_threshold = settings_data.get('messageThreshold', 5)
                 repeat_interval = settings.get('repeatInterval', 30)  # 분 단위
                 
-                # 조건 1: 메시지 개수 확인 (첫 발송이 아닌 경우에만)
+                # 조건 1: 메시지 개수 확인
                 message_count_ok = True
-                
-                # Firebase에서 마지막 전송 시간 확인하여 첫 발송인지 판단
-                status_data = get_auto_send_status_from_firebase(user_id)
-                is_first_send = True
-                if status_data and 'last_send_times' in status_data:
-                    last_send_time_str = status_data['last_send_times'].get(str(group_id))
-                    if last_send_time_str:
-                        is_first_send = False
-                
-                if is_first_send:
-                    logger.info(f'🚀 그룹 {group_id} 첫 발송: 메시지 개수 확인 생략')
-                elif enable_message_check:
+                if enable_message_check:
                     message_count = check_telegram_group_message_count(account_info, group_id)
                     logger.info(f'📊 그룹 {group_id} 메시지 개수: {message_count} (임계값: {message_threshold})')
                     
@@ -2420,12 +2398,11 @@ def execute_auto_send_job(user_id, group_ids, message, media_info=None):
                         logger.info(f'⏭️ 그룹 {group_id} 메시지 개수 부족으로 전송 건너뜀')
                         message_count_ok = False
                 
-                # 조건 2: 재전송 텀 확인 (첫 발송이 아닌 경우에만)
+                # 조건 2: 재전송 텀 확인
                 time_interval_ok = True
-                if is_first_send:
-                    logger.info(f'🚀 그룹 {group_id} 첫 발송: 재전송 텀 확인 생략')
-                elif message_count_ok:  # 메시지 개수 조건이 충족된 경우에만 시간 확인
+                if message_count_ok:  # 메시지 개수 조건이 충족된 경우에만 시간 확인
                     # Firebase에서 마지막 전송 시간 조회
+                    status_data = get_auto_send_status_from_firebase(user_id)
                     if status_data and 'last_send_times' in status_data:
                         last_send_time_str = status_data['last_send_times'].get(str(group_id))
                         if last_send_time_str:
@@ -2460,11 +2437,7 @@ def execute_auto_send_job(user_id, group_ids, message, media_info=None):
                         schedule_retry_for_group(user_id, group_id, message, media_info, wait_seconds)
                 
                 # 그룹 간 대기
-                if i < len(group_ids) - 1:  # 마지막 그룹이 아닌 경우에만 대기
-                    logger.info(f'⏰ 그룹 간 대기 시작: {group_interval}초 (그룹 {i+1}/{len(group_ids)})')
-                    logger.info(f'⏰ 실제 대기 시간: {group_interval}초')
-                    time.sleep(group_interval)
-                    logger.info(f'⏰ 그룹 간 대기 완료: {group_interval}초')
+                time.sleep(group_interval)
                 
             except Exception as e:
                 logger.error(f'❌ 자동전송 그룹 {group_id} 에러: {e}')
@@ -2493,8 +2466,6 @@ def start_auto_send_job(user_id, group_ids, message, media_info=None):
         if not settings:
             logger.error(f'❌ 자동전송 시작 실패: 설정 없음 - {user_id}')
             return False
-        
-        logger.info(f'🔥 Firebase에서 가져온 설정: {settings}')
         
         repeat_interval = settings.get('repeatInterval', 30)  # 분 단위
         
@@ -2741,40 +2712,16 @@ def start_auto_send():
     """자동전송 시작"""
     try:
         data = request.get_json()
-        account_name = data.get('account_name')
-        group_ids = data.get('group_ids', [])
+        user_id = data.get('userId')
+        group_ids = data.get('groupIds', [])
         message = data.get('message', '')
-        media_info = data.get('media_info')
+        media_info = data.get('mediaInfo')
         
-        logger.info(f'🚀 자동전송 시작 요청: account_name={account_name}, group_ids={group_ids}')
-        
-        if not account_name or not group_ids:
+        if not user_id or not group_ids:
             return jsonify({
                 'success': False,
-                'error': '계정명과 그룹 ID 목록이 필요합니다.'
+                'error': '사용자 ID와 그룹 ID 목록이 필요합니다.'
             }), 400
-        
-        # 계정명으로 user_id 찾기
-        user_id = None
-        try:
-            accounts_response = requests.get(f"{FIREBASE_URL}/authenticated_accounts.json", timeout=10)
-            if accounts_response.status_code == 200:
-                accounts_data = accounts_response.json()
-                if accounts_data:
-                    for uid, account_data in accounts_data.items():
-                        if account_data and isinstance(account_data, dict):
-                            full_name = f"{account_data.get('first_name', '')} {account_data.get('last_name', '')}".strip()
-                            if full_name == account_name:
-                                user_id = uid
-                                break
-        except Exception as e:
-            logger.error(f'❌ 계정 조회 실패: {e}')
-        
-        if not user_id:
-            return jsonify({
-                'success': False,
-                'error': '계정을 찾을 수 없습니다.'
-            }), 404
         
         # 자동전송 작업 시작
         result = start_auto_send_job(user_id, group_ids, message, media_info)
