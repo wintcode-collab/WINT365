@@ -1848,8 +1848,14 @@ function showTelegramGroupsWindow(groups, account) {
         // 그룹 목록 렌더링
         renderGroupsList(groups);
         
-        // 전송 버튼 상태 초기화
-        updateSendButtonState(0);
+        // 전송 버튼 상태 초기화 (그룹이 있으면 활성화)
+        const initialSelectedCount = document.querySelectorAll('.group-checkbox:checked').length;
+        updateSendButtonState(initialSelectedCount);
+        
+        // 디버깅용: 전송 버튼 강제 활성화
+        setTimeout(() => {
+            forceEnableSendButton();
+        }, 500);
         
         // 자동전송 상태 복원
         setTimeout(() => {
@@ -1909,15 +1915,20 @@ function renderGroupsList(groups) {
     
     // 체크박스 이벤트 추가
     const groupCheckboxes = groupsList.querySelectorAll('.group-checkbox');
-    groupCheckboxes.forEach(checkbox => {
+    console.log(`🔍 그룹 체크박스 ${groupCheckboxes.length}개에 이벤트 리스너 추가`);
+    
+    groupCheckboxes.forEach((checkbox, index) => {
         checkbox.addEventListener('change', function() {
+            console.log(`🔍 그룹 체크박스 ${index + 1} 변경: ${this.checked}`);
             updateSelectedGroupsCount();
             updateGroupItemVisualState(this);
         });
     });
     
     // 초기 선택된 그룹 수 업데이트
-    updateSelectedGroupsCount();
+    setTimeout(() => {
+        updateSelectedGroupsCount();
+    }, 100);
     
     // 초기 시각적 상태 업데이트
     groupCheckboxes.forEach(checkbox => {
@@ -1985,15 +1996,37 @@ function setupTelegramGroupsEventListeners() {
     // 메시지 전송 버튼
     const sendMessageBtn = document.getElementById('sendMessageBtn');
     if (sendMessageBtn) {
+        // 클릭 이벤트
         sendMessageBtn.addEventListener('click', function(e) {
             console.log('📤 전송 버튼 클릭됨');
+            console.log('📤 버튼 상태:', {
+                disabled: sendMessageBtn.disabled,
+                opacity: sendMessageBtn.style.opacity,
+                cursor: sendMessageBtn.style.cursor
+            });
+            
             if (sendMessageBtn.disabled) {
                 console.log('❌ 전송 버튼이 비활성화 상태입니다');
                 e.preventDefault();
+                e.stopPropagation();
                 return false;
             }
+            
+            e.preventDefault();
+            e.stopPropagation();
             sendMessageToGroup();
         });
+        
+        // 마우스 오버 이벤트 (디버깅용)
+        sendMessageBtn.addEventListener('mouseover', function() {
+            console.log('🖱️ 전송 버튼 마우스 오버');
+        });
+        
+        // 포커스 이벤트 (디버깅용)
+        sendMessageBtn.addEventListener('focus', function() {
+            console.log('🎯 전송 버튼 포커스');
+        });
+        
         console.log('✅ 전송 버튼 이벤트 리스너 설정 완료');
     } else {
         console.error('❌ 전송 버튼을 찾을 수 없습니다!');
@@ -3629,6 +3662,8 @@ function updateSelectedGroupsCount() {
     const groupCheckboxes = document.querySelectorAll('.group-checkbox:checked');
     const selectedCount = groupCheckboxes.length;
     
+    console.log(`🔍 선택된 그룹 수 업데이트: ${selectedCount}개`);
+    
     // 선택된 그룹 수 표시 업데이트
     const selectedGroupsInfo = document.getElementById('selectedGroupsInfo');
     if (selectedGroupsInfo) {
@@ -3641,15 +3676,32 @@ function updateSelectedGroupsCount() {
     return selectedCount;
 }
 
+// 전송 버튼 강제 활성화 (디버깅용)
+function forceEnableSendButton() {
+    const sendBtn = document.getElementById('sendMessageBtn');
+    if (sendBtn) {
+        sendBtn.disabled = false;
+        sendBtn.style.opacity = '1';
+        sendBtn.style.cursor = 'pointer';
+        sendBtn.style.backgroundColor = '';
+        sendBtn.style.borderColor = '';
+        console.log('🔧 전송 버튼 강제 활성화 완료');
+    }
+}
+
 // 전송 버튼 상태 업데이트 함수
 function updateSendButtonState(selectedCount) {
     const sendBtn = document.getElementById('sendMessageBtn');
+    
+    console.log(`🔍 전송 버튼 상태 업데이트: selectedCount=${selectedCount}`);
     
     if (sendBtn) {
         if (selectedCount > 0) {
             sendBtn.disabled = false;
             sendBtn.style.opacity = '1';
             sendBtn.style.cursor = 'pointer';
+            sendBtn.style.backgroundColor = '';
+            sendBtn.style.borderColor = '';
             console.log('✅ 전송 버튼 활성화:', selectedCount, '개 그룹 선택됨');
         } else {
             sendBtn.disabled = true;
