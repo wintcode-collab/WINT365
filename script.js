@@ -479,10 +479,6 @@ async function handleNormalLogin() {
         // 로그인 성공 시 이메일 저장
         saveUserEmail(email);
         
-        // 로그인 정보 저장 (자동 로그인용)
-        localStorage.setItem('savedEmail', email);
-        localStorage.setItem('savedPassword', password);
-        
         // 성공 애니메이션
         elements.loginBtn.textContent = '✓ SUCCESS';
         elements.loginBtn.classList.add('success');
@@ -1843,12 +1839,8 @@ function showTelegramGroupsWindow(groups, account) {
     const groupsWindow = document.getElementById('telegramGroupsWindow');
     if (groupsWindow) {
         // 계정 정보 설정
-        const accountName = `${account.first_name} ${account.last_name || ''}`;
-        document.getElementById('selectedAccountName').textContent = accountName;
+        document.getElementById('selectedAccountName').textContent = `${account.first_name} ${account.last_name || ''}`;
         document.getElementById('selectedAccountPhone').textContent = `📱 ${account.phone_number}`;
-        
-        // 계정 선택 상태 저장
-        localStorage.setItem('selectedAccountName', accountName);
         
         // 그룹 개수 설정
         document.getElementById('groupsCount').textContent = `${groups.length}개의 그룹`;
@@ -1865,11 +1857,6 @@ function showTelegramGroupsWindow(groups, account) {
             forceEnableSendButton();
         }, 500);
         
-        // 자동전송 토글 상태 복원 (저장된 상태가 있으면)
-        setTimeout(() => {
-            restoreAutoSendToggleState();
-        }, 1000);
-        
         // 자동전송 상태 복원
         setTimeout(() => {
             restoreAutoSendStatusOnLoad();
@@ -1880,14 +1867,6 @@ function showTelegramGroupsWindow(groups, account) {
         
         // 그룹 전체선택 버튼 이벤트 리스너 추가
         setupGroupSelectionButtons();
-        
-        // 계정 선택 상태 복원
-        restoreAccountSelection();
-        
-        // 자동전송 토글 상태 복원 (계정 선택 후)
-        setTimeout(() => {
-            restoreAutoSendToggleState();
-        }, 1500);
         
         // 창 표시 (제일 위로 올라오기)
         groupsWindow.style.display = 'flex';
@@ -2201,6 +2180,21 @@ async function sendMessageToGroup() {
     
     console.log('🔍 유효한 그룹 ID들:', validGroupIds);
     
+    // 자동 전송 ON 상태에서는 서버의 자동전송 API 호출
+    const autoSendToggle = document.getElementById('autoSendToggle');
+    if (autoSendToggle && autoSendToggle.checked) {
+        console.log('🔍 자동 전송 모드: 서버 자동전송 API 호출');
+        
+        // 자동전송 시작
+        const autoSendSuccess = await startAutoSendWithGroups(validGroupIds, message, mediaInfo);
+        if (autoSendSuccess) {
+            console.log('✅ 자동전송 시작 성공');
+            return; // 자동전송이 시작되면 여기서 종료
+        } else {
+            console.log('❌ 자동전송 시작 실패, 수동 전송으로 진행');
+        }
+    }
+    
     // 원본 메시지 데이터가 있으면 우선 사용, 없으면 입력칸의 텍스트 사용
     let message;
     let mediaInfo = null;
@@ -2227,47 +2221,6 @@ async function sendMessageToGroup() {
         message = messageInput.value.trim();
         console.log('📤 입력칸 텍스트 사용:', message);
     }
-    
-    // 자동 전송 ON 상태에서는 서버의 자동전송 API 호출
-    const autoSendToggle = document.getElementById('autoSendToggle');
-    console.log('🔍 자동전송 토글 상태 확인:', {
-        toggle: autoSendToggle,
-        checked: autoSendToggle ? autoSendToggle.checked : 'toggle not found',
-        element: autoSendToggle
-    });
-    
-    // 강제로 토글 상태 확인
-    if (autoSendToggle) {
-        console.log('🔍 토글 요소 발견, 상태:', autoSendToggle.checked);
-    } else {
-        console.error('❌ 토글 요소를 찾을 수 없습니다!');
-    }
-    
-    // 토글 상태 강제 확인
-    if (!autoSendToggle) {
-        console.error('❌ 자동전송 토글 요소를 찾을 수 없습니다!');
-        alert('자동전송 토글을 찾을 수 없습니다. 페이지를 새로고침해주세요.');
-        return;
-    }
-    
-    if (autoSendToggle.checked) {
-        console.log('🔍 자동 전송 모드: 서버 자동전송 API 호출');
-        console.log('🔍 전송할 그룹 수:', validGroupIds.length);
-        console.log('🔍 전송할 메시지:', message);
-        
-        // 자동전송 시작
-        const autoSendSuccess = await startAutoSendWithGroups(validGroupIds, message, mediaInfo);
-        if (autoSendSuccess) {
-            console.log('✅ 자동전송 시작 성공 - 수동 전송 건너뜀');
-            return; // 자동전송이 시작되면 여기서 종료
-        } else {
-            console.log('❌ 자동전송 시작 실패, 수동 전송으로 진행');
-        }
-    } else {
-        console.log('❌ 자동전송 토글이 OFF 상태 - 수동 전송으로 진행');
-        console.log('❌ 토글 상태:', autoSendToggle.checked);
-    }
-    
     // 버튼 상태 변경
     if (sendBtn) {
         sendBtn.textContent = '📤 전송 중...';
@@ -2749,9 +2702,6 @@ function selectTelegramSavedMessage(messageIndex, savedMessages) {
         
         console.log('💾 최종 저장된 메시지 정보:', window.selectedMediaInfo);
         
-        // 저장된 메시지 상태 저장
-        localStorage.setItem('selectedMessageInfo', JSON.stringify(window.selectedMediaInfo));
-        
         // 모달 닫기
         closeSavedMessages();
         
@@ -2765,9 +2715,6 @@ function clearSavedMessage() {
     
     // 전역 변수 초기화
     window.selectedMediaInfo = null;
-    
-    // 저장된 메시지 상태 삭제
-    localStorage.removeItem('selectedMessageInfo');
     
     // 입력칸 초기화 및 활성화
     const messageInput = document.querySelector('.message-input');
@@ -3147,7 +3094,7 @@ function setupAutoSendEventListeners() {
 
     // 자동 전송 토글 클릭 시 설정 모달 열기
     if (autoSendToggle) {
-        autoSendToggle.addEventListener('change', async function() {
+        autoSendToggle.addEventListener('change', function() {
             // 페이지가 언로드 중인지 확인
             if (isPageUnloading || document.visibilityState === 'hidden' || document.readyState === 'unload') {
                 console.log('🔄 페이지 언로드 중, 자동전송 중지 건너뜀');
@@ -3157,16 +3104,8 @@ function setupAutoSendEventListeners() {
             if (this.checked) {
                 showAutoSendSettingsModal();
             } else {
-                console.log('🛑 자동전송 토글 OFF - 자동전송 중지 시작');
-                
                 // 자동전송 중지
-                const stopSuccess = await stopAutoSend();
-                if (stopSuccess) {
-                    console.log('✅ 자동전송 중지 성공');
-                } else {
-                    console.log('❌ 자동전송 중지 실패');
-                }
-                
+                stopAutoSend();
                 hideAutoSendSettingsModal();
                 // 설정 표시 숨기기
                 const settingsDisplay = document.getElementById('autoSendSettingsDisplay');
@@ -3175,9 +3114,6 @@ function setupAutoSendEventListeners() {
                 }
                 // 토글 상태 저장
                 localStorage.setItem('autoSendToggleState', 'false');
-                
-                // 전송 버튼 텍스트 변경
-                updateSendButtonText();
                 
                 // 모든 그룹의 자동전송 상태를 대기로 변경
                 const groupItems = document.querySelectorAll('.group-item');
@@ -3308,10 +3244,6 @@ function saveAutoSendSettings() {
     
     console.log('🔧 자동전송 설정 저장:', settings);
     console.log('🔧 그룹 간격 원본 값:', groupInterval, '변환된 값:', parseInt(groupInterval));
-    console.log('🔧 반복 간격:', repeatInterval, '변환된 값:', parseInt(repeatInterval));
-    console.log('🔧 최대 반복:', maxRepeats, '변환된 값:', parseInt(maxRepeats));
-    console.log('🔧 메시지 임계값:', messageThreshold, '변환된 값:', parseInt(messageThreshold));
-    console.log('🔧 메시지 개수 확인:', enableMessageCheck);
     
     localStorage.setItem('autoSendSettings', JSON.stringify(settings));
     
@@ -3327,10 +3259,6 @@ function saveAutoSendSettings() {
         autoSendToggle.checked = true;
         // 토글 상태도 localStorage에 저장
         localStorage.setItem('autoSendToggleState', 'true');
-        console.log('✅ 자동전송 토글 ON으로 설정 및 저장 완료');
-        
-        // 전송 버튼 텍스트 변경
-        updateSendButtonText();
     }
     
     // 설정 표시 업데이트
@@ -3655,8 +3583,7 @@ function resetSendButtonState() {
     const sendButton = document.getElementById('sendMessageBtn');
     if (sendButton) {
         sendButton.disabled = false;
-        // 자동전송 토글 상태에 따라 텍스트 설정
-        updateSendButtonText();
+        sendButton.textContent = '📤 선택된 그룹에 전송';
         sendButton.classList.remove('sending', 'disabled');
         sendButton.style.opacity = '1';
         sendButton.style.backgroundColor = '';
@@ -3747,10 +3674,6 @@ function updateSelectedGroupsCount() {
     // 전송 버튼 상태 업데이트
     updateSendButtonState(selectedCount);
     
-    // 선택된 그룹 상태 저장
-    const selectedGroupIds = Array.from(groupCheckboxes).map(checkbox => checkbox.dataset.groupId);
-    localStorage.setItem('selectedGroups', JSON.stringify(selectedGroupIds));
-    
     return selectedCount;
 }
 
@@ -3764,27 +3687,6 @@ function forceEnableSendButton() {
         sendBtn.style.backgroundColor = '';
         sendBtn.style.borderColor = '';
         console.log('🔧 전송 버튼 강제 활성화 완료');
-    }
-}
-
-
-// 전송 버튼 텍스트 업데이트 함수
-function updateSendButtonText() {
-    const sendBtn = document.getElementById('sendMessageBtn');
-    const autoSendToggle = document.getElementById('autoSendToggle');
-    
-    if (sendBtn && autoSendToggle) {
-        if (autoSendToggle.checked) {
-            sendBtn.textContent = '🚀 자동전송 시작';
-            sendBtn.style.backgroundColor = '#28a745';
-            sendBtn.style.borderColor = '#28a745';
-            console.log('✅ 전송 버튼 텍스트 변경: 자동전송 시작');
-        } else {
-            sendBtn.textContent = '📤 선택된 그룹에 전송';
-            sendBtn.style.backgroundColor = '';
-            sendBtn.style.borderColor = '';
-            console.log('✅ 전송 버튼 텍스트 변경: 수동 전송');
-        }
     }
 }
 
@@ -3938,66 +3840,6 @@ async function saveAutoSendSettingsToFirebase(settings) {
     }
 }
 
-// 자동전송 중지 함수
-async function stopAutoSend() {
-    try {
-        console.log('🛑 자동전송 중지 시작');
-        
-        // 현재 계정 정보 가져오기
-        const accountName = document.getElementById('selectedAccountName').textContent;
-        if (!accountName || accountName === '계정을 선택하세요') {
-            console.log('❌ 계정이 선택되지 않음, 자동전송 중지 건너뜀');
-            return false;
-        }
-        
-        // 계정 목록에서 해당 계정 찾기
-        const response = await fetch('/api/telegram/load-accounts', {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        });
-        
-        const result = await response.json();
-        if (!response.ok || !result.success || !result.accounts) {
-            throw new Error(result.error || '계정 목록 로딩 실패');
-        }
-        
-        const account = result.accounts.find(acc => 
-            `${acc.first_name} ${acc.last_name || ''}`.trim() === accountName.trim()
-        );
-        
-        if (!account) {
-            throw new Error('계정을 찾을 수 없습니다.');
-        }
-        
-        // 자동전송 중지 API 호출
-        const stopResponse = await fetch('/api/auto-send/stop', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                account_name: accountName
-            })
-        });
-        
-        const stopResult = await stopResponse.json();
-        
-        if (stopResponse.ok && stopResult.success) {
-            console.log('✅ 자동전송 중지 성공:', stopResult);
-            return true;
-        } else {
-            console.error('❌ 자동전송 중지 실패:', stopResult);
-            return false;
-        }
-        
-    } catch (error) {
-        console.error('❌ 자동전송 중지 에러:', error);
-        return false;
-    }
-}
-
 // 자동전송 상태 주기적 업데이트
 function startAutoSendStatusUpdate() {
     // 30초마다 자동전송 상태 확인
@@ -4120,8 +3962,6 @@ document.addEventListener('DOMContentLoaded', function() {
         resetSendButtonState();
         // 자동전송 토글 상태 복원
         restoreAutoSendToggleState();
-        // 로그인 상태 복원
-        restoreLoginState();
     }, 1000);
 });
 
@@ -4131,11 +3971,6 @@ function restoreAutoSendToggleState() {
         const savedToggleState = localStorage.getItem('autoSendToggleState');
         const savedSettings = localStorage.getItem('autoSendSettings');
         
-        console.log('🔍 자동전송 토글 상태 복원 시도:', {
-            savedToggleState: savedToggleState,
-            hasSettings: !!savedSettings
-        });
-        
         if (savedToggleState === 'true' && savedSettings) {
             const autoSendToggle = document.getElementById('autoSendToggle');
             if (autoSendToggle) {
@@ -4144,127 +3979,12 @@ function restoreAutoSendToggleState() {
                 
                 // 설정값도 복원
                 const settings = JSON.parse(savedSettings);
-                console.log('🔧 복원할 자동전송 설정:', settings);
                 loadAutoSendSettings(settings);
-                
-                // 설정 표시 업데이트
-                updateAutoSendSettingsDisplay();
             }
         } else {
-            // 기본적으로 OFF 상태로 설정
-            const autoSendToggle = document.getElementById('autoSendToggle');
-            if (autoSendToggle) {
-                autoSendToggle.checked = false;
-                console.log('✅ 자동전송 토글 상태 복원: OFF (기본값)');
-            }
-            console.log('ℹ️ 저장된 자동전송 설정 없음 또는 토글 OFF');
-        }
-        
-        // 토글 상태 강제 확인 (디버깅용)
-        const autoSendToggle = document.getElementById('autoSendToggle');
-        if (autoSendToggle) {
-            console.log('🔍 토글 상태 최종 확인:', autoSendToggle.checked);
-            
-            // 전송 버튼 텍스트 업데이트
-            updateSendButtonText();
+            console.log('ℹ️ 자동전송 토글 상태 복원: OFF 또는 설정 없음');
         }
     } catch (error) {
         console.error('❌ 자동전송 토글 상태 복원 실패:', error);
-        // 에러 발생 시 기본적으로 OFF 상태로 설정
-        const autoSendToggle = document.getElementById('autoSendToggle');
-        if (autoSendToggle) {
-            autoSendToggle.checked = false;
-            console.log('🔧 에러로 인해 자동전송 토글을 OFF로 설정');
-        }
-    }
-}
-
-// 로그인 상태 복원
-async function restoreLoginState() {
-    try {
-        console.log('🔄 로그인 상태 복원 시작');
-        
-        const savedEmail = localStorage.getItem('savedEmail');
-        const savedPassword = localStorage.getItem('savedPassword');
-        
-        if (savedEmail && savedPassword) {
-            console.log('📧 저장된 로그인 정보 발견:', savedEmail);
-            
-            // 자동 로그인 시도
-            const loginSuccess = await handleLogin();
-            if (loginSuccess) {
-                console.log('✅ 자동 로그인 성공');
-                
-                // 계정 목록 자동 로드
-                setTimeout(async () => {
-                    await handleTestTelegramConnection();
-                    console.log('✅ 계정 목록 자동 로드 완료');
-                }, 2000);
-            } else {
-                console.log('❌ 자동 로그인 실패');
-            }
-        } else {
-            console.log('ℹ️ 저장된 로그인 정보 없음');
-        }
-    } catch (error) {
-        console.error('❌ 로그인 상태 복원 실패:', error);
-    }
-}
-
-// 계정 선택 상태 복원
-function restoreAccountSelection() {
-    try {
-        console.log('🔄 계정 선택 상태 복원 시작');
-        
-        const savedAccountName = localStorage.getItem('selectedAccountName');
-        const savedGroupSelections = localStorage.getItem('selectedGroups');
-        const savedMessageInfo = localStorage.getItem('selectedMessageInfo');
-        
-        if (savedAccountName) {
-            console.log('📱 저장된 계정 정보 발견:', savedAccountName);
-            
-            // 계정명 복원
-            const accountNameElement = document.getElementById('selectedAccountName');
-            if (accountNameElement) {
-                accountNameElement.textContent = savedAccountName;
-            }
-        }
-        
-        if (savedGroupSelections) {
-            console.log('👥 저장된 그룹 선택 정보 발견');
-            
-            // 그룹 선택 복원
-            setTimeout(() => {
-                const selectedGroups = JSON.parse(savedGroupSelections);
-                selectedGroups.forEach(groupId => {
-                    const checkbox = document.querySelector(`input[data-group-id="${groupId}"]`);
-                    if (checkbox) {
-                        checkbox.checked = true;
-                    }
-                });
-                updateSelectedGroupsCount();
-            }, 1000);
-        }
-        
-        if (savedMessageInfo) {
-            console.log('💾 저장된 메시지 정보 발견');
-            
-            // 저장된 메시지 복원
-            const messageInfo = JSON.parse(savedMessageInfo);
-            window.selectedMediaInfo = messageInfo;
-            
-            // 메시지 입력 필드에 표시
-            const messageInput = document.querySelector('.message-input');
-            if (messageInput) {
-                messageInput.value = messageInfo.text || '';
-                messageInput.placeholder = '💾 저장된 메시지가 선택되었습니다. 해제 후 입력하세요.';
-                messageInput.disabled = true;
-                messageInput.style.backgroundColor = '#f0f0f0';
-                messageInput.style.cursor = 'not-allowed';
-            }
-        }
-        
-    } catch (error) {
-        console.error('❌ 계정 선택 상태 복원 실패:', error);
     }
 }

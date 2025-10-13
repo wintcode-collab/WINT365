@@ -2462,16 +2462,9 @@ def execute_auto_send_job(user_id, group_ids, message, media_info=None):
                 # 그룹 간 대기
                 if i < len(group_ids) - 1:  # 마지막 그룹이 아닌 경우에만 대기
                     logger.info(f'⏰ 그룹 간 대기 시작: {group_interval}초 (그룹 {i+1}/{len(group_ids)})')
-                    logger.info(f'⏰ 실제 대기 시간: {group_interval}초 (타입: {type(group_interval)})')
-                    logger.info(f'⏰ 현재 시간: {datetime.now().strftime("%H:%M:%S")}')
-                    
-                    # 실제 대기 실행
+                    logger.info(f'⏰ 실제 대기 시간: {group_interval}초')
                     time.sleep(group_interval)
-                    
                     logger.info(f'⏰ 그룹 간 대기 완료: {group_interval}초')
-                    logger.info(f'⏰ 완료 시간: {datetime.now().strftime("%H:%M:%S")}')
-                else:
-                    logger.info(f'⏰ 마지막 그룹이므로 대기하지 않음 (그룹 {i+1}/{len(group_ids)})')
                 
             except Exception as e:
                 logger.error(f'❌ 자동전송 그룹 {group_id} 에러: {e}')
@@ -2810,42 +2803,13 @@ def stop_auto_send():
     """자동전송 중지"""
     try:
         data = request.get_json()
-        account_name = data.get('account_name')
         user_id = data.get('userId')
-        
-        logger.info(f'🛑 자동전송 중지 요청: account_name={account_name}, user_id={user_id}')
-        
-        # account_name이 있으면 user_id로 변환
-        if account_name and not user_id:
-            user_id = None
-            try:
-                accounts_response = requests.get(f"{FIREBASE_URL}/authenticated_accounts.json", timeout=10)
-                if accounts_response.status_code == 200:
-                    accounts_data = accounts_response.json()
-                    if accounts_data:
-                        logger.info(f'🔍 계정 검색 중: "{account_name}"')
-                        for uid, account_data in accounts_data.items():
-                            if account_data and isinstance(account_data, dict):
-                                full_name = f"{account_data.get('first_name', '')} {account_data.get('last_name', '')}".strip()
-                                logger.info(f'🔍 비교: "{full_name}" vs "{account_name}"')
-                                if full_name.strip() == account_name.strip():
-                                    user_id = uid
-                                    logger.info(f'✅ 계정 찾음: {full_name} -> {user_id}')
-                                    break
-                        if not user_id:
-                            logger.error(f'❌ 계정을 찾을 수 없음: "{account_name}"')
-                    else:
-                        logger.error('❌ Firebase에서 계정 데이터가 없음')
-                else:
-                    logger.error(f'❌ Firebase 응답 실패: {accounts_response.status_code}')
-            except Exception as e:
-                logger.error(f'❌ 계정 조회 실패: {e}')
         
         if not user_id:
             return jsonify({
                 'success': False,
-                'error': '계정을 찾을 수 없습니다.'
-            }), 404
+                'error': '사용자 ID가 필요합니다.'
+            }), 400
         
         # 자동전송 작업 중지
         result = stop_auto_send_job(user_id)
@@ -2913,42 +2877,13 @@ def get_auto_send_status():
     """자동전송 상태 조회"""
     try:
         data = request.get_json()
-        account_name = data.get('account_name')
         user_id = data.get('userId')
-        
-        logger.info(f'🤖 자동전송 상태 조회 요청: account_name={account_name}, user_id={user_id}')
-        
-        # account_name이 있으면 user_id로 변환
-        if account_name and not user_id:
-            user_id = None
-            try:
-                accounts_response = requests.get(f"{FIREBASE_URL}/authenticated_accounts.json", timeout=10)
-                if accounts_response.status_code == 200:
-                    accounts_data = accounts_response.json()
-                    if accounts_data:
-                        logger.info(f'🔍 계정 검색 중: "{account_name}"')
-                        for uid, account_data in accounts_data.items():
-                            if account_data and isinstance(account_data, dict):
-                                full_name = f"{account_data.get('first_name', '')} {account_data.get('last_name', '')}".strip()
-                                logger.info(f'🔍 비교: "{full_name}" vs "{account_name}"')
-                                if full_name.strip() == account_name.strip():
-                                    user_id = uid
-                                    logger.info(f'✅ 계정 찾음: {full_name} -> {user_id}')
-                                    break
-                        if not user_id:
-                            logger.error(f'❌ 계정을 찾을 수 없음: "{account_name}"')
-                    else:
-                        logger.error('❌ Firebase에서 계정 데이터가 없음')
-                else:
-                    logger.error(f'❌ Firebase 응답 실패: {accounts_response.status_code}')
-            except Exception as e:
-                logger.error(f'❌ 계정 조회 실패: {e}')
         
         if not user_id:
             return jsonify({
                 'success': False,
-                'error': '계정을 찾을 수 없습니다.'
-            }), 404
+                'error': '사용자 ID가 필요합니다.'
+            }), 400
         
         # 현재 작업 상태 확인
         is_running = user_id in auto_send_jobs
