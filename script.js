@@ -2622,6 +2622,7 @@ function saveInfiniteSendSettings() {
     
     const groupIntervalInput = document.getElementById('groupInterval');
     const cycleIntervalInput = document.getElementById('cycleInterval');
+    const minNewMessagesInput = document.getElementById('minNewMessages');
     
     // 그룹간 전송 간격 확인
     const groupInterval = parseInt(groupIntervalInput.value);
@@ -2639,21 +2640,31 @@ function saveInfiniteSendSettings() {
         return;
     }
     
+    // 최소 새 메시지 수 확인
+    const minNewMessages = parseInt(minNewMessagesInput.value);
+    if (!minNewMessages || minNewMessages < 1 || minNewMessages > 1000) {
+        alert('최소 새 메시지 수를 1개~1000개 사이로 설정해주세요.');
+        minNewMessagesInput.focus();
+        return;
+    }
+    
     // 설정을 전역 변수에 저장
     window.infiniteGroupInterval = groupInterval;
     window.infiniteCycleInterval = cycleInterval;
+    window.infiniteMinNewMessages = minNewMessages;
     window.infiniteSendEnabled = true;
     
     console.log('🔄 무한 전송 설정 저장됨:', {
         groupInterval: groupInterval,
-        cycleInterval: cycleInterval
+        cycleInterval: cycleInterval,
+        minNewMessages: minNewMessages
     });
     
     // 모달 닫기
     closeInfiniteSendModal();
     
     // 성공 알림
-    showNotification(`🔄 무한 전송 설정이 저장되었습니다! (그룹간격: ${groupInterval}초, 전체대기: ${cycleInterval}분)`, 'success');
+    showNotification(`🔄 무한 전송 설정이 저장되었습니다! (그룹간격: ${groupInterval}초, 전체대기: ${cycleInterval}분, 최소메시지: ${minNewMessages}개)`, 'success');
 }
 
 // 무한 전송 시작 (실제 전송 시작)
@@ -2751,6 +2762,50 @@ function startInfiniteCycle() {
     sendToNextGroup();
 }
 
+// 그룹의 새 메시지 수 체크
+async function checkGroupNewMessages(groupId) {
+    try {
+        // 현재 계정 정보 가져오기
+        const accountName = document.getElementById('selectedAccountName').textContent;
+        const accountPhone = document.getElementById('selectedAccountPhone').textContent;
+        
+        // 계정 정보에서 user_id 찾기
+        const accounts = JSON.parse(localStorage.getItem('telegramAccounts') || '[]');
+        const account = accounts.find(acc => 
+            acc.name === accountName && acc.phone === accountPhone
+        );
+        
+        if (!account) {
+            throw new Error('계정을 찾을 수 없습니다.');
+        }
+        
+        // 그룹의 새 메시지 수 조회 API 호출
+        const response = await fetch('/api/telegram/group-new-messages', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                userId: account.user_id,
+                groupId: groupId
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok && result.success) {
+            return result.newMessageCount || 0;
+        } else {
+            console.error('🔄 새 메시지 수 조회 실패:', result);
+            return 0;
+        }
+        
+    } catch (error) {
+        console.error('❌ 새 메시지 수 조회 중 오류:', error);
+        return 0;
+    }
+}
+
 // 다음 그룹으로 전송
 async function sendToNextGroup() {
     if (!window.isInfiniteSending) return;
@@ -2777,6 +2832,33 @@ async function sendToNextGroup() {
     
     const currentGroup = window.infiniteGroups[window.infiniteCurrentGroupIndex];
     console.log(`🔄 그룹 ${window.infiniteCurrentGroupIndex + 1}/${window.infiniteGroups.length} 전송:`, currentGroup.title);
+    
+    // 새 메시지 수 체크
+    const newMessageCount = await checkGroupNewMessages(currentGroup.id);
+    console.log(`🔄 그룹 "${currentGroup.title}" 새 메시지 수: ${newMessageCount}개 (최소: ${window.infiniteMinNewMessages}개)`);
+    
+    // 최소 새 메시지 수 미만이면 전송 보류
+    if (newMessageCount < window.infiniteMinNewMessages) {
+        console.log(`⏸️ 그룹 "${currentGroup.title}" 전송 보류 (새 메시지 ${newMessageCount}개 < 최소 ${window.infiniteMinNewMessages}개)`);
+        
+        // 토글 스위치에 상태 표시
+        const toggleLabel = document.querySelector('.toggle-label');
+        if (toggleLabel) {
+            toggleLabel.textContent = `무한 전송 (${currentGroup.title} 보류: ${newMessageCount}/${window.infiniteMinNewMessages}개)`;
+        }
+        
+        // 다음 그룹으로 이동
+        window.infiniteCurrentGroupIndex++;
+        
+        // 그룹간 간격 대기 후 다음 그룹 체크
+        setTimeout(() => {
+            if (window.isInfiniteSending) {
+                sendToNextGroup();
+            }
+        }, window.infiniteGroupInterval * 1000);
+        
+        return;
+    }
     
     try {
         // 현재 계정 정보 가져오기
@@ -2850,6 +2932,7 @@ function stopInfiniteSend() {
     window.infiniteCycleCount = 0;
     window.infiniteCurrentGroupIndex = 0;
     window.infiniteSendEnabled = false;
+    window.infiniteMinNewMessages = null;
     
     // 토글 스위치 상태 복원
     const infiniteSendToggle = document.getElementById('infiniteSendToggle');
