@@ -3052,6 +3052,15 @@ function setupAutoSendEventListeners() {
                 
                 // 전송 버튼 상태 초기화
                 resetSendButtonState();
+                
+                // 추가적인 UI 상태 초기화
+                const sendButton = document.getElementById('sendButton');
+                if (sendButton) {
+                    sendButton.disabled = false;
+                    sendButton.textContent = '전송';
+                    sendButton.classList.remove('sending', 'disabled');
+                    sendButton.style.opacity = '1';
+                }
             }
         });
     }
@@ -3158,6 +3167,9 @@ function saveAutoSendSettings() {
         messageThreshold: parseInt(messageThreshold),
         enableMessageCheck: enableMessageCheck
     };
+    
+    console.log('🔧 자동전송 설정 저장:', settings);
+    console.log('🔧 그룹 간격 원본 값:', groupInterval, '변환된 값:', parseInt(groupInterval));
     
     localStorage.setItem('autoSendSettings', JSON.stringify(settings));
     
@@ -3493,11 +3505,30 @@ function resetSendButtonState() {
     if (sendButton) {
         sendButton.disabled = false;
         sendButton.textContent = '전송';
-        sendButton.classList.remove('sending');
+        sendButton.classList.remove('sending', 'disabled');
+        sendButton.style.opacity = '1';
+        sendButton.style.backgroundColor = '';
+        sendButton.style.borderColor = '';
     }
     
     // 진행상황 창 숨기기
     hideProgressSection();
     
+    // 메시지 입력 필드도 활성화
+    const messageInput = document.getElementById('messageInput');
+    if (messageInput) {
+        messageInput.disabled = false;
+        messageInput.style.backgroundColor = '';
+        messageInput.style.cursor = '';
+    }
+    
     console.log('🔄 전송 버튼 상태 초기화 완료');
 }
+
+// 페이지 로드 시 전송 버튼 상태 초기화
+document.addEventListener('DOMContentLoaded', function() {
+    // DOM이 로드된 후 전송 버튼 상태 초기화
+    setTimeout(() => {
+        resetSendButtonState();
+    }, 1000);
+});

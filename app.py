@@ -2370,7 +2370,16 @@ def execute_auto_send_job(user_id, group_ids, message, media_info=None):
         group_interval = settings.get('groupInterval', 5)  # 초 단위
         max_repeats = settings.get('maxRepeats', 10)
         
-        logger.info(f'⏰ 그룹 간격: {group_interval}초, 최대 반복: {max_repeats}회')
+        logger.info(f'⏰ 자동전송 설정 확인:')
+        logger.info(f'   - 그룹 간격: {group_interval}초 (타입: {type(group_interval)})')
+        logger.info(f'   - 최대 반복: {max_repeats}회')
+        logger.info(f'   - 전체 설정: {settings}')
+        
+        # 그룹 간격이 숫자인지 확인
+        if not isinstance(group_interval, (int, float)) or group_interval <= 0:
+            logger.error(f'❌ 잘못된 그룹 간격 값: {group_interval} (타입: {type(group_interval)})')
+            group_interval = 5  # 기본값으로 설정
+            logger.info(f'🔧 그룹 간격을 기본값 5초로 설정')
         
         # 현재 반복 횟수 조회
         current_repeats = auto_send_jobs.get(f'{user_id}_repeats', 0)
@@ -2382,7 +2391,7 @@ def execute_auto_send_job(user_id, group_ids, message, media_info=None):
         
         # 각 그룹에 메시지 전송 (메시지 개수 확인 포함)
         success_count = 0
-        for group_id in group_ids:
+        for i, group_id in enumerate(group_ids):
             try:
                 # 두 가지 조건 확인: 메시지 개수 + 재전송 텀
                 settings_data = settings.get('settings', {})
@@ -2452,8 +2461,10 @@ def execute_auto_send_job(user_id, group_ids, message, media_info=None):
                 
                 # 그룹 간 대기
                 if i < len(group_ids) - 1:  # 마지막 그룹이 아닌 경우에만 대기
-                    logger.info(f'⏰ 그룹 간 대기: {group_interval}초')
+                    logger.info(f'⏰ 그룹 간 대기 시작: {group_interval}초 (그룹 {i+1}/{len(group_ids)})')
+                    logger.info(f'⏰ 실제 대기 시간: {group_interval}초')
                     time.sleep(group_interval)
+                    logger.info(f'⏰ 그룹 간 대기 완료: {group_interval}초')
                 
             except Exception as e:
                 logger.error(f'❌ 자동전송 그룹 {group_id} 에러: {e}')
@@ -2482,6 +2493,8 @@ def start_auto_send_job(user_id, group_ids, message, media_info=None):
         if not settings:
             logger.error(f'❌ 자동전송 시작 실패: 설정 없음 - {user_id}')
             return False
+        
+        logger.info(f'🔥 Firebase에서 가져온 설정: {settings}')
         
         repeat_interval = settings.get('repeatInterval', 30)  # 분 단위
         
