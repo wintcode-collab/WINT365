@@ -2388,9 +2388,20 @@ def execute_auto_send_job(user_id, group_ids, message, media_info=None):
                 message_threshold = settings_data.get('messageThreshold', 5)
                 repeat_interval = settings.get('repeatInterval', 30)  # 분 단위
                 
-                # 조건 1: 메시지 개수 확인
+                # 조건 1: 메시지 개수 확인 (첫 발송이 아닌 경우에만)
                 message_count_ok = True
-                if enable_message_check:
+                
+                # Firebase에서 마지막 전송 시간 확인하여 첫 발송인지 판단
+                status_data = get_auto_send_status_from_firebase(user_id)
+                is_first_send = True
+                if status_data and 'last_send_times' in status_data:
+                    last_send_time_str = status_data['last_send_times'].get(str(group_id))
+                    if last_send_time_str:
+                        is_first_send = False
+                
+                if is_first_send:
+                    logger.info(f'🚀 그룹 {group_id} 첫 발송: 메시지 개수 확인 생략')
+                elif enable_message_check:
                     message_count = check_telegram_group_message_count(account_info, group_id)
                     logger.info(f'📊 그룹 {group_id} 메시지 개수: {message_count} (임계값: {message_threshold})')
                     
@@ -2398,11 +2409,12 @@ def execute_auto_send_job(user_id, group_ids, message, media_info=None):
                         logger.info(f'⏭️ 그룹 {group_id} 메시지 개수 부족으로 전송 건너뜀')
                         message_count_ok = False
                 
-                # 조건 2: 재전송 텀 확인
+                # 조건 2: 재전송 텀 확인 (첫 발송이 아닌 경우에만)
                 time_interval_ok = True
-                if message_count_ok:  # 메시지 개수 조건이 충족된 경우에만 시간 확인
+                if is_first_send:
+                    logger.info(f'🚀 그룹 {group_id} 첫 발송: 재전송 텀 확인 생략')
+                elif message_count_ok:  # 메시지 개수 조건이 충족된 경우에만 시간 확인
                     # Firebase에서 마지막 전송 시간 조회
-                    status_data = get_auto_send_status_from_firebase(user_id)
                     if status_data and 'last_send_times' in status_data:
                         last_send_time_str = status_data['last_send_times'].get(str(group_id))
                         if last_send_time_str:

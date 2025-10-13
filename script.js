@@ -2093,36 +2093,12 @@ async function sendMessageToGroup() {
         return;
     }
     
-    // 자동 전송 ON 상태에서 메시지 개수 확인
+    // 자동 전송 ON 상태에서는 서버에서 조건 확인하므로 클라이언트 확인 생략
     const autoSendToggle = document.getElementById('autoSendToggle');
     if (autoSendToggle && autoSendToggle.checked) {
-        console.log('🔍 자동 전송 모드: 메시지 개수 확인 중...');
+        console.log('🔍 자동 전송 모드: 서버에서 조건 확인하므로 클라이언트 확인 생략');
         
-        const { sendableGroups, pendingGroups } = await checkSelectedGroupsMessageCount();
-        
-        if (sendableGroups.length === 0) {
-            alert('전송 가능한 그룹이 없습니다. 메시지 개수를 확인해주세요.');
-            return;
-        }
-        
-        if (pendingGroups.length > 0) {
-            const proceed = confirm(`${pendingGroups.length}개 그룹이 메시지 개수 부족으로 전송이 보류됩니다.\n전송 가능한 그룹: ${sendableGroups.length}개\n계속 진행하시겠습니까?`);
-            if (!proceed) {
-                return;
-            }
-        }
-        
-        // 전송 가능한 그룹만 필터링
-        const filteredCheckboxes = Array.from(checkedBoxes).filter(checkbox => 
-            sendableGroups.includes(checkbox.dataset.groupId)
-        );
-        
-        // 필터링된 그룹들만 전송하도록 체크박스 상태 업데이트
-        checkedBoxes.forEach(checkbox => {
-            checkbox.checked = sendableGroups.includes(checkbox.dataset.groupId);
-        });
-        
-        console.log(`📤 전송 가능한 그룹 ${sendableGroups.length}개에만 메시지 전송`);
+        console.log(`📤 자동전송: 서버에서 조건 확인 후 전송`);
     }
     
     // 원본 메시지 데이터가 있으면 우선 사용, 없으면 입력칸의 텍스트 사용
