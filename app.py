@@ -2462,9 +2462,16 @@ def execute_auto_send_job(user_id, group_ids, message, media_info=None):
                 # 그룹 간 대기
                 if i < len(group_ids) - 1:  # 마지막 그룹이 아닌 경우에만 대기
                     logger.info(f'⏰ 그룹 간 대기 시작: {group_interval}초 (그룹 {i+1}/{len(group_ids)})')
-                    logger.info(f'⏰ 실제 대기 시간: {group_interval}초')
+                    logger.info(f'⏰ 실제 대기 시간: {group_interval}초 (타입: {type(group_interval)})')
+                    logger.info(f'⏰ 현재 시간: {datetime.now().strftime("%H:%M:%S")}')
+                    
+                    # 실제 대기 실행
                     time.sleep(group_interval)
+                    
                     logger.info(f'⏰ 그룹 간 대기 완료: {group_interval}초')
+                    logger.info(f'⏰ 완료 시간: {datetime.now().strftime("%H:%M:%S")}')
+                else:
+                    logger.info(f'⏰ 마지막 그룹이므로 대기하지 않음 (그룹 {i+1}/{len(group_ids)})')
                 
             except Exception as e:
                 logger.error(f'❌ 자동전송 그룹 {group_id} 에러: {e}')

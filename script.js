@@ -1879,6 +1879,11 @@ function showTelegramGroupsWindow(groups, account) {
         // 계정 선택 상태 복원
         restoreAccountSelection();
         
+        // 자동전송 토글 상태 복원 (계정 선택 후)
+        setTimeout(() => {
+            restoreAutoSendToggleState();
+        }, 1500);
+        
         // 창 표시 (제일 위로 올라오기)
         groupsWindow.style.display = 'flex';
         setTimeout(() => {
@@ -2220,17 +2225,26 @@ async function sendMessageToGroup() {
     
     // 자동 전송 ON 상태에서는 서버의 자동전송 API 호출
     const autoSendToggle = document.getElementById('autoSendToggle');
+    console.log('🔍 자동전송 토글 상태 확인:', {
+        toggle: autoSendToggle,
+        checked: autoSendToggle ? autoSendToggle.checked : 'toggle not found'
+    });
+    
     if (autoSendToggle && autoSendToggle.checked) {
         console.log('🔍 자동 전송 모드: 서버 자동전송 API 호출');
+        console.log('🔍 전송할 그룹 수:', validGroupIds.length);
+        console.log('🔍 전송할 메시지:', message);
         
         // 자동전송 시작
         const autoSendSuccess = await startAutoSendWithGroups(validGroupIds, message, mediaInfo);
         if (autoSendSuccess) {
-            console.log('✅ 자동전송 시작 성공');
+            console.log('✅ 자동전송 시작 성공 - 수동 전송 건너뜀');
             return; // 자동전송이 시작되면 여기서 종료
         } else {
             console.log('❌ 자동전송 시작 실패, 수동 전송으로 진행');
         }
+    } else {
+        console.log('❌ 자동전송 토글이 OFF 상태 - 수동 전송으로 진행');
     }
     
     // 버튼 상태 변경
