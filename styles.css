@@ -1380,9 +1380,9 @@ input:focus, button:focus, textarea:focus, select:focus {
 .setting-section {
     margin-bottom: 25px;
     padding: 30px;
-    background: rgba(255, 255, 255, 0.02);
-    border-radius: 12px;
-    border: 1px solid #333;
+    background: transparent;
+    border-radius: 0;
+    border: none;
 }
 
 .setting-section h4 {
@@ -1405,16 +1405,16 @@ input:focus, button:focus, textarea:focus, select:focus {
 }
 
 .setting-input {
-    width: 100%;
-    min-width: 200px;
-    padding: 10px 15px;
+    width: 80px;
+    padding: 8px 12px;
     background: #2a2a2a !important;
     border: 1px solid #444 !important;
-    border-radius: 8px;
+    border-radius: 6px;
     color: #fff !important;
     font-size: 14px;
     transition: all 0.3s ease;
     box-sizing: border-box;
+    text-align: center;
 }
 
 .setting-input:focus {
