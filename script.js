@@ -1711,6 +1711,14 @@ function showAccountSelectionModal(accounts) {
             display: none;
         `;
         
+        // 마우스 이벤트 추가
+        confirmBtn.addEventListener('mouseenter', () => {
+            confirmBtn.style.background = 'linear-gradient(135deg, #059669 0%, #047857 100%)';
+        });
+        confirmBtn.addEventListener('mouseleave', () => {
+            confirmBtn.style.background = 'linear-gradient(135deg, #10B981 0%, #059669 100%)';
+        });
+        
         // 버튼 컨테이너에 그룹 선택 섹션과 확인 버튼 추가
         buttonContainer.parentNode.insertBefore(groupSelection, buttonContainer);
         
@@ -1856,7 +1864,7 @@ async function loadGroupsForSelection(account, modal) {
     
     try {
         // 그룹 목록 API 호출
-        const response = await fetch('/api/telegram/groups', {
+        const response = await fetch('/api/telegram/load-groups', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -1866,10 +1874,14 @@ async function loadGroupsForSelection(account, modal) {
             })
         });
         
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
         const result = await response.json();
         console.log('📱 그룹 목록 응답:', result);
         
-        if (response.ok && result.success) {
+        if (result.success) {
             const groups = result.groups || [];
             console.log('📱 로드된 그룹들:', groups);
             
