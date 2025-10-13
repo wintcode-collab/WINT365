@@ -1380,9 +1380,9 @@ input:focus, button:focus, textarea:focus, select:focus {
 .setting-section {
     margin-bottom: 25px;
     padding: 30px;
-    background: rgba(255, 255, 255, 0.02);
+    background: rgba(42, 42, 42, 0.8);
     border-radius: 12px;
-    border: 1px solid #333;
+    border: 1px solid #555;
 }
 
 .setting-section h4 {
