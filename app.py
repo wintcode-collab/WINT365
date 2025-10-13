@@ -2171,6 +2171,8 @@ def delete_account_from_firebase(user_id):
 def save_auto_send_settings_to_firebase(user_id, settings):
     """Firebase에 자동전송 설정 저장"""
     try:
+        logger.info(f'🔥 자동전송 설정 저장 시작: user_id={user_id}, settings={settings}')
+        
         settings_data = {
             'user_id': user_id,
             'settings': settings,
@@ -2179,13 +2181,19 @@ def save_auto_send_settings_to_firebase(user_id, settings):
         }
         
         url = f"{FIREBASE_URL}/auto_send_settings/{user_id}.json"
+        logger.info(f'🔥 Firebase URL: {url}')
+        logger.info(f'🔥 전송할 데이터: {settings_data}')
+        
         response = requests.put(url, json=settings_data, timeout=10)
+        
+        logger.info(f'🔥 Firebase 응답 상태: {response.status_code}')
+        logger.info(f'🔥 Firebase 응답 내용: {response.text}')
         
         if response.status_code == 200:
             logger.info(f'🔥 Firebase 자동전송 설정 저장 성공: {user_id}')
             return True
         else:
-            logger.error(f'🔥 Firebase 자동전송 설정 저장 실패: {response.status_code}')
+            logger.error(f'🔥 Firebase 자동전송 설정 저장 실패: {response.status_code} - {response.text}')
             return False
             
     except Exception as e:
@@ -2242,10 +2250,23 @@ def execute_auto_send_job(user_id, group_ids, message, media_info=None):
             stop_auto_send_job(user_id)
             return True
         
-        # 각 그룹에 메시지 전송
+        # 각 그룹에 메시지 전송 (메시지 개수 확인 포함)
         success_count = 0
         for group_id in group_ids:
             try:
+                # 메시지 개수 확인 (설정에서 활성화된 경우)
+                settings_data = settings.get('settings', {})
+                enable_message_check = settings_data.get('enableMessageCheck', False)
+                message_threshold = settings_data.get('messageThreshold', 5)
+                
+                if enable_message_check:
+                    message_count = check_telegram_group_message_count(account_info, group_id)
+                    logger.info(f'📊 그룹 {group_id} 메시지 개수: {message_count} (임계값: {message_threshold})')
+                    
+                    if message_count < message_threshold:
+                        logger.info(f'⏭️ 그룹 {group_id} 메시지 개수 부족으로 전송 건너뜀')
+                        continue
+                
                 result = send_message_to_telegram_group(account_info, group_id, message, media_info)
                 if result:
                     success_count += 1
@@ -2438,9 +2459,14 @@ def check_telegram_group_message_count(account_info, group_id):
 
 def run_scheduler():
     """스케줄러 실행 (백그라운드 스레드)"""
+    logger.info('🤖 자동전송 스케줄러 루프 시작')
     while True:
-        schedule.run_pending()
-        time.sleep(1)
+        try:
+            schedule.run_pending()
+            time.sleep(1)
+        except Exception as e:
+            logger.error(f'❌ 스케줄러 에러: {e}')
+            time.sleep(5)  # 에러 시 5초 대기 후 재시도
 
 # 그룹 목록 API는 Flood Control 때문에 일단 비활성화
 
@@ -2450,24 +2476,33 @@ def save_auto_send_settings():
     """자동전송 설정 저장"""
     try:
         data = request.get_json()
+        logger.info(f'🔥 자동전송 설정 저장 요청 받음: {data}')
+        
         user_id = data.get('userId')
         settings = data.get('settings')
         
+        logger.info(f'🔥 파싱된 데이터: user_id={user_id}, settings={settings}')
+        
         if not user_id or not settings:
+            logger.error(f'🔥 필수 데이터 누락: user_id={user_id}, settings={settings}')
             return jsonify({
                 'success': False,
                 'error': '사용자 ID와 설정이 필요합니다.'
             }), 400
         
         # Firebase에 설정 저장
+        logger.info(f'🔥 Firebase 저장 시작: user_id={user_id}')
         result = save_auto_send_settings_to_firebase(user_id, settings)
+        logger.info(f'🔥 Firebase 저장 결과: {result}')
         
         if result:
+            logger.info(f'🔥 자동전송 설정 저장 성공: {user_id}')
             return jsonify({
                 'success': True,
                 'message': '자동전송 설정이 저장되었습니다.'
             })
         else:
+            logger.error(f'🔥 자동전송 설정 저장 실패: {user_id}')
             return jsonify({
                 'success': False,
                 'error': '자동전송 설정 저장에 실패했습니다.'
@@ -2610,13 +2645,19 @@ def get_auto_send_status():
         is_running = user_id in auto_send_jobs
         current_repeats = auto_send_jobs.get(f'{user_id}_repeats', 0)
         
+        # 스케줄된 작업 개수 확인
+        scheduled_jobs = len(schedule.jobs)
+        
         # 설정 조회
         settings = get_auto_send_settings_from_firebase(user_id)
+        
+        logger.info(f'🤖 자동전송 상태 조회: user_id={user_id}, is_running={is_running}, scheduled_jobs={scheduled_jobs}')
         
         return jsonify({
             'success': True,
             'is_running': is_running,
             'current_repeats': current_repeats,
+            'scheduled_jobs': scheduled_jobs,
             'settings': settings,
             'job_info': auto_send_jobs.get(user_id) if is_running else None
         })

@@ -3396,18 +3396,26 @@ async function saveAutoSendSettings() {
         }
         
         // 서버에 자동전송 설정 저장
+        const requestData = {
+            userId: account.user_id,
+            settings: settings
+        };
+        
+        console.log('🔥 자동전송 설정 저장 요청:', requestData);
+        
         const saveResponse = await fetch('/api/auto-send/save-settings', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-                userId: account.user_id,
-                settings: settings
-            })
+            body: JSON.stringify(requestData)
         });
         
+        console.log('🔥 자동전송 설정 저장 응답 상태:', saveResponse.status);
+        
         const saveResult = await saveResponse.json();
+        console.log('🔥 자동전송 설정 저장 응답 내용:', saveResult);
+        
         if (!saveResponse.ok || !saveResult.success) {
             throw new Error(saveResult.error || '자동전송 설정 저장 실패');
         }
