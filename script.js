@@ -1868,6 +1868,9 @@ function showTelegramGroupsWindow(groups, account) {
         // 그룹 전체선택 버튼 이벤트 리스너 추가
         setupGroupSelectionButtons();
         
+        // 자동전송 상태바 버튼 이벤트 리스너 추가
+        setupAutoSendStatusBarButtons();
+        
         // 창 표시 (제일 위로 올라오기)
         groupsWindow.style.display = 'flex';
         setTimeout(() => {
@@ -2345,13 +2348,27 @@ async function sendMessageToGroup() {
             }
         }
         
-        // 결과 알림
-        if (successCount > 0 && failCount === 0) {
-            alert(`✅ 모든 그룹에 메시지 전송 성공!\n\n전송된 그룹: ${successCount}개\n메시지: ${message.substring(0, 50)}${message.length > 50 ? '...' : ''}`);
-        } else if (successCount > 0 && failCount > 0) {
-            alert(`⚠️ 부분 전송 완료\n\n성공: ${successCount}개 그룹\n실패: ${failCount}개 그룹\n메시지: ${message.substring(0, 50)}${message.length > 50 ? '...' : ''}`);
+        // 결과 알림 (자동전송 중이 아닐 때만 표시)
+        const autoSendToggle = document.getElementById('autoSendToggle');
+        const isAutoSendMode = autoSendToggle && autoSendToggle.checked;
+        
+        if (!isAutoSendMode) {
+            if (successCount > 0 && failCount === 0) {
+                alert(`✅ 모든 그룹에 메시지 전송 성공!\n\n전송된 그룹: ${successCount}개\n메시지: ${message.substring(0, 50)}${message.length > 50 ? '...' : ''}`);
+            } else if (successCount > 0 && failCount > 0) {
+                alert(`⚠️ 부분 전송 완료\n\n성공: ${successCount}개 그룹\n실패: ${failCount}개 그룹\n메시지: ${message.substring(0, 50)}${message.length > 50 ? '...' : ''}`);
+            } else {
+                throw new Error('모든 그룹 전송 실패');
+            }
         } else {
-            throw new Error('모든 그룹 전송 실패');
+            // 자동전송 모드에서는 콘솔에만 로그 출력
+            if (successCount > 0 && failCount === 0) {
+                console.log(`✅ 자동전송: 모든 그룹에 메시지 전송 성공! (${successCount}개 그룹)`);
+            } else if (successCount > 0 && failCount > 0) {
+                console.log(`⚠️ 자동전송: 부분 전송 완료 (성공: ${successCount}개, 실패: ${failCount}개)`);
+            } else {
+                console.error('❌ 자동전송: 모든 그룹 전송 실패');
+            }
         }
         
         // 메시지 입력 필드 초기화
@@ -2362,7 +2379,16 @@ async function sendMessageToGroup() {
     } catch (error) {
         console.error('❌ 메시지 전송 실패:', error);
         console.error('❌ 에러 상세:', error);
-        alert(`❌ 메시지 전송 실패:\n\n${error.message}`);
+        
+        // 자동전송 중이 아닐 때만 에러 알림 표시
+        const autoSendToggle = document.getElementById('autoSendToggle');
+        const isAutoSendMode = autoSendToggle && autoSendToggle.checked;
+        
+        if (!isAutoSendMode) {
+            alert(`❌ 메시지 전송 실패:\n\n${error.message}`);
+        } else {
+            console.error(`❌ 자동전송 실패: ${error.message}`);
+        }
     } finally {
         if (sendBtn) {
             sendBtn.textContent = '📤 전송';
@@ -3767,6 +3793,31 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo) {
         
         if (autoSendResponse.ok && autoSendResult.success) {
             console.log('✅ 자동전송 시작 성공:', autoSendResult);
+            
+            // Firebase에 자동전송 상태 저장
+            const userEmail = localStorage.getItem('userEmail');
+            if (userEmail && window.firebaseService) {
+                const autoSendStatus = {
+                    isRunning: true,
+                    startedAt: new Date().toISOString(),
+                    groups: selectedGroups,
+                    message: message,
+                    mediaInfo: mediaInfo,
+                    nextSendTime: autoSendResult.next_send_time || null,
+                    settings: autoSendResult.settings || {}
+                };
+                
+                await window.firebaseService.saveAutoSendStatus(userEmail, accountName, autoSendStatus);
+                console.log('✅ Firebase에 자동전송 상태 저장 완료');
+            }
+            
+            // UI에 자동전송 상태 표시
+            showAutoSendStatusBar({
+                groups: selectedGroups,
+                nextSendTime: autoSendResult.next_send_time,
+                message: message
+            });
+            
             return true;
         } else {
             console.error('❌ 자동전송 시작 실패:', autoSendResult);
@@ -3878,6 +3929,103 @@ function startAutoSendStatusUpdate() {
     }, 30000); // 30초마다 업데이트
 }
 
+// 자동전송 상태 표시바 표시
+function showAutoSendStatusBar(statusData) {
+    const statusBar = document.getElementById('autoSendStatusBar');
+    const groupsCount = document.getElementById('autoSendGroupsCount');
+    const nextTime = document.getElementById('autoSendNextTime');
+    
+    if (statusBar && groupsCount && nextTime) {
+        // 그룹 개수 표시
+        groupsCount.textContent = `${statusData.groups.length}개 그룹`;
+        
+        // 다음 전송 시간 표시
+        if (statusData.nextSendTime) {
+            const nextSendDate = new Date(statusData.nextSendTime);
+            const timeStr = nextSendDate.toLocaleTimeString('ko-KR', { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            });
+            nextTime.textContent = `다음 전송: ${timeStr}`;
+        } else {
+            nextTime.textContent = '다음 전송: --:--';
+        }
+        
+        // 상태바 표시
+        statusBar.style.display = 'block';
+        
+        console.log('✅ 자동전송 상태바 표시 완료');
+    }
+}
+
+// 자동전송 상태 표시바 숨기기
+function hideAutoSendStatusBar() {
+    const statusBar = document.getElementById('autoSendStatusBar');
+    if (statusBar) {
+        statusBar.style.display = 'none';
+        console.log('✅ 자동전송 상태바 숨김 완료');
+    }
+}
+
+// 자동전송 중지 함수
+async function stopAutoSend() {
+    try {
+        console.log('⏹️ 자동전송 중지 시작');
+        
+        const accountName = document.getElementById('selectedAccountName').textContent;
+        const userEmail = localStorage.getItem('userEmail');
+        
+        if (!accountName || accountName === '계정을 선택하세요') {
+            alert('계정이 선택되지 않았습니다.');
+            return false;
+        }
+        
+        // 서버에 자동전송 중지 요청
+        const response = await fetch('/api/auto-send/stop', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                account_name: accountName
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok && result.success) {
+            console.log('✅ 자동전송 중지 성공');
+            
+            // Firebase에서 자동전송 상태 삭제
+            if (userEmail && window.firebaseService) {
+                await window.firebaseService.deleteAutoSendStatus(userEmail, accountName);
+                console.log('✅ Firebase에서 자동전송 상태 삭제 완료');
+            }
+            
+            // UI에서 자동전송 상태 숨기기
+            hideAutoSendStatusBar();
+            
+            // 자동전송 토글 OFF
+            const autoSendToggle = document.getElementById('autoSendToggle');
+            if (autoSendToggle) {
+                autoSendToggle.checked = false;
+            }
+            
+            alert('✅ 자동전송이 중지되었습니다.');
+            return true;
+        } else {
+            console.error('❌ 자동전송 중지 실패:', result);
+            alert(`❌ 자동전송 중지 실패:\n\n${result.error || '알 수 없는 오류'}`);
+            return false;
+        }
+        
+    } catch (error) {
+        console.error('❌ 자동전송 중지 에러:', error);
+        alert(`❌ 자동전송 중지 실패:\n\n${error.message}`);
+        return false;
+    }
+}
+
 // 자동전송 상태 복원 함수
 async function restoreAutoSendStatusOnLoad() {
     try {
@@ -3913,6 +4061,13 @@ async function restoreAutoSendStatusOnLoad() {
                     console.log('✅ 자동전송 토글 ON으로 설정');
                 }
                 
+                // 자동전송 상태바 표시
+                showAutoSendStatusBar({
+                    groups: statusData.groups || [],
+                    nextSendTime: statusData.next_send_time,
+                    message: statusData.message || ''
+                });
+                
                 // 그룹 상태 업데이트
                 if (statusData.groups && statusData.groups.length > 0) {
                     statusData.groups.forEach(group => {
@@ -3926,12 +4081,71 @@ async function restoreAutoSendStatusOnLoad() {
                 console.log('✅ 자동전송 상태 복원 완료');
             } else {
                 console.log('ℹ️ 자동전송이 실행 중이 아님');
+                
+                // Firebase에서도 자동전송 상태 확인
+                const userEmail = localStorage.getItem('userEmail');
+                if (userEmail && window.firebaseService) {
+                    const firebaseStatus = await window.firebaseService.getAutoSendStatus(userEmail, accountName);
+                    if (firebaseStatus && firebaseStatus.isRunning) {
+                        console.log('📊 Firebase에서 자동전송 상태 발견, UI 복원');
+                        
+                        // 자동전송 토글 ON
+                        const autoSendToggle = document.getElementById('autoSendToggle');
+                        if (autoSendToggle) {
+                            autoSendToggle.checked = true;
+                        }
+                        
+                        // 자동전송 상태바 표시
+                        showAutoSendStatusBar({
+                            groups: firebaseStatus.groups || [],
+                            nextSendTime: firebaseStatus.nextSendTime,
+                            message: firebaseStatus.message || ''
+                        });
+                    }
+                }
             }
         } else {
             console.log('❌ 자동전송 상태 조회 실패:', response.status);
         }
     } catch (error) {
         console.error('❌ 자동전송 상태 복원 실패:', error);
+    }
+}
+
+// 자동전송 상태바 버튼 이벤트 리스너 설정
+function setupAutoSendStatusBarButtons() {
+    console.log('🔧 자동전송 상태바 버튼 이벤트 리스너 설정');
+    
+    // 자동전송 중지 버튼
+    const stopBtn = document.getElementById('autoSendStopBtn');
+    if (stopBtn) {
+        stopBtn.addEventListener('click', async () => {
+            console.log('⏹️ 자동전송 중지 버튼 클릭');
+            
+            if (confirm('자동전송을 중지하시겠습니까?')) {
+                const success = await stopAutoSend();
+                if (success) {
+                    console.log('✅ 자동전송 중지 완료');
+                }
+            }
+        });
+    }
+    
+    // 자동전송 설정 버튼
+    const settingsBtn = document.getElementById('autoSendSettingsBtn');
+    if (settingsBtn) {
+        settingsBtn.addEventListener('click', () => {
+            console.log('⚙️ 자동전송 설정 버튼 클릭');
+            
+            // 자동전송 설정 모달 열기
+            const settingsModal = document.getElementById('autoSendSettingsModal');
+            if (settingsModal) {
+                settingsModal.style.display = 'flex';
+                setTimeout(() => {
+                    settingsModal.classList.add('show');
+                }, 100);
+            }
+        });
     }
 }
 

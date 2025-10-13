@@ -295,6 +295,26 @@
                             </div>
                         </div>
                         
+                        <!-- 자동전송 상태 표시바 -->
+                        <div class="auto-send-status-bar" id="autoSendStatusBar" style="display: none;">
+                            <div class="auto-send-status-content">
+                                <div class="auto-send-status-info">
+                                    <div class="auto-send-status-icon">🔄</div>
+                                    <div class="auto-send-status-text">
+                                        <div class="auto-send-status-title">자동전송 실행 중</div>
+                                        <div class="auto-send-status-details" id="autoSendStatusDetails">
+                                            <span class="auto-send-groups-count" id="autoSendGroupsCount">0개 그룹</span>
+                                            <span class="auto-send-next-time" id="autoSendNextTime">다음 전송: --:--</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="auto-send-status-actions">
+                                    <button class="auto-send-stop-btn" id="autoSendStopBtn">⏹️ 중지</button>
+                                    <button class="auto-send-settings-btn" id="autoSendSettingsBtn">⚙️ 설정</button>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="message-sending-section" id="messageSendingSection">
                             <div class="selected-groups-info" id="selectedGroupsInfo">
                                 <span class="selected-groups-count" id="selectedGroupsCount">선택된 그룹: 0개</span>

@@ -1903,3 +1903,137 @@ input:focus, button:focus, textarea:focus, select:focus {
         gap: 15px;
     }
 }
+
+/* 자동전송 상태 표시바 스타일 */
+.auto-send-status-bar {
+    background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    animation: slideDown 0.3s ease-out;
+}
+
+.auto-send-status-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: white;
+}
+
+.auto-send-status-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.auto-send-status-icon {
+    font-size: 24px;
+    animation: rotate 2s linear infinite;
+}
+
+.auto-send-status-text {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.auto-send-status-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: white;
+}
+
+.auto-send-status-details {
+    display: flex;
+    gap: 16px;
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.auto-send-groups-count,
+.auto-send-next-time {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.auto-send-status-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.auto-send-stop-btn,
+.auto-send-settings-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    backdrop-filter: blur(10px);
+}
+
+.auto-send-stop-btn:hover {
+    background: rgba(239, 68, 68, 0.8);
+    border-color: rgba(239, 68, 68, 0.9);
+    transform: translateY(-1px);
+}
+
+.auto-send-settings-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+    border-color: rgba(255, 255, 255, 0.5);
+    transform: translateY(-1px);
+}
+
+.auto-send-stop-btn:active,
+.auto-send-settings-btn:active {
+    transform: translateY(0);
+}
+
+/* 애니메이션 */
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes rotate {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* 반응형 디자인 */
+@media (max-width: 768px) {
+    .auto-send-status-content {
+        flex-direction: column;
+        gap: 12px;
+        align-items: stretch;
+    }
+    
+    .auto-send-status-info {
+        justify-content: center;
+    }
+    
+    .auto-send-status-actions {
+        justify-content: center;
+    }
+    
+    .auto-send-status-details {
+        flex-direction: column;
+        gap: 4px;
+        text-align: center;
+    }
+}
