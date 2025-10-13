@@ -2222,6 +2222,52 @@ def get_auto_send_settings_from_firebase(user_id):
         logger.error(f'🔥 Firebase 자동전송 설정 조회 에러: {e}')
         return None
 
+def save_auto_send_status_to_firebase(user_id, status_data):
+    """Firebase에 자동전송 상태 저장"""
+    try:
+        logger.info(f'🔥 자동전송 상태 저장 시작: user_id={user_id}, status={status_data}')
+        
+        url = f"{FIREBASE_URL}/auto_send_status/{user_id}.json"
+        logger.info(f'🔥 Firebase URL: {url}')
+        
+        response = requests.put(url, json=status_data, timeout=10)
+        
+        logger.info(f'🔥 Firebase 응답 상태: {response.status_code}')
+        logger.info(f'🔥 Firebase 응답 내용: {response.text}')
+        
+        if response.status_code == 200:
+            logger.info(f'🔥 Firebase 자동전송 상태 저장 성공: {user_id}')
+            return True
+        else:
+            logger.error(f'🔥 Firebase 자동전송 상태 저장 실패: {response.status_code} - {response.text}')
+            return False
+            
+    except Exception as e:
+        logger.error(f'🔥 Firebase 자동전송 상태 저장 에러: {e}')
+        return False
+
+def get_auto_send_status_from_firebase(user_id):
+    """Firebase에서 자동전송 상태 조회"""
+    try:
+        url = f"{FIREBASE_URL}/auto_send_status/{user_id}.json"
+        response = requests.get(url, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data:
+                logger.info(f'🔥 Firebase 자동전송 상태 조회 성공: {user_id}')
+                return data
+            else:
+                logger.info(f'🔥 Firebase 자동전송 상태 없음: {user_id}')
+                return None
+        else:
+            logger.error(f'🔥 Firebase 자동전송 상태 조회 실패: {response.status_code}')
+            return None
+            
+    except Exception as e:
+        logger.error(f'🔥 Firebase 자동전송 상태 조회 에러: {e}')
+        return None
+
 def execute_auto_send_job(user_id, group_ids, message, media_info=None):
     """자동전송 작업 실행"""
     try:
@@ -2327,6 +2373,16 @@ def start_auto_send_job(user_id, group_ids, message, media_info=None):
             'started_at': datetime.now().isoformat()
         }
         
+        # Firebase에 자동전송 상태 저장
+        save_auto_send_status_to_firebase(user_id, {
+            'is_active': True,
+            'group_ids': group_ids,
+            'message': message,
+            'media_info': media_info,
+            'started_at': datetime.now().isoformat(),
+            'job_id': job_id
+        })
+        
         logger.info(f'✅ 자동전송 작업 시작됨: {user_id} (간격: {repeat_interval}분)')
         return True
         
@@ -2337,13 +2393,31 @@ def start_auto_send_job(user_id, group_ids, message, media_info=None):
 def stop_auto_send_job(user_id):
     """자동전송 작업 중지"""
     try:
+        logger.info(f'🛑 자동전송 작업 중지: {user_id}')
+        
+        # 스케줄 작업 제거
+        schedule.clear()
+        
+        # 메모리에서 작업 제거
         if user_id in auto_send_jobs:
             del auto_send_jobs[user_id]
-            logger.info(f'🛑 자동전송 작업 중지됨: {user_id}')
-            return True
-        else:
-            logger.info(f'ℹ️ 중지할 자동전송 작업 없음: {user_id}')
-            return True
+        
+        if f'{user_id}_repeats' in auto_send_jobs:
+            del auto_send_jobs[f'{user_id}_repeats']
+        
+        # Firebase에서 자동전송 상태 삭제
+        try:
+            url = f"{FIREBASE_URL}/auto_send_status/{user_id}.json"
+            response = requests.delete(url, timeout=10)
+            if response.status_code == 200:
+                logger.info(f'🔥 Firebase 자동전송 상태 삭제 성공: {user_id}')
+            else:
+                logger.error(f'🔥 Firebase 자동전송 상태 삭제 실패: {response.status_code}')
+        except Exception as e:
+            logger.error(f'🔥 Firebase 자동전송 상태 삭제 에러: {e}')
+        
+        logger.info(f'✅ 자동전송 작업 중지됨: {user_id}')
+        return True
             
     except Exception as e:
         logger.error(f'❌ 자동전송 중지 에러: {e}')
@@ -2677,6 +2751,52 @@ def ping():
         'timestamp': datetime.now().isoformat()
     })
 
+def restore_auto_send_jobs_from_firebase():
+    """서버 시작 시 Firebase에서 자동전송 작업 복원"""
+    try:
+        logger.info('🔄 Firebase에서 자동전송 작업 복원 시작')
+        
+        url = f"{FIREBASE_URL}/auto_send_status.json"
+        response = requests.get(url, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data:
+                for user_id, status_data in data.items():
+                    if status_data.get('is_active'):
+                        logger.info(f'🔄 자동전송 작업 복원: {user_id}')
+                        
+                        # 메모리에 작업 복원
+                        auto_send_jobs[user_id] = {
+                            'job_id': status_data.get('job_id'),
+                            'group_ids': status_data.get('group_ids', []),
+                            'message': status_data.get('message', ''),
+                            'media_info': status_data.get('media_info'),
+                            'started_at': status_data.get('started_at')
+                        }
+                        
+                        # 스케줄 작업 재등록
+                        settings = get_auto_send_settings_from_firebase(user_id)
+                        if settings:
+                            repeat_interval = settings.get('repeatInterval', 30)
+                            
+                            def job():
+                                execute_auto_send_job(user_id, status_data.get('group_ids', []), 
+                                                    status_data.get('message', ''), 
+                                                    status_data.get('media_info'))
+                            
+                            schedule.every(repeat_interval).minutes.do(job)
+                            logger.info(f'✅ 자동전송 스케줄 복원: {user_id} (간격: {repeat_interval}분)')
+                        
+                logger.info(f'🔄 자동전송 작업 복원 완료: {len(data)}개')
+            else:
+                logger.info('🔄 복원할 자동전송 작업 없음')
+        else:
+            logger.error(f'🔥 Firebase 자동전송 상태 조회 실패: {response.status_code}')
+            
+    except Exception as e:
+        logger.error(f'🔥 자동전송 작업 복원 에러: {e}')
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 3000))
     logger.info(f'🚀 WINT365 Python 서버 시작됨 - 포트: {port}')
@@ -2686,6 +2806,9 @@ if __name__ == '__main__':
         logger.error('⚠️  Telethon 모듈 로드 실패 - MTProto API 사용 불가')
     else:
         logger.info('✅ MTProto API 사용 준비 완료!')
+    
+    # Firebase에서 자동전송 작업 복원
+    restore_auto_send_jobs_from_firebase()
     
     # 자동전송 스케줄러 백그라운드 실행
     scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
