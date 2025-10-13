@@ -3872,6 +3872,9 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo) {
             
             // Firebase에 자동전송 상태 저장
             const userEmail = localStorage.getItem('userEmail');
+            console.log('📧 사용자 이메일:', userEmail);
+            console.log('🔥 Firebase 서비스:', window.firebaseService);
+            
             if (userEmail && window.firebaseService) {
                 const autoSendStatus = {
                     isRunning: true,
@@ -3883,8 +3886,17 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo) {
                     settings: autoSendResult.settings || {}
                 };
                 
-                await window.firebaseService.saveAutoSendStatus(userEmail, accountName, autoSendStatus);
-                console.log('✅ Firebase에 자동전송 상태 저장 완료');
+                console.log('💾 Firebase에 저장할 데이터:', autoSendStatus);
+                const firebaseResult = await window.firebaseService.saveAutoSendStatus(userEmail, accountName, autoSendStatus);
+                console.log('🔥 Firebase 저장 결과:', firebaseResult);
+                
+                if (firebaseResult) {
+                    console.log('✅ Firebase에 자동전송 상태 저장 완료');
+                } else {
+                    console.error('❌ Firebase에 자동전송 상태 저장 실패');
+                }
+            } else {
+                console.error('❌ Firebase 저장 조건 불만족:', { userEmail, firebaseService: !!window.firebaseService });
             }
             
             // UI에 자동전송 상태 표시

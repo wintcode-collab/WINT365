@@ -392,7 +392,8 @@ class FirebaseService {
     // 자동전송 상태 저장
     async saveAutoSendStatus(userEmail, accountName, status) {
         try {
-            console.log(`Firebase: 자동전송 상태 저장 - ${userEmail}, ${accountName}`);
+            console.log(`🔥 Firebase: 자동전송 상태 저장 시작 - ${userEmail}, ${accountName}`);
+            console.log(`🔥 Firebase: 저장할 상태 데이터:`, status);
             
             const autoSendData = {
                 userEmail: userEmail,
@@ -408,13 +409,19 @@ class FirebaseService {
                 ip: await this.getLocalIPAddress()
             };
 
+            console.log(`🔥 Firebase: 최종 저장 데이터:`, autoSendData);
+            
             const autoSendRef = ref(this.database, `auto_send_status/${userEmail}_${accountName.replace(/\s+/g, '_')}`);
+            console.log(`🔥 Firebase: 저장 경로: auto_send_status/${userEmail}_${accountName.replace(/\s+/g, '_')}`);
+            
             await set(autoSendRef, autoSendData);
             
-            console.log('Firebase: 자동전송 상태 저장 성공');
+            console.log('✅ Firebase: 자동전송 상태 저장 성공');
             return true;
         } catch (error) {
-            console.error('Firebase 자동전송 상태 저장 실패:', error);
+            console.error('❌ Firebase 자동전송 상태 저장 실패:', error);
+            console.error('❌ Firebase 에러 상세:', error.message);
+            console.error('❌ Firebase 에러 스택:', error.stack);
             return false;
         }
     }

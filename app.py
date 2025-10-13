@@ -2745,9 +2745,18 @@ def save_auto_send_settings():
         }), 500
 
 # 자동전송 시작 API
-@app.route('/api/auto-send/start', methods=['POST'])
+@app.route('/api/auto-send/start', methods=['GET', 'POST'])
 def start_auto_send():
     """자동전송 시작"""
+    if request.method == 'GET':
+        return jsonify({
+            'success': True,
+            'message': '자동전송 시작 API 엔드포인트가 정상적으로 등록되었습니다.',
+            'method': 'GET',
+            'available_methods': ['POST']
+        })
+    
+    # POST 요청 처리
     try:
         data = request.get_json()
         account_name = data.get('account_name')
