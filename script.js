@@ -1677,6 +1677,44 @@ function showAccountSelectionModal(accounts) {
     `;
     
     modal.appendChild(modalContent);
+    
+    // 확인 버튼과 그룹 선택 섹션을 동적으로 추가
+    const buttonContainer = modal.querySelector('div[style*="text-align: center"]');
+    if (buttonContainer) {
+        // 그룹 선택 섹션 추가
+        const groupSelection = document.createElement('div');
+        groupSelection.id = 'groupSelection';
+        groupSelection.style.cssText = 'display: none; margin-bottom: 20px;';
+        groupSelection.innerHTML = `
+            <h3 style="color: #fff; margin: 0 0 15px 0; font-size: 16px;">그룹 목록</h3>
+            <div id="groupList" style="max-height: 200px; overflow-y: auto; border: 1px solid #444; border-radius: 8px; padding: 10px;">
+                <!-- 그룹 목록이 여기에 동적으로 추가됩니다 -->
+            </div>
+        `;
+        
+        // 확인 버튼 추가
+        const confirmBtn = document.createElement('button');
+        confirmBtn.id = 'confirmSelection';
+        confirmBtn.textContent = '확인';
+        confirmBtn.style.cssText = `
+            background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+            color: #fff;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-right: 10px;
+            display: none;
+        `;
+        
+        // 버튼 컨테이너에 그룹 선택 섹션과 확인 버튼 추가
+        buttonContainer.parentNode.insertBefore(groupSelection, buttonContainer);
+        buttonContainer.insertBefore(confirmBtn, buttonContainer.firstChild);
+    }
+    
     document.body.appendChild(modal);
     
     // 계정 클릭 이벤트
@@ -1727,7 +1765,9 @@ function showAccountSelectionModal(accounts) {
     });
     
     // 확인 버튼 이벤트
-    modal.querySelector('#confirmSelection').addEventListener('click', () => {
+    const confirmBtn = modal.querySelector('#confirmSelection');
+    if (confirmBtn) {
+        confirmBtn.addEventListener('click', () => {
         const selectedAccountItem = modal.querySelector('.account-item[style*="1a4d3a"]');
         if (selectedAccountItem) {
             const accountData = selectedAccountItem.dataset.account;
@@ -1741,12 +1781,16 @@ function showAccountSelectionModal(accounts) {
             // 선택된 계정으로 그룹 로드
             loadGroupsForAccount(account);
         }
-    });
+        });
+    }
     
     // 닫기 버튼 이벤트
-    modal.querySelector('#closeAccountList').addEventListener('click', () => {
-        document.body.removeChild(modal);
-    });
+    const closeBtn = modal.querySelector('#closeAccountList');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            document.body.removeChild(modal);
+        });
+    }
     
     // 모달 배경 클릭 시 닫기
     modal.addEventListener('click', (e) => {
