@@ -1536,11 +1536,17 @@ async function handleTestTelegramConnection() {
             if (result.accounts && result.accounts.length > 0) {
                 console.log(`✅ ${result.accounts.length}개의 연동된 계정을 찾았습니다.`);
                 
-                // 계정 목록 표시 (그룹 선택창으로)
-                showAccountSelectionModal(result.accounts);
+                // 계정 목록 표시
+                showAccountList(result.accounts);
                 
-                elements.testTelegramBtn.textContent = 'Load';
-                elements.testTelegramBtn.disabled = false;
+                elements.testTelegramBtn.textContent = '✓ Loaded';
+                elements.testTelegramBtn.style.background = 'linear-gradient(135deg, #28a745 0%, #1e7e34 100%)';
+                
+                setTimeout(() => {
+                    elements.testTelegramBtn.textContent = 'Load';
+                    elements.testTelegramBtn.style.background = 'linear-gradient(135deg, #28a745 0%, #1e7e34 100%)';
+                    elements.testTelegramBtn.disabled = false;
+                }, 2000);
             } else {
                 console.log('📭 연동된 계정이 없습니다.');
                 
@@ -1577,15 +1583,9 @@ async function handleTestTelegramConnection() {
 }
 
 
-// 계정 선택 모달 표시 (그룹 선택 포함)
-function showAccountSelectionModal(accounts) {
-    console.log('📋 계정 및 그룹 선택 모달 표시 중...', accounts);
-    
-    // 기존 모달이 있으면 제거
-    const existingModal = document.getElementById('accountListModal');
-    if (existingModal) {
-        document.body.removeChild(existingModal);
-    }
+// 계정 목록 표시
+function showAccountList(accounts) {
+    console.log('📋 계정 목록 표시 중...', accounts);
     
     // 계정 목록을 표시할 모달 생성
     const modal = document.createElement('div');
@@ -1620,10 +1620,10 @@ function showAccountSelectionModal(accounts) {
     modalContent.innerHTML = `
         <div style="text-align: center; margin-bottom: 25px;">
             <h2 style="color: #10B981; margin: 0 0 10px 0; font-size: 24px; font-weight: 600;">
-                📱 계정 및 그룹 선택
+                📱 연동된 텔레그램 계정
             </h2>
             <p style="color: #888; margin: 0; font-size: 14px;">
-                계정을 선택하고 그룹을 확인한 후 불러오세요
+                ${accounts.length}개의 계정이 연동되어 있습니다
             </p>
         </div>
         
@@ -1638,7 +1638,7 @@ function showAccountSelectionModal(accounts) {
                     cursor: pointer;
                     transition: all 0.3s ease;
                     position: relative;
-                " data-account='${JSON.stringify(account)}'>
+                " data-user-id="${account.user_id}">
                     <div style="display: flex; align-items: center; justify-content: space-between;">
                         <div style="flex: 1;">
                             <div style="color: #10B981; font-weight: 600; font-size: 16px; margin-bottom: 5px;">
@@ -1677,60 +1677,6 @@ function showAccountSelectionModal(accounts) {
     `;
     
     modal.appendChild(modalContent);
-    
-    // 확인 버튼과 그룹 선택 섹션을 동적으로 추가
-    const buttonContainer = modal.querySelector('div[style*="text-align: center"]');
-    console.log('🔍 버튼 컨테이너 찾기:', buttonContainer);
-    if (buttonContainer) {
-        // 그룹 선택 섹션 추가
-        const groupSelection = document.createElement('div');
-        groupSelection.id = 'groupSelection';
-        groupSelection.style.cssText = 'display: none; margin-bottom: 20px;';
-        groupSelection.innerHTML = `
-            <h3 style="color: #fff; margin: 0 0 15px 0; font-size: 16px;">그룹 목록</h3>
-            <div id="groupList" style="max-height: 200px; overflow-y: auto; border: 1px solid #444; border-radius: 8px; padding: 10px;">
-                <!-- 그룹 목록이 여기에 동적으로 추가됩니다 -->
-            </div>
-        `;
-        
-        // 확인 버튼 추가
-        const confirmBtn = document.createElement('button');
-        confirmBtn.id = 'confirmSelection';
-        confirmBtn.textContent = '확인';
-        confirmBtn.style.cssText = `
-            background: linear-gradient(135deg, #10B981 0%, #059669 100%);
-            color: #fff;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            margin-right: 10px;
-            display: none;
-        `;
-        
-        // 마우스 이벤트 추가
-        confirmBtn.addEventListener('mouseenter', () => {
-            confirmBtn.style.background = 'linear-gradient(135deg, #059669 0%, #047857 100%)';
-        });
-        confirmBtn.addEventListener('mouseleave', () => {
-            confirmBtn.style.background = 'linear-gradient(135deg, #10B981 0%, #059669 100%)';
-        });
-        
-        // 버튼 컨테이너에 그룹 선택 섹션과 확인 버튼 추가
-        buttonContainer.parentNode.insertBefore(groupSelection, buttonContainer);
-        
-        // 닫기 버튼 앞에 확인 버튼 추가
-        const closeBtn = buttonContainer.querySelector('#closeAccountList');
-        if (closeBtn) {
-            buttonContainer.insertBefore(confirmBtn, closeBtn);
-        } else {
-            buttonContainer.appendChild(confirmBtn);
-        }
-    }
-    
     document.body.appendChild(modal);
     
     // 계정 클릭 이벤트
@@ -1749,88 +1695,23 @@ function showAccountSelectionModal(accounts) {
         });
         
         item.addEventListener('click', () => {
-            const accountData = item.dataset.account;
-            if (!accountData) {
-                console.error('❌ 계정 데이터를 찾을 수 없습니다.');
-                return;
-            }
-            
-            let account;
-            try {
-                account = JSON.parse(accountData);
-            } catch (error) {
-                console.error('❌ 계정 데이터 파싱 실패:', error);
-                return;
-            }
+            const userId = item.dataset.userId;
+            const account = accounts.find(acc => acc.user_id === userId);
             
             console.log('📱 선택된 계정:', account);
-            
-            // 선택된 계정 표시
-            item.style.borderColor = '#10B981';
-            item.style.background = 'linear-gradient(135deg, #1a4d3a 0%, #2a5d4a 100%)';
-            
-            // 다른 계정들 선택 해제
-            accountItems.forEach(otherItem => {
-                if (otherItem !== item) {
-                    otherItem.style.borderColor = '#444';
-                    otherItem.style.background = 'linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%)';
-                }
-            });
-            
-            // 그룹 선택 섹션 표시
-            const groupSelection = modal.querySelector('#groupSelection');
-            const confirmBtn = modal.querySelector('#confirmSelection');
-            
-            if (groupSelection && confirmBtn) {
-                groupSelection.style.display = 'block';
-                confirmBtn.style.display = 'inline-block';
-                
-                // 그룹 목록 로드
-                loadGroupsForSelection(account, modal);
-            }
-        });
-    });
-    
-    // 확인 버튼 이벤트
-    const confirmBtn = modal.querySelector('#confirmSelection');
-    console.log('🔍 확인 버튼 찾기:', confirmBtn);
-    if (confirmBtn) {
-        confirmBtn.addEventListener('click', () => {
-        const selectedAccountItem = modal.querySelector('.account-item[style*="1a4d3a"]');
-        if (selectedAccountItem) {
-            const accountData = selectedAccountItem.dataset.account;
-            if (!accountData) {
-                console.error('❌ 선택된 계정 데이터를 찾을 수 없습니다.');
-                return;
-            }
-            
-            let account;
-            try {
-                account = JSON.parse(accountData);
-            } catch (error) {
-                console.error('❌ 선택된 계정 데이터 파싱 실패:', error);
-                return;
-            }
-            
-            console.log('📱 최종 선택된 계정:', account);
             
             // 모달 닫기
             document.body.removeChild(modal);
             
             // 선택된 계정으로 그룹 로드
             loadGroupsForAccount(account);
-        }
         });
-    }
+    });
     
     // 닫기 버튼 이벤트
-    const closeBtn = modal.querySelector('#closeAccountList');
-    console.log('🔍 닫기 버튼 찾기:', closeBtn);
-    if (closeBtn) {
-        closeBtn.addEventListener('click', () => {
-            document.body.removeChild(modal);
-        });
-    }
+    modal.querySelector('#closeAccountList').addEventListener('click', () => {
+        document.body.removeChild(modal);
+    });
     
     // 모달 배경 클릭 시 닫기
     modal.addEventListener('click', (e) => {
@@ -1838,98 +1719,6 @@ function showAccountSelectionModal(accounts) {
             document.body.removeChild(modal);
         }
     });
-}
-
-// 모달 내에서 그룹 목록 로드
-async function loadGroupsForSelection(account, modal) {
-    console.log('📱 모달 내에서 그룹 목록 로드:', account);
-    
-    if (!account || !account.user_id) {
-        console.error('❌ 유효하지 않은 계정 데이터:', account);
-        return;
-    }
-    
-    const groupList = modal.querySelector('#groupList');
-    if (!groupList) {
-        console.error('❌ 그룹 목록 컨테이너를 찾을 수 없습니다.');
-        return;
-    }
-    
-    // 로딩 표시
-    groupList.innerHTML = `
-        <div style="text-align: center; color: #888; padding: 20px;">
-            그룹 목록을 불러오는 중...
-        </div>
-    `;
-    
-    try {
-        // 그룹 목록 API 호출
-        const response = await fetch('/api/telegram/load-groups', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                userId: account.user_id
-            })
-        });
-        
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        
-        const result = await response.json();
-        console.log('📱 그룹 목록 응답:', result);
-        
-        if (result.success) {
-            const groups = result.groups || [];
-            console.log('📱 로드된 그룹들:', groups);
-            
-            if (groups.length > 0) {
-                groupList.innerHTML = groups.map(group => `
-                    <div style="
-                        background: #2a2a2a;
-                        border: 1px solid #444;
-                        border-radius: 8px;
-                        padding: 10px;
-                        margin-bottom: 8px;
-                        display: flex;
-                        align-items: center;
-                        justify-content: space-between;
-                    ">
-                        <div style="flex: 1;">
-                            <div style="color: #fff; font-weight: 500; font-size: 14px;">
-                                ${group.title || 'Unknown Group'}
-                            </div>
-                            <div style="color: #888; font-size: 12px;">
-                                ${group.username ? '@' + group.username : 'No username'}
-                            </div>
-                        </div>
-                        <div style="color: #10B981; font-size: 12px;">
-                            ${group.member_count || 0}명
-                        </div>
-                    </div>
-                `).join('');
-            } else {
-                groupList.innerHTML = `
-                    <div style="text-align: center; color: #888; padding: 20px;">
-                        그룹이 없습니다.
-                    </div>
-                `;
-            }
-        } else {
-            throw new Error(result.error || '그룹 목록 로딩 실패');
-        }
-        
-    } catch (error) {
-        console.error('❌ 그룹 목록 로딩 실패:', error);
-        groupList.innerHTML = `
-            <div style="text-align: center; color: #dc3545; padding: 20px;">
-                그룹 목록 로딩 실패<br>
-                ${error.message}
-            </div>
-        `;
-    }
 }
 
 // 선택된 계정으로 그룹 로드
@@ -2100,24 +1889,6 @@ function setupTelegramGroupsEventListeners() {
         clearMessageBtn.addEventListener('click', clearMessage);
     }
     
-    // 무한 전송 토글 스위치
-    const infiniteSendToggle = document.getElementById('infiniteSendToggle');
-    if (infiniteSendToggle) {
-        infiniteSendToggle.addEventListener('change', toggleInfiniteSend);
-    }
-    
-    // 무한 전송 설정 모달 닫기 버튼
-    const closeInfiniteSendBtn = document.getElementById('closeInfiniteSendBtn');
-    if (closeInfiniteSendBtn) {
-        closeInfiniteSendBtn.addEventListener('click', closeInfiniteSendModal);
-    }
-    
-    // 설정 저장 버튼
-    const saveSettingsBtn = document.getElementById('saveSettingsBtn');
-    if (saveSettingsBtn) {
-        saveSettingsBtn.addEventListener('click', saveInfiniteSendSettings);
-    }
-    
     // 저장된 메시지 버튼
     const savedMessagesBtn = document.getElementById('savedMessagesBtn');
     if (savedMessagesBtn) {
@@ -2225,13 +1996,6 @@ async function refreshGroups() {
 // 선택된 그룹들에 메시지 전송
 async function sendMessageToGroup() {
     console.log('📤 선택된 그룹들에 메시지 전송');
-    
-    // 무한 전송이 활성화되어 있으면 무한 전송 시작
-    if (window.infiniteSendEnabled && !window.isInfiniteSending) {
-        console.log('🔄 무한 전송 모드로 전환');
-        startInfiniteSend();
-        return;
-    }
     
     const messageInput = document.querySelector('.message-input');
     const sendBtn = document.getElementById('sendMessageBtn');
@@ -2780,429 +2544,6 @@ function selectTelegramSavedMessage(messageIndex, savedMessages) {
     }
 }
 
-// 무한 전송 토글 함수
-function toggleInfiniteSend(event) {
-    console.log('🔄 무한 전송 토글:', event.target.checked);
-    
-    const toggleLabel = document.querySelector('.toggle-label');
-    
-    if (event.target.checked) {
-        // 설정 모달 열기
-        showInfiniteSendModal();
-    } else {
-        // 무한 전송 중단
-        stopInfiniteSend();
-    }
-}
-
-// 무한 전송 설정 모달 표시
-function showInfiniteSendModal() {
-    console.log('🔄 무한 전송 설정 모달 표시');
-    
-    const modal = document.getElementById('infiniteSendModal');
-    if (!modal) return;
-    
-    // 모달 표시
-    modal.style.display = 'flex';
-    
-    // 모달 배경 클릭 시 닫기
-    modal.addEventListener('click', (e) => {
-        if (e.target === modal) {
-            closeInfiniteSendModal();
-        }
-    });
-}
-
-// 무한 전송 설정 모달 닫기
-function closeInfiniteSendModal() {
-    console.log('🔄 무한 전송 설정 모달 닫기');
-    
-    const modal = document.getElementById('infiniteSendModal');
-    if (modal) {
-        modal.style.display = 'none';
-    }
-    
-    // 토글 스위치를 항상 OFF로 되돌리기 (X 버튼으로 닫은 경우)
-    const infiniteSendToggle = document.getElementById('infiniteSendToggle');
-    const toggleLabel = document.querySelector('.toggle-label');
-    
-    if (infiniteSendToggle) {
-        infiniteSendToggle.checked = false;
-        if (toggleLabel) {
-            toggleLabel.textContent = '무한 전송';
-        }
-    }
-    
-    // 저장된 설정 숨기기
-    const savedSettings = document.getElementById('savedSettings');
-    if (savedSettings) {
-        savedSettings.style.display = 'none';
-    }
-}
-
-// 무한 전송 설정 저장
-function saveInfiniteSendSettings() {
-    console.log('🔄 무한 전송 설정 저장');
-    
-    const groupIntervalInput = document.getElementById('groupInterval');
-    const cycleIntervalInput = document.getElementById('cycleInterval');
-    const minNewMessagesInput = document.getElementById('minNewMessages');
-    
-    // 그룹간 전송 간격 확인
-    const groupInterval = parseInt(groupIntervalInput.value);
-    if (!groupInterval || groupInterval < 1 || groupInterval > 300) {
-        alert('그룹간 전송 간격을 1초~300초(5분) 사이로 설정해주세요.');
-        groupIntervalInput.focus();
-        return;
-    }
-    
-    // 전체 사이클 대기 시간 확인
-    const cycleInterval = parseInt(cycleIntervalInput.value);
-    if (!cycleInterval || cycleInterval < 1 || cycleInterval > 60) {
-        alert('전체 대기 시간을 1분~60분 사이로 설정해주세요.');
-        cycleIntervalInput.focus();
-        return;
-    }
-    
-    // 최소 새 메시지 수 확인
-    const minNewMessages = parseInt(minNewMessagesInput.value);
-    if (!minNewMessages || minNewMessages < 1 || minNewMessages > 1000) {
-        alert('최소 새 메시지 수를 1개~1000개 사이로 설정해주세요.');
-        minNewMessagesInput.focus();
-        return;
-    }
-    
-    // 설정을 전역 변수에 저장
-    window.infiniteGroupInterval = groupInterval;
-    window.infiniteCycleInterval = cycleInterval;
-    window.infiniteMinNewMessages = minNewMessages;
-    window.infiniteSendEnabled = true;
-    
-    console.log('🔄 무한 전송 설정 저장됨:', {
-        groupInterval: groupInterval,
-        cycleInterval: cycleInterval,
-        minNewMessages: minNewMessages
-    });
-    
-    // 모달 닫기 (설정 저장 후)
-    const modal = document.getElementById('infiniteSendModal');
-    if (modal) {
-        modal.style.display = 'none';
-    }
-    
-    // 토글 스위치를 ON으로 유지
-    const infiniteSendToggle = document.getElementById('infiniteSendToggle');
-    if (infiniteSendToggle) {
-        infiniteSendToggle.checked = true;
-    }
-    
-    // 라벨은 그대로 유지 (무한 전송)
-    
-    // 저장된 설정 표시
-    const savedSettings = document.getElementById('savedSettings');
-    const savedGroupInterval = document.getElementById('savedGroupInterval');
-    const savedCycleInterval = document.getElementById('savedCycleInterval');
-    const savedMinMessages = document.getElementById('savedMinMessages');
-    
-    if (savedSettings && savedGroupInterval && savedCycleInterval && savedMinMessages) {
-        savedGroupInterval.textContent = `${groupInterval}초`;
-        savedCycleInterval.textContent = `${cycleInterval}분`;
-        savedMinMessages.textContent = `${minNewMessages}개`;
-        savedSettings.style.display = 'flex';
-    }
-    
-    // 성공 알림
-    showNotification(`✅ 무한 전송 설정이 저장되었습니다!\n• 그룹간격: ${groupInterval}초\n• 전체대기: ${cycleInterval}분\n• 최소메시지: ${minNewMessages}개`, 'success');
-}
-
-// 무한 전송 시작 (실제 전송 시작)
-function startInfiniteSend() {
-    console.log('🔄 무한 전송 시작');
-    
-    // 무한 전송이 활성화되어 있는지 확인
-    if (!window.infiniteSendEnabled) {
-        console.log('🔄 무한 전송이 활성화되지 않음');
-        return;
-    }
-    
-    const messageInput = document.querySelector('.message-input');
-    
-    // 메시지 확인 (저장된 메시지가 선택되어 있으면 입력칸이 비어있어도 OK)
-    const hasSavedMessage = window.selectedMediaInfo && window.selectedMediaInfo.raw_message_data;
-    
-    if (!messageInput || (!messageInput.value.trim() && !hasSavedMessage)) {
-        alert('전송할 메시지를 입력하거나 저장된 메시지를 선택해주세요.');
-        messageInput?.focus();
-        return;
-    }
-    
-    // 선택된 그룹들 확인
-    const selectedGroups = document.querySelectorAll('.group-item.selected');
-    if (selectedGroups.length === 0) {
-        alert('전송할 그룹을 선택해주세요.');
-        return;
-    }
-    
-    // 원본 메시지 데이터가 있으면 우선 사용, 없으면 입력칸의 텍스트 사용
-    let message;
-    let mediaInfo = null;
-    
-    if (window.selectedMediaInfo) {
-        // 저장된 메시지가 선택된 경우 - 원본 메시지 객체 전체를 그대로 전송
-        mediaInfo = window.selectedMediaInfo;
-        
-        // 커스텀 이모지가 있는 경우 원본 메시지 객체 전체를 전송
-        if (mediaInfo.has_custom_emoji) {
-            // 텍스트 처리를 완전히 우회하고 원본 메시지 객체를 그대로 전송
-            message = null; // 텍스트는 null로 설정
-            console.log('🔄 커스텀 이모지 원본 객체 전체 전송 모드 (무한)');
-            console.log('🔄 원본 메시지 객체:', mediaInfo.raw_message_data);
-        } else {
-            message = mediaInfo.text || messageInput.value.trim();
-            console.log('🔄 일반 저장된 메시지 사용 (무한):', message);
-        }
-        
-        console.log('🔄 최종 전송 메시지 (무한):', message);
-        console.log('🔄 미디어 정보 (무한):', mediaInfo);
-        console.log('🔄 커스텀 이모지 여부 (무한):', mediaInfo.has_custom_emoji);
-    } else {
-        // 일반 텍스트 메시지
-        message = messageInput.value.trim();
-        console.log('🔄 일반 텍스트 메시지 (무한):', message);
-    }
-    
-    // 선택된 그룹들의 정보 수집
-    const groupsToSend = Array.from(selectedGroups).map(group => ({
-        id: group.dataset.groupId,
-        title: group.dataset.groupTitle,
-        username: group.dataset.groupUsername
-    }));
-    
-    console.log('🔄 무한 전송할 그룹들:', groupsToSend);
-    console.log('🔄 그룹간 전송 간격:', window.infiniteGroupInterval, '초');
-    console.log('🔄 전체 사이클 대기 시간:', window.infiniteCycleInterval, '분');
-    
-    // 전역 변수 설정
-    window.isInfiniteSending = true;
-    window.infiniteMessage = message;
-    window.infiniteMediaInfo = mediaInfo;
-    window.infiniteGroups = groupsToSend;
-    window.infiniteSendCount = 0;
-    window.infiniteCycleCount = 0;
-    window.infiniteCurrentGroupIndex = 0;
-    
-    // 첫 번째 사이클 시작
-    startInfiniteCycle();
-    
-    showNotification(`🔄 무한 전송이 시작되었습니다! (그룹간격: ${window.infiniteGroupInterval}초, 전체대기: ${window.infiniteCycleInterval}분)`, 'success');
-}
-
-// 무한 전송 사이클 시작
-function startInfiniteCycle() {
-    if (!window.isInfiniteSending) return;
-    
-    window.infiniteCycleCount++;
-    window.infiniteCurrentGroupIndex = 0;
-    
-    console.log(`🔄 무한 전송 사이클 ${window.infiniteCycleCount} 시작`);
-    
-    // 첫 번째 그룹부터 순차적으로 전송
-    sendToNextGroup();
-}
-
-// 그룹의 새 메시지 수 체크
-async function checkGroupNewMessages(groupId) {
-    try {
-        // 현재 계정 정보 가져오기
-        const accountName = document.getElementById('selectedAccountName').textContent;
-        const accountPhone = document.getElementById('selectedAccountPhone').textContent;
-        
-        // 계정 정보에서 user_id 찾기
-        const accounts = JSON.parse(localStorage.getItem('telegramAccounts') || '[]');
-        const account = accounts.find(acc => 
-            acc.name === accountName && acc.phone === accountPhone
-        );
-        
-        if (!account) {
-            throw new Error('계정을 찾을 수 없습니다.');
-        }
-        
-        // 그룹의 새 메시지 수 조회 API 호출
-        const response = await fetch('/api/telegram/group-new-messages', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                userId: account.user_id,
-                groupId: groupId
-            })
-        });
-        
-        const result = await response.json();
-        
-        if (response.ok && result.success) {
-            return result.newMessageCount || 0;
-        } else {
-            console.error('🔄 새 메시지 수 조회 실패:', result);
-            return 0;
-        }
-        
-    } catch (error) {
-        console.error('❌ 새 메시지 수 조회 중 오류:', error);
-        return 0;
-    }
-}
-
-// 다음 그룹으로 전송
-async function sendToNextGroup() {
-    if (!window.isInfiniteSending) return;
-    
-    // 모든 그룹을 전송했으면 사이클 완료
-    if (window.infiniteCurrentGroupIndex >= window.infiniteGroups.length) {
-        console.log(`🔄 사이클 ${window.infiniteCycleCount} 완료, ${window.infiniteCycleInterval}분 대기`);
-        
-    // 토글 스위치에 상태 표시 (라벨 업데이트)
-    const toggleLabel = document.querySelector('.toggle-label');
-    if (toggleLabel) {
-        toggleLabel.textContent = `무한 전송 (사이클 ${window.infiniteCycleCount} 완료, ${window.infiniteCycleInterval}분 대기)`;
-    }
-        
-        // 전체 사이클 대기 시간 후 다음 사이클 시작
-        setTimeout(() => {
-            if (window.isInfiniteSending) {
-                startInfiniteCycle();
-            }
-        }, window.infiniteCycleInterval * 60 * 1000); // 분을 밀리초로 변환
-        
-        return;
-    }
-    
-    const currentGroup = window.infiniteGroups[window.infiniteCurrentGroupIndex];
-    console.log(`🔄 그룹 ${window.infiniteCurrentGroupIndex + 1}/${window.infiniteGroups.length} 전송:`, currentGroup.title);
-    
-    // 새 메시지 수 체크
-    const newMessageCount = await checkGroupNewMessages(currentGroup.id);
-    console.log(`🔄 그룹 "${currentGroup.title}" 새 메시지 수: ${newMessageCount}개 (최소: ${window.infiniteMinNewMessages}개)`);
-    
-    // 최소 새 메시지 수 미만이면 전송 보류
-    if (newMessageCount < window.infiniteMinNewMessages) {
-        console.log(`⏸️ 그룹 "${currentGroup.title}" 전송 보류 (새 메시지 ${newMessageCount}개 < 최소 ${window.infiniteMinNewMessages}개)`);
-        
-        // 토글 스위치에 상태 표시
-        const toggleLabel = document.querySelector('.toggle-label');
-        if (toggleLabel) {
-            toggleLabel.textContent = `무한 전송 (${currentGroup.title} 보류: ${newMessageCount}/${window.infiniteMinNewMessages}개)`;
-        }
-        
-        // 다음 그룹으로 이동
-        window.infiniteCurrentGroupIndex++;
-        
-        // 그룹간 간격 대기 후 다음 그룹 체크
-        setTimeout(() => {
-            if (window.isInfiniteSending) {
-                sendToNextGroup();
-            }
-        }, window.infiniteGroupInterval * 1000);
-        
-        return;
-    }
-    
-    try {
-        // 현재 계정 정보 가져오기
-        const accountName = document.getElementById('selectedAccountName').textContent;
-        const accountPhone = document.getElementById('selectedAccountPhone').textContent;
-        
-        // 계정 정보에서 user_id 찾기
-        const accounts = JSON.parse(localStorage.getItem('telegramAccounts') || '[]');
-        const account = accounts.find(acc => 
-            acc.name === accountName && acc.phone === accountPhone
-        );
-        
-        if (!account) {
-            throw new Error('계정을 찾을 수 없습니다.');
-        }
-        
-        // 단일 그룹에 메시지 전송
-        const response = await fetch('/api/telegram/send-message', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                userId: account.user_id,
-                groups: [currentGroup], // 단일 그룹만 전송
-                message: window.infiniteMessage,
-                mediaInfo: window.infiniteMediaInfo
-            })
-        });
-        
-        const result = await response.json();
-        
-        if (response.ok && result.success) {
-            window.infiniteSendCount++;
-            console.log(`🔄 그룹 전송 성공 (${window.infiniteSendCount}번째):`, currentGroup.title);
-            
-            // 토글 스위치에 상태 표시 (라벨 업데이트)
-            const toggleLabel = document.querySelector('.toggle-label');
-            if (toggleLabel) {
-                toggleLabel.textContent = `무한 전송 (사이클 ${window.infiniteCycleCount}, 그룹 ${window.infiniteCurrentGroupIndex + 1}/${window.infiniteGroups.length})`;
-            }
-        } else {
-            console.error('🔄 그룹 전송 실패:', currentGroup.title, result);
-        }
-        
-    } catch (error) {
-        console.error('❌ 그룹 전송 중 오류:', currentGroup.title, error);
-    }
-    
-    // 다음 그룹으로 이동
-    window.infiniteCurrentGroupIndex++;
-    
-    // 그룹간 간격 대기 후 다음 그룹 전송
-    setTimeout(() => {
-        if (window.isInfiniteSending) {
-            sendToNextGroup();
-        }
-    }, window.infiniteGroupInterval * 1000);
-}
-
-// 무한 전송 중단
-function stopInfiniteSend() {
-    console.log('⏹️ 무한 전송 중단');
-    
-    // 전역 변수 초기화
-    window.isInfiniteSending = false;
-    window.infiniteMessage = null;
-    window.infiniteMediaInfo = null;
-    window.infiniteGroups = null;
-    window.infiniteSendCount = 0;
-    window.infiniteCycleCount = 0;
-    window.infiniteCurrentGroupIndex = 0;
-    window.infiniteSendEnabled = false;
-    window.infiniteMinNewMessages = null;
-    
-    // 토글 스위치 상태 복원
-    const infiniteSendToggle = document.getElementById('infiniteSendToggle');
-    if (infiniteSendToggle) {
-        infiniteSendToggle.checked = false;
-    }
-    
-    // 라벨 복원
-    const toggleLabel = document.querySelector('.toggle-label');
-    if (toggleLabel) {
-        toggleLabel.textContent = '무한 전송';
-    }
-    
-    // 저장된 설정 숨기기
-    const savedSettings = document.getElementById('savedSettings');
-    if (savedSettings) {
-        savedSettings.style.display = 'none';
-    }
-    
-    showNotification('⏹️ 무한 전송이 중단되었습니다.', 'info');
-}
-
 // 저장된 메시지 해제 함수
 function clearSavedMessage() {
     console.log('🗑️ 저장된 메시지 해제');
@@ -3409,10 +2750,10 @@ function showAccountListAboveStatusBar(accounts) {
     modalContent.innerHTML = `
         <div style="text-align: center; margin-bottom: 25px;">
             <h2 style="color: #10B981; margin: 0 0 10px 0; font-size: 24px; font-weight: 600;">
-                📱 계정 및 그룹 선택
+                📱 연동된 텔레그램 계정
             </h2>
             <p style="color: #888; margin: 0; font-size: 14px;">
-                계정을 선택하고 그룹을 확인한 후 불러오세요
+                ${accounts.length}개의 계정이 연동되어 있습니다
             </p>
         </div>
         
@@ -3427,7 +2768,7 @@ function showAccountListAboveStatusBar(accounts) {
                     cursor: pointer;
                     transition: all 0.3s ease;
                     position: relative;
-                " data-account='${JSON.stringify(account)}'>
+                " data-user-id="${account.user_id}">
                     <div style="display: flex; align-items: center; justify-content: space-between;">
                         <div style="flex: 1;">
                             <div style="color: #10B981; font-weight: 600; font-size: 16px; margin-bottom: 5px;">
