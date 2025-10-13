@@ -2823,12 +2823,21 @@ def stop_auto_send():
                 if accounts_response.status_code == 200:
                     accounts_data = accounts_response.json()
                     if accounts_data:
+                        logger.info(f'🔍 계정 검색 중: "{account_name}"')
                         for uid, account_data in accounts_data.items():
                             if account_data and isinstance(account_data, dict):
                                 full_name = f"{account_data.get('first_name', '')} {account_data.get('last_name', '')}".strip()
-                                if full_name == account_name:
+                                logger.info(f'🔍 비교: "{full_name}" vs "{account_name}"')
+                                if full_name.strip() == account_name.strip():
                                     user_id = uid
+                                    logger.info(f'✅ 계정 찾음: {full_name} -> {user_id}')
                                     break
+                        if not user_id:
+                            logger.error(f'❌ 계정을 찾을 수 없음: "{account_name}"')
+                    else:
+                        logger.error('❌ Firebase에서 계정 데이터가 없음')
+                else:
+                    logger.error(f'❌ Firebase 응답 실패: {accounts_response.status_code}')
             except Exception as e:
                 logger.error(f'❌ 계정 조회 실패: {e}')
         
@@ -2917,12 +2926,21 @@ def get_auto_send_status():
                 if accounts_response.status_code == 200:
                     accounts_data = accounts_response.json()
                     if accounts_data:
+                        logger.info(f'🔍 계정 검색 중: "{account_name}"')
                         for uid, account_data in accounts_data.items():
                             if account_data and isinstance(account_data, dict):
                                 full_name = f"{account_data.get('first_name', '')} {account_data.get('last_name', '')}".strip()
-                                if full_name == account_name:
+                                logger.info(f'🔍 비교: "{full_name}" vs "{account_name}"')
+                                if full_name.strip() == account_name.strip():
                                     user_id = uid
+                                    logger.info(f'✅ 계정 찾음: {full_name} -> {user_id}')
                                     break
+                        if not user_id:
+                            logger.error(f'❌ 계정을 찾을 수 없음: "{account_name}"')
+                    else:
+                        logger.error('❌ Firebase에서 계정 데이터가 없음')
+                else:
+                    logger.error(f'❌ Firebase 응답 실패: {accounts_response.status_code}')
             except Exception as e:
                 logger.error(f'❌ 계정 조회 실패: {e}')
         
