@@ -1842,9 +1842,6 @@ function showTelegramGroupsWindow(groups, account) {
         document.getElementById('selectedAccountName').textContent = `${account.first_name} ${account.last_name || ''}`;
         document.getElementById('selectedAccountPhone').textContent = `📱 ${account.phone_number}`;
         
-        // 계정 변경 시 저장된 메시지 캐시 초기화
-        clearSavedMessagesCache();
-        
         // 그룹 개수 설정
         document.getElementById('groupsCount').textContent = `${groups.length}개의 그룹`;
         
@@ -1869,7 +1866,7 @@ function renderGroupsList(groups) {
     groupsList.innerHTML = groups.map((group, index) => `
         <div class="group-item" data-group-id="${group.id}" data-group-index="${index}">
             <div class="group-checkbox-container">
-                <input type="checkbox" class="group-checkbox" id="group-${group.id}" data-group-id="${group.id}" data-group-title="${group.title}">
+                <input type="checkbox" class="group-checkbox" id="group-${group.id}" data-group-id="${group.id}">
                 <label for="group-${group.id}" class="group-label">
                     <div class="group-name">${group.title}</div>
                     <div class="group-info">
@@ -1878,20 +1875,6 @@ function renderGroupsList(groups) {
                         </div>
                     </div>
                 </label>
-            </div>
-            <div class="group-status-info">
-                <div class="group-message-count">
-                    <span class="status-label">메시지 수:</span>
-                    <span class="status-value" id="messageCount-${group.id}">확인 중...</span>
-                </div>
-                <div class="group-next-send">
-                    <span class="status-label">다음 전송:</span>
-                    <span class="status-value" id="nextSend-${group.id}">-</span>
-                </div>
-                <div class="group-auto-status">
-                    <span class="status-label">자동전송:</span>
-                    <span class="status-value" id="autoStatus-${group.id}">대기</span>
-                </div>
             </div>
         </div>
     `).join('');
@@ -1912,105 +1895,6 @@ function renderGroupsList(groups) {
     groupCheckboxes.forEach(checkbox => {
         updateGroupItemVisualState(checkbox);
     });
-    
-    // 각 그룹의 메시지 수 확인
-    updateAllGroupsMessageCount();
-    
-    // 자동전송 상태 주기적 업데이트 시작
-    startAutoSendStatusUpdate();
-}
-
-// 모든 그룹의 메시지 수 확인
-async function updateAllGroupsMessageCount() {
-    const groupItems = document.querySelectorAll('.group-item');
-    
-    for (const groupItem of groupItems) {
-        const groupId = groupItem.dataset.groupId;
-        if (groupId) {
-            await updateGroupMessageCount(groupId);
-        }
-    }
-}
-
-// 특정 그룹의 메시지 수 확인 및 업데이트
-async function updateGroupMessageCount(groupId) {
-    try {
-        const messageCount = await checkGroupMessageCount(groupId);
-        const messageCountElement = document.getElementById(`messageCount-${groupId}`);
-        
-        if (messageCountElement) {
-            messageCountElement.textContent = `${messageCount}개`;
-            
-            // 메시지 수에 따른 색상 변경
-            if (messageCount >= 5) {
-                messageCountElement.className = 'status-value success';
-            } else if (messageCount >= 3) {
-                messageCountElement.className = 'status-value warning';
-            } else {
-                messageCountElement.className = 'status-value error';
-            }
-        }
-    } catch (error) {
-        console.error(`❌ 그룹 ${groupId} 메시지 수 확인 실패:`, error);
-        const messageCountElement = document.getElementById(`messageCount-${groupId}`);
-        if (messageCountElement) {
-            messageCountElement.textContent = '오류';
-            messageCountElement.className = 'status-value error';
-        }
-    }
-}
-
-// 그룹의 다음 전송 시간 업데이트
-function updateGroupNextSendTime(groupId, nextSendTime) {
-    const nextSendElement = document.getElementById(`nextSend-${groupId}`);
-    if (nextSendElement && nextSendTime) {
-        const now = new Date();
-        const nextSend = new Date(nextSendTime);
-        const diffMs = nextSend - now;
-        
-        if (diffMs > 0) {
-            const minutes = Math.floor(diffMs / 60000);
-            const seconds = Math.floor((diffMs % 60000) / 1000);
-            nextSendElement.textContent = `${minutes}분 ${seconds}초`;
-            nextSendElement.className = 'status-value warning';
-        } else {
-            nextSendElement.textContent = '전송 가능';
-            nextSendElement.className = 'status-value success';
-        }
-    }
-}
-
-// 그룹의 자동전송 상태 업데이트
-function updateGroupAutoStatus(groupId, isActive) {
-    const autoStatusElement = document.getElementById(`autoStatus-${groupId}`);
-    if (autoStatusElement) {
-        if (isActive) {
-            autoStatusElement.textContent = '활성';
-            autoStatusElement.className = 'status-value success';
-        } else {
-            autoStatusElement.textContent = '대기';
-            autoStatusElement.className = 'status-value';
-        }
-    }
-}
-
-// 자동전송 상태 주기적 업데이트 시작
-function startAutoSendStatusUpdate() {
-    // 30초마다 자동전송 상태 확인
-    setInterval(async () => {
-        const autoSendToggle = document.getElementById('autoSendToggle');
-        if (autoSendToggle && autoSendToggle.checked) {
-            const isAutoSendRunning = await checkAutoSendStatus();
-            const groupItems = document.querySelectorAll('.group-item');
-            
-            groupItems.forEach(item => {
-                const groupId = item.dataset.groupId;
-                if (groupId) {
-                    updateGroupAutoStatus(groupId, isAutoSendRunning);
-                }
-            });
-        }
-    }, 30000); // 30초마다 업데이트
 }
 
 // 그룹 아이템의 시각적 상태 업데이트
@@ -2093,13 +1977,6 @@ function setupTelegramGroupsEventListeners() {
     if (closeSavedMessagesBtn) {
         closeSavedMessagesBtn.addEventListener('click', closeSavedMessages);
     }
-    
-    // 진행상황 닫기 버튼
-    const closeProgressBtn = document.getElementById('closeProgressBtn');
-    if (closeProgressBtn) {
-        closeProgressBtn.addEventListener('click', hideProgressSection);
-    }
-    
 }
 
 // 그룹 관리 창 닫기
@@ -2216,43 +2093,36 @@ async function sendMessageToGroup() {
         return;
     }
     
-    // 자동 전송 ON 상태에서 메시지 개수 확인 (처음 전송이 아닌 경우에만)
+    // 자동 전송 ON 상태에서 메시지 개수 확인
     const autoSendToggle = document.getElementById('autoSendToggle');
     if (autoSendToggle && autoSendToggle.checked) {
-        // 자동전송이 이미 실행 중인지 확인
-        const isAutoSendRunning = await checkAutoSendStatus();
+        console.log('🔍 자동 전송 모드: 메시지 개수 확인 중...');
         
-        if (isAutoSendRunning) {
-            console.log('🔍 자동 전송 모드: 메시지 개수 확인 중...');
-            
-            const { sendableGroups, pendingGroups } = await checkSelectedGroupsMessageCount();
-            
-            if (sendableGroups.length === 0) {
-                alert('전송 가능한 그룹이 없습니다. 메시지 개수를 확인해주세요.');
+        const { sendableGroups, pendingGroups } = await checkSelectedGroupsMessageCount();
+        
+        if (sendableGroups.length === 0) {
+            alert('전송 가능한 그룹이 없습니다. 메시지 개수를 확인해주세요.');
+            return;
+        }
+        
+        if (pendingGroups.length > 0) {
+            const proceed = confirm(`${pendingGroups.length}개 그룹이 메시지 개수 부족으로 전송이 보류됩니다.\n전송 가능한 그룹: ${sendableGroups.length}개\n계속 진행하시겠습니까?`);
+            if (!proceed) {
                 return;
             }
-            
-            if (pendingGroups.length > 0) {
-                const proceed = confirm(`${pendingGroups.length}개 그룹이 메시지 개수 부족으로 전송이 보류됩니다.\n전송 가능한 그룹: ${sendableGroups.length}개\n계속 진행하시겠습니까?`);
-                if (!proceed) {
-                    return;
-                }
-            }
-            
-            // 전송 가능한 그룹만 필터링
-            const filteredCheckboxes = Array.from(checkedBoxes).filter(checkbox => 
-                sendableGroups.includes(checkbox.dataset.groupId)
-            );
-            
-            // 필터링된 그룹들만 전송하도록 체크박스 상태 업데이트
-            checkedBoxes.forEach(checkbox => {
-                checkbox.checked = sendableGroups.includes(checkbox.dataset.groupId);
-            });
-            
-            console.log(`📤 전송 가능한 그룹 ${sendableGroups.length}개에만 메시지 전송`);
-        } else {
-            console.log('🔍 자동 전송 모드: 처음 전송이므로 메시지 개수 확인 생략');
         }
+        
+        // 전송 가능한 그룹만 필터링
+        const filteredCheckboxes = Array.from(checkedBoxes).filter(checkbox => 
+            sendableGroups.includes(checkbox.dataset.groupId)
+        );
+        
+        // 필터링된 그룹들만 전송하도록 체크박스 상태 업데이트
+        checkedBoxes.forEach(checkbox => {
+            checkbox.checked = sendableGroups.includes(checkbox.dataset.groupId);
+        });
+        
+        console.log(`📤 전송 가능한 그룹 ${sendableGroups.length}개에만 메시지 전송`);
     }
     
     // 원본 메시지 데이터가 있으면 우선 사용, 없으면 입력칸의 텍스트 사용
@@ -2327,48 +2197,14 @@ async function sendMessageToGroup() {
             throw new Error('계정을 찾을 수 없습니다.');
         }
         
-        // 자동전송이 활성화되어 있으면 자동전송 시작
-        if (autoSendToggle && autoSendToggle.checked) {
-            console.log('🤖 자동전송 모드: 자동전송 시작');
-            
-            // 자동전송 시작 (그룹 정보 직접 전달)
-            const selectedGroups = Array.from(checkedBoxes).map(checkbox => ({
-                id: checkbox.dataset.groupId,
-                title: checkbox.dataset.groupTitle
-            }));
-            
-            const autoSendResult = await startAutoSendWithGroups(selectedGroups, message, mediaInfo);
-            if (autoSendResult) {
-        // 자동전송 시작 성공 - 진행상황 표시
-        showProgressSection();
-        initProgress(selectedGroups.length);
-        addProgressLog('success', '🤖', '자동전송이 시작되었습니다! PC를 종료해도 계속 실행됩니다.');
-        
-        // 각 그룹의 자동전송 상태 업데이트
-        selectedGroups.forEach(group => {
-            updateGroupAutoStatus(group.id, true);
-        });
-        
-        return;
-            } else {
-                addProgressLog('error', '❌', '자동전송 시작에 실패했습니다. 수동 전송을 진행합니다.');
-            }
-        }
-        
-        // 선택된 그룹들에 메시지 전송 (수동 전송)
+        // 선택된 그룹들에 메시지 전송
         let successCount = 0;
         let failCount = 0;
         
-        // 진행상황 표시 시작
-        showProgressSection();
-        initProgress(validGroupIds.length);
-        
         for (let i = 0; i < validGroupIds.length; i++) {
             const groupId = validGroupIds[i];
-            const groupTitle = Array.from(checkedBoxes).find(cb => cb.dataset.groupId === groupId)?.dataset.groupTitle || `그룹 ${i + 1}`;
             
             console.log(`🔍 그룹 ${i + 1} 전송 시도: ${groupId}`);
-            addProgressLog('info', '📤', `전송 중...`, groupTitle);
             
             try {
                 // 서버로 전송할 데이터 준비
@@ -2436,22 +2272,10 @@ async function sendMessageToGroup() {
                 if (sendResponse.ok && sendResult.success) {
                     successCount++;
                     console.log(`✅ 그룹 ${i + 1} 전송 성공: ${groupId}`);
-                    addProgressLog('success', '✅', '전송 성공!', groupTitle);
                 } else {
                     failCount++;
                     console.error(`❌ 그룹 ${i + 1} 전송 실패:`, sendResult);
                     console.error(`❌ 응답 상태: ${sendResponse.status}`);
-                    addProgressLog('error', '❌', `전송 실패: ${sendResult.error || '알 수 없는 오류'}`, groupTitle);
-                }
-                
-                // 진행상황 업데이트
-                updateProgress(successCount, failCount);
-                
-                // 전송 성공 시 해당 그룹의 메시지 수 다시 확인
-                if (sendResponse.ok && sendResult.success) {
-                    setTimeout(() => {
-                        updateGroupMessageCount(groupId);
-                    }, 2000); // 2초 후 메시지 수 다시 확인
                 }
                 
                 // 그룹 간 간격 (1초)
@@ -2462,13 +2286,17 @@ async function sendMessageToGroup() {
             } catch (error) {
                 failCount++;
                 console.error(`❌ 그룹 ${i + 1} 전송 에러: ${error.message}`);
-                addProgressLog('error', '❌', `전송 에러: ${error.message}`, groupTitle);
-                updateProgress(successCount, failCount);
             }
         }
         
-        // 진행상황 완료 표시
-        completeProgress(successCount, failCount);
+        // 결과 알림
+        if (successCount > 0 && failCount === 0) {
+            alert(`✅ 모든 그룹에 메시지 전송 성공!\n\n전송된 그룹: ${successCount}개\n메시지: ${message.substring(0, 50)}${message.length > 50 ? '...' : ''}`);
+        } else if (successCount > 0 && failCount > 0) {
+            alert(`⚠️ 부분 전송 완료\n\n성공: ${successCount}개 그룹\n실패: ${failCount}개 그룹\n메시지: ${message.substring(0, 50)}${message.length > 50 ? '...' : ''}`);
+        } else {
+            throw new Error('모든 그룹 전송 실패');
+        }
         
         // 메시지 입력 필드 초기화
         if (messageInput) {
@@ -2502,13 +2330,7 @@ function clearMessage() {
     console.log('🗑️ 미디어 정보 초기화');
 }
 
-// 저장된 메시지 캐시 초기화
-function clearSavedMessagesCache() {
-    console.log('🗑️ 저장된 메시지 캐시 초기화');
-    window.cachedSavedMessages = null;
-}
-
-// 저장된 메시지 표시 (캐싱 기능 추가)
+// 저장된 메시지 표시
 async function showSavedMessages() {
     console.log('💾 텔레그램 저장된 메시지 표시');
     
@@ -2518,15 +2340,8 @@ async function showSavedMessages() {
     // 모달 표시
     modal.style.display = 'flex';
     
-    // 캐시된 메시지가 있는지 확인
-    const messagesList = document.getElementById('savedMessagesList');
-    if (messagesList && window.cachedSavedMessages && window.cachedSavedMessages.length > 0) {
-        console.log('💾 캐시된 저장된 메시지 사용');
-        displayTelegramSavedMessages(window.cachedSavedMessages);
-        return;
-    }
-    
     // 로딩 표시
+    const messagesList = document.getElementById('savedMessagesList');
     if (messagesList) {
         messagesList.innerHTML = `
             <div style="text-align: center; color: #888; padding: 20px;">
@@ -2605,10 +2420,6 @@ async function loadTelegramSavedMessages() {
                     });
                 }
             });
-            
-            // 캐시에 저장
-            window.cachedSavedMessages = savedResult.saved_messages;
-            console.log('💾 저장된 메시지 캐시에 저장됨');
             
             displayTelegramSavedMessages(savedResult.saved_messages);
         } else {
@@ -2792,7 +2603,7 @@ function selectTelegramSavedMessage(messageIndex, savedMessages) {
             messageInput.style.cursor = 'not-allowed';
         }
         
-        // 저장된 메시지 버튼을 해제 버튼으로 변경 (이벤트 리스너 방식으로 변경)
+        // 저장된 메시지 버튼을 해제 버튼으로 변경
         const savedMessagesBtn = document.getElementById('savedMessagesBtn');
         console.log('💾 저장된 메시지 버튼 요소 찾기:', savedMessagesBtn);
         
@@ -2801,11 +2612,7 @@ function selectTelegramSavedMessage(messageIndex, savedMessages) {
             savedMessagesBtn.textContent = '❌ 저장된 메시지 해제';
             savedMessagesBtn.style.backgroundColor = '#ff4444';
             savedMessagesBtn.style.borderColor = '#ff4444';
-            
-            // 기존 이벤트 리스너 제거 후 새로 추가 (중복 방지)
-            savedMessagesBtn.removeEventListener('click', showSavedMessages);
-            savedMessagesBtn.addEventListener('click', clearSavedMessage);
-            
+            savedMessagesBtn.onclick = clearSavedMessage;
             console.log('💾 버튼 변경 후:', savedMessagesBtn.textContent);
             console.log('💾 저장된 메시지 버튼이 해제 버튼으로 변경됨');
         } else {
@@ -2864,17 +2671,13 @@ function clearSavedMessage() {
         messageInput.focus();
     }
     
-    // 저장된 메시지 버튼을 원래대로 복원 (이벤트 리스너 방식으로 변경)
+    // 저장된 메시지 버튼을 원래대로 복원
     const savedMessagesBtn = document.getElementById('savedMessagesBtn');
     if (savedMessagesBtn) {
         savedMessagesBtn.textContent = '💾 저장된 메시지';
         savedMessagesBtn.style.backgroundColor = '';
         savedMessagesBtn.style.borderColor = '';
-        
-        // 기존 이벤트 리스너 제거 후 새로 추가 (중복 방지)
-        savedMessagesBtn.removeEventListener('click', clearSavedMessage);
-        savedMessagesBtn.addEventListener('click', showSavedMessages);
-        
+        savedMessagesBtn.onclick = showSavedMessages;
         console.log('💾 저장된 메시지 버튼이 원래대로 복원됨');
     }
     
@@ -3237,26 +3040,14 @@ function setupAutoSendEventListeners() {
     if (autoSendToggle) {
         autoSendToggle.addEventListener('change', function() {
             if (this.checked) {
-                // 설정 모달 열기
                 showAutoSendSettingsModal();
             } else {
-        // 자동전송 중지
-        stopAutoSend();
-        hideAutoSendSettingsModal();
-        // 설정 표시 숨기기
-        const settingsDisplay = document.getElementById('autoSendSettingsDisplay');
-        if (settingsDisplay) {
-            settingsDisplay.style.display = 'none';
-        }
-        
-        // 모든 그룹의 자동전송 상태를 대기로 변경
-        const groupItems = document.querySelectorAll('.group-item');
-        groupItems.forEach(item => {
-            const groupId = item.dataset.groupId;
-            if (groupId) {
-                updateGroupAutoStatus(groupId, false);
-            }
-        });
+                hideAutoSendSettingsModal();
+                // 설정 표시 숨기기
+                const settingsDisplay = document.getElementById('autoSendSettingsDisplay');
+                if (settingsDisplay) {
+                    settingsDisplay.style.display = 'none';
+                }
             }
         });
     }
@@ -3349,455 +3140,40 @@ function loadAutoSendSettings() {
 }
 
 // 자동 전송 설정 저장
-async function saveAutoSendSettings() {
-    try {
-        const groupInterval = document.getElementById('groupInterval').value;
-        const repeatInterval = document.getElementById('repeatInterval').value;
-        const maxRepeats = document.getElementById('maxRepeats').value;
-        const messageThreshold = document.getElementById('messageThreshold').value;
-        const enableMessageCheck = document.getElementById('enableMessageCheck').checked;
-        
-        const settings = {
-            groupInterval: parseInt(groupInterval),
-            repeatInterval: parseInt(repeatInterval),
-            maxRepeats: parseInt(maxRepeats),
-            messageThreshold: parseInt(messageThreshold),
-            enableMessageCheck: enableMessageCheck
-        };
-        
-        // 현재 계정 정보 가져오기
-        const accountName = document.getElementById('selectedAccountName').textContent;
-        const accountPhone = document.getElementById('selectedAccountPhone').textContent;
-        
-        if (!accountName || !accountPhone) {
-            alert('계정을 먼저 선택해주세요.');
-            return;
-        }
-        
-        // 계정 목록에서 해당 계정 찾기
-        const response = await fetch('/api/telegram/load-accounts', {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        });
-        
-        const result = await response.json();
-        if (!response.ok || !result.success || !result.accounts) {
-            throw new Error(result.error || '계정 목록 로딩 실패');
-        }
-        
-        const account = result.accounts.find(acc =>
-            `${acc.first_name} ${acc.last_name || ''}`.trim() === accountName.trim()
-        );
-        
-        if (!account) {
-            throw new Error('계정을 찾을 수 없습니다.');
-        }
-        
-        // 서버에 자동전송 설정 저장
-        const requestData = {
-            userId: account.user_id,
-            settings: settings
-        };
-        
-        console.log('🔥 자동전송 설정 저장 요청:', requestData);
-        
-        const saveResponse = await fetch('/api/auto-send/save-settings', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(requestData)
-        });
-        
-        console.log('🔥 자동전송 설정 저장 응답 상태:', saveResponse.status);
-        
-        const saveResult = await saveResponse.json();
-        console.log('🔥 자동전송 설정 저장 응답 내용:', saveResult);
-        
-        if (!saveResponse.ok || !saveResult.success) {
-            throw new Error(saveResult.error || '자동전송 설정 저장 실패');
-        }
-        
-        // 로컬 저장소에도 저장 (UI용)
-        localStorage.setItem('autoSendSettings', JSON.stringify(settings));
-        
-        // 자동 전송 토글은 사용자가 직접 설정하도록 함
-        
-        // 설정 표시 업데이트
-        updateAutoSendSettingsDisplay();
-        
-        // 모달 닫기
-        hideAutoSendSettingsModal();
-        
-        // 성공 메시지 표시
-        alert('자동 전송 설정이 저장되었습니다!');
-        
-    } catch (error) {
-        console.error('❌ 자동전송 설정 저장 실패:', error);
-        alert(`자동전송 설정 저장 실패: ${error.message}`);
-    }
-}
-
-// 자동전송 시작 (그룹 정보 직접 전달)
-async function startAutoSendWithGroups(selectedGroups, message, mediaInfo) {
-    try {
-        // 현재 계정 정보 가져오기
-        const accountName = document.getElementById('selectedAccountName').textContent;
-        const accountPhone = document.getElementById('selectedAccountPhone').textContent;
-        
-        if (!accountName || !accountPhone) {
-            alert('계정을 먼저 선택해주세요.');
-            return false;
-        }
-        
-        // 계정 목록에서 해당 계정 찾기
-        const response = await fetch('/api/telegram/load-accounts', {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        });
-        
-        const result = await response.json();
-        if (!response.ok || !result.success || !result.accounts) {
-            throw new Error(result.error || '계정 목록 로딩 실패');
-        }
-        
-        const account = result.accounts.find(acc =>
-            `${acc.first_name} ${acc.last_name || ''}`.trim() === accountName.trim()
-        );
-        
-        if (!account) {
-            throw new Error('계정을 찾을 수 없습니다.');
-        }
-        
-        if (selectedGroups.length === 0) {
-            alert('전송할 그룹을 먼저 선택해주세요.');
-            return false;
-        }
-        
-        const groupIds = selectedGroups.map(group => group.id);
-        
-        if (!message && !mediaInfo) {
-            alert('전송할 메시지나 저장된 메시지를 선택해주세요.');
-            return false;
-        }
-        
-        // 서버에 자동전송 시작 요청
-        const startResponse = await fetch('/api/auto-send/start', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                userId: account.user_id,
-                groupIds: groupIds,
-                message: message,
-                mediaInfo: mediaInfo
-            })
-        });
-        
-        const startResult = await startResponse.json();
-        if (!startResponse.ok || !startResult.success) {
-            throw new Error(startResult.error || '자동전송 시작 실패');
-        }
-        
-        // UI 업데이트
-        const autoSendToggle = document.getElementById('autoSendToggle');
-        if (autoSendToggle) {
-            autoSendToggle.checked = true;
-        }
-        
-        // 자동전송 시작 성공 - 진행상황에 표시됨
-        return true;
-        
-    } catch (error) {
-        console.error('❌ 자동전송 시작 실패:', error);
-        alert(`자동전송 시작 실패: ${error.message}`);
-        return false;
-    }
-}
-
-// 자동전송 시작 (기존 함수 - 호환성 유지)
-async function startAutoSend() {
-    try {
-        // 현재 계정 정보 가져오기
-        const accountName = document.getElementById('selectedAccountName').textContent;
-        const accountPhone = document.getElementById('selectedAccountPhone').textContent;
-        
-        if (!accountName || !accountPhone) {
-            alert('계정을 먼저 선택해주세요.');
-            return;
-        }
-        
-        // 계정 목록에서 해당 계정 찾기
-        const response = await fetch('/api/telegram/load-accounts', {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        });
-        
-        const result = await response.json();
-        if (!response.ok || !result.success || !result.accounts) {
-            throw new Error(result.error || '계정 목록 로딩 실패');
-        }
-        
-        const account = result.accounts.find(acc =>
-            `${acc.first_name} ${acc.last_name || ''}`.trim() === accountName.trim()
-        );
-        
-        if (!account) {
-            throw new Error('계정을 찾을 수 없습니다.');
-        }
-        
-        // 선택된 그룹들 가져오기
-        const selectedGroups = window.selectedGroups || [];
-        if (selectedGroups.length === 0) {
-            alert('전송할 그룹을 먼저 선택해주세요.');
-            return;
-        }
-        
-        const groupIds = selectedGroups.map(group => group.id);
-        
-        // 메시지 정보 가져오기
-        const messageInput = document.querySelector('.message-input');
-        const message = messageInput ? messageInput.value.trim() : '';
-        const mediaInfo = window.selectedMediaInfo;
-        
-        if (!message && !mediaInfo) {
-            alert('전송할 메시지나 저장된 메시지를 선택해주세요.');
-            return;
-        }
-        
-        // 서버에 자동전송 시작 요청
-        const startResponse = await fetch('/api/auto-send/start', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                userId: account.user_id,
-                groupIds: groupIds,
-                message: message,
-                mediaInfo: mediaInfo
-            })
-        });
-        
-        const startResult = await startResponse.json();
-        if (!startResponse.ok || !startResult.success) {
-            throw new Error(startResult.error || '자동전송 시작 실패');
-        }
-        
-        // UI 업데이트
-        const autoSendToggle = document.getElementById('autoSendToggle');
-        if (autoSendToggle) {
-            autoSendToggle.checked = true;
-        }
-        
-        // 자동전송 시작 성공 - 진행상황에 표시됨
-        return true;
-        
-    } catch (error) {
-        console.error('❌ 자동전송 시작 실패:', error);
-        alert(`자동전송 시작 실패: ${error.message}`);
-        return false;
-    }
-}
-
-// 자동전송 상태 확인
-async function checkAutoSendStatus() {
-    try {
-        // 현재 계정 정보 가져오기
-        const accountName = document.getElementById('selectedAccountName').textContent;
-        const accountPhone = document.getElementById('selectedAccountPhone').textContent;
-        
-        if (!accountName || !accountPhone) {
-            return false;
-        }
-        
-        // 계정 목록에서 해당 계정 찾기
-        const response = await fetch('/api/telegram/load-accounts', {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        });
-        
-        const result = await response.json();
-        if (!response.ok || !result.success || !result.accounts) {
-            return false;
-        }
-        
-        const account = result.accounts.find(acc =>
-            `${acc.first_name} ${acc.last_name || ''}`.trim() === accountName.trim()
-        );
-        
-        if (!account) {
-            return false;
-        }
-        
-        // 서버에서 자동전송 상태 조회
-        const statusResponse = await fetch('/api/auto-send/status', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                userId: account.user_id
-            })
-        });
-        
-        const statusResult = await statusResponse.json();
-        if (!statusResponse.ok || !statusResult.success) {
-            return false;
-        }
-        
-        return statusResult.is_running;
-        
-    } catch (error) {
-        console.error('❌ 자동전송 상태 확인 실패:', error);
-        return false;
-    }
-}
-
-// 실시간 진행상황 관리 함수들
-function showProgressSection() {
-    const progressSection = document.getElementById('progressSection');
-    if (progressSection) {
-        progressSection.style.display = 'block';
-    }
-}
-
-function hideProgressSection() {
-    const progressSection = document.getElementById('progressSection');
-    if (progressSection) {
-        progressSection.style.display = 'none';
-    }
-}
-
-function initProgress(totalGroups) {
-    document.getElementById('totalGroups').textContent = totalGroups;
-    document.getElementById('successCount').textContent = '0';
-    document.getElementById('failCount').textContent = '0';
-    document.getElementById('progressPercent').textContent = '0%';
-    document.getElementById('progressFill').style.width = '0%';
-    document.getElementById('progressLog').innerHTML = '';
+function saveAutoSendSettings() {
+    const groupInterval = document.getElementById('groupInterval').value;
+    const repeatInterval = document.getElementById('repeatInterval').value;
+    const maxRepeats = document.getElementById('maxRepeats').value;
+    const messageThreshold = document.getElementById('messageThreshold').value;
+    const enableMessageCheck = document.getElementById('enableMessageCheck').checked;
     
-    addProgressLog('info', '🚀 전송 시작', '전송을 시작합니다...');
-}
-
-function updateProgress(successCount, failCount) {
-    const totalGroups = parseInt(document.getElementById('totalGroups').textContent);
-    const totalProcessed = successCount + failCount;
-    const progressPercent = totalGroups > 0 ? Math.round((totalProcessed / totalGroups) * 100) : 0;
+    const settings = {
+        groupInterval: parseInt(groupInterval),
+        repeatInterval: parseInt(repeatInterval),
+        maxRepeats: parseInt(maxRepeats),
+        messageThreshold: parseInt(messageThreshold),
+        enableMessageCheck: enableMessageCheck
+    };
     
-    document.getElementById('successCount').textContent = successCount;
-    document.getElementById('failCount').textContent = failCount;
-    document.getElementById('progressPercent').textContent = progressPercent + '%';
-    document.getElementById('progressFill').style.width = progressPercent + '%';
-}
-
-function addProgressLog(type, icon, message, groupTitle = '') {
-    const progressLog = document.getElementById('progressLog');
-    if (!progressLog) return;
+    localStorage.setItem('autoSendSettings', JSON.stringify(settings));
     
-    const logItem = document.createElement('div');
-    logItem.className = `progress-log-item ${type}`;
+    // 메시지 개수 확인 상태 업데이트 (제거됨)
+    // updateMessageCheckStatus();
     
-    const now = new Date();
-    const timeStr = now.toLocaleTimeString('ko-KR', { 
-        hour: '2-digit', 
-        minute: '2-digit', 
-        second: '2-digit' 
-    });
-    
-    logItem.innerHTML = `
-        <span class="log-time">${timeStr}</span>
-        <span class="log-icon">${icon}</span>
-        <span class="log-message">${groupTitle ? `[${groupTitle}] ` : ''}${message}</span>
-    `;
-    
-    progressLog.appendChild(logItem);
-    progressLog.scrollTop = progressLog.scrollHeight;
-}
-
-function completeProgress(successCount, failCount) {
-    const totalGroups = parseInt(document.getElementById('totalGroups').textContent);
-    const totalProcessed = successCount + failCount;
-    
-    if (totalProcessed === totalGroups) {
-        if (failCount === 0) {
-            addProgressLog('success', '✅', '모든 그룹에 성공적으로 전송되었습니다!');
-        } else {
-            addProgressLog('info', '📊', `전송 완료: 성공 ${successCount}개, 실패 ${failCount}개`);
-        }
+    // 자동 전송 토글을 ON으로 설정
+    const autoSendToggle = document.getElementById('autoSendToggle');
+    if (autoSendToggle) {
+        autoSendToggle.checked = true;
     }
-}
-
-// 자동전송 중지
-async function stopAutoSend() {
-    try {
-        // 현재 계정 정보 가져오기
-        const accountName = document.getElementById('selectedAccountName').textContent;
-        const accountPhone = document.getElementById('selectedAccountPhone').textContent;
-        
-        if (!accountName || !accountPhone) {
-            alert('계정을 먼저 선택해주세요.');
-            return;
-        }
-        
-        // 계정 목록에서 해당 계정 찾기
-        const response = await fetch('/api/telegram/load-accounts', {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        });
-        
-        const result = await response.json();
-        if (!response.ok || !result.success || !result.accounts) {
-            throw new Error(result.error || '계정 목록 로딩 실패');
-        }
-        
-        const account = result.accounts.find(acc =>
-            `${acc.first_name} ${acc.last_name || ''}`.trim() === accountName.trim()
-        );
-        
-        if (!account) {
-            throw new Error('계정을 찾을 수 없습니다.');
-        }
-        
-        // 서버에 자동전송 중지 요청
-        const stopResponse = await fetch('/api/auto-send/stop', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                userId: account.user_id
-            })
-        });
-        
-        const stopResult = await stopResponse.json();
-        if (!stopResponse.ok || !stopResult.success) {
-            throw new Error(stopResult.error || '자동전송 중지 실패');
-        }
-        
-        // UI 업데이트
-        const autoSendToggle = document.getElementById('autoSendToggle');
-        if (autoSendToggle) {
-            autoSendToggle.checked = false;
-        }
-        
-        alert('자동전송이 중지되었습니다.');
-        
-    } catch (error) {
-        console.error('❌ 자동전송 중지 실패:', error);
-        alert(`자동전송 중지 실패: ${error.message}`);
-    }
+    
+    // 설정 표시 업데이트
+    updateAutoSendSettingsDisplay();
+    
+    // 모달 닫기
+    hideAutoSendSettingsModal();
+    
+    // 성공 메시지 표시
+    alert('자동 전송 설정이 저장되었습니다!');
 }
 
 // 입력창 자동 크기 조절 설정
@@ -3838,63 +3214,14 @@ function autoResizeInput(input) {
 
 // 메시지 개수 확인 상태 업데이트 함수 제거됨 (UI에서 해당 섹션 제거)
 
-// 그룹의 메시지 개수 확인 (실제 API 호출)
+// 그룹의 메시지 개수 확인
 async function checkGroupMessageCount(groupId) {
     try {
-        // 현재 계정 정보 가져오기
-        const accountName = document.getElementById('selectedAccountName').textContent;
-        const accountPhone = document.getElementById('selectedAccountPhone').textContent;
-        
-        if (!accountName || !accountPhone) {
-            console.error('❌ 계정 정보 없음');
-            return 0;
-        }
-        
-        // 계정 목록에서 해당 계정 찾기
-        const response = await fetch('/api/telegram/load-accounts', {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        });
-        
-        const result = await response.json();
-        if (!response.ok || !result.success || !result.accounts) {
-            console.error('❌ 계정 목록 로딩 실패');
-            return 0;
-        }
-        
-        const account = result.accounts.find(acc =>
-            `${acc.first_name} ${acc.last_name || ''}`.trim() === accountName.trim()
-        );
-        
-        if (!account) {
-            console.error('❌ 계정을 찾을 수 없음');
-            return 0;
-        }
-        
-        // 서버에서 메시지 개수 확인
-        const countResponse = await fetch('/api/telegram/check-message-count', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                userId: account.user_id,
-                groupId: groupId
-            })
-        });
-        
-        const countResult = await countResponse.json();
-        if (!countResponse.ok || !countResult.success) {
-            console.error('❌ 메시지 개수 확인 실패:', countResult.error);
-            return 0;
-        }
-        
-        const messageCount = countResult.messageCount;
-        console.log(`📊 그룹 ${groupId}의 메시지 개수: ${messageCount} (내가 보낸 메시지 이후 다른 사람들의 메시지 - 내가 메시지를 보내면 0으로 리셋)`);
+        // TODO: 실제 API 호출로 그룹의 메시지 개수 확인
+        // 현재는 임시로 랜덤 값 반환
+        const messageCount = Math.floor(Math.random() * 20) + 1;
+        console.log(`📊 그룹 ${groupId}의 메시지 개수: ${messageCount}`);
         return messageCount;
-        
     } catch (error) {
         console.error('❌ 메시지 개수 확인 실패:', error);
         return 0;

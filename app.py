@@ -2117,6 +2117,25 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                 logger.error(f'❌ 에러 상세: {str(e)}')
                 import traceback
                 logger.error(f'❌ 스택 트레이스: {traceback.format_exc()}')
+                
+                # 슬로우 모드 에러 감지 및 대기 시간 추출
+                error_str = str(e).lower()
+                if any(keyword in error_str for keyword in ['flood', 'slow', 'wait', 'rate', 'limit']):
+                    logger.warning(f'⏳ 슬로우 모드 감지: {e}')
+                    
+                    # 대기 시간 추출 (초 단위)
+                    import re
+                    wait_time_match = re.search(r'wait of (\d+) seconds', error_str)
+                    if wait_time_match:
+                        wait_seconds = int(wait_time_match.group(1))
+                        wait_minutes = wait_seconds / 60
+                        logger.info(f'⏳ 대기 시간 추출: {wait_seconds}초 ({wait_minutes:.1f}분)')
+                        return {'error': 'flood_control', 'message': str(e), 'wait_seconds': wait_seconds}
+                    else:
+                        # 대기 시간을 찾을 수 없으면 기본값 사용
+                        logger.warning(f'⏳ 대기 시간을 찾을 수 없음, 기본값 8분 사용')
+                        return {'error': 'flood_control', 'message': str(e), 'wait_seconds': 480}  # 8분
+                
                 return False
                 
             finally:
@@ -2268,6 +2287,69 @@ def get_auto_send_status_from_firebase(user_id):
         logger.error(f'🔥 Firebase 자동전송 상태 조회 에러: {e}')
         return None
 
+def schedule_retry_for_group(user_id, group_id, message, media_info, wait_seconds=480):
+    """슬로우 모드로 인한 재시도 스케줄링"""
+    try:
+        # 슬로우 모드 대기 시간 (초 단위)
+        retry_delay_seconds = wait_seconds
+        retry_delay_minutes = retry_delay_seconds / 60
+        
+        logger.info(f'⏰ 재시도 스케줄: {retry_delay_seconds}초 ({retry_delay_minutes:.1f}분) 후')
+        
+        def retry_job():
+            logger.info(f'🔄 슬로우 모드 재시도: 그룹 {group_id}')
+            
+            # 계정 정보 조회
+            account_info = get_account_from_firebase(user_id)
+            if not account_info:
+                logger.error(f'❌ 재시도 실패: 계정 정보 없음 - {user_id}')
+                return
+            
+            # 재시도 전송
+            result = send_message_to_telegram_group(account_info, group_id, message, media_info)
+            if result:
+                logger.info(f'✅ 슬로우 모드 재시도 성공: 그룹 {group_id}')
+            else:
+                logger.error(f'❌ 슬로우 모드 재시도 실패: 그룹 {group_id}')
+                # 재시도도 실패하면 다시 스케줄링 (더 긴 대기 시간)
+                if isinstance(result, dict) and result.get('error') == 'flood_control':
+                    new_wait_seconds = result.get('wait_seconds', 900)  # 기본값 15분
+                    new_wait_minutes = new_wait_seconds / 60
+                    logger.info(f'⏳ 재시도도 슬로우 모드: 그룹 {group_id}, {new_wait_seconds}초 ({new_wait_minutes:.1f}분) 후 재시도')
+                    schedule.every(new_wait_minutes).minutes.do(retry_job)
+        
+        # 재시도 스케줄 등록 (정확한 시간)
+        if retry_delay_minutes >= 1:
+            # 1분 이상이면 분 단위로 스케줄링
+            schedule.every(retry_delay_minutes).minutes.do(retry_job)
+            logger.info(f'⏰ 슬로우 모드 재시도 스케줄: 그룹 {group_id} ({retry_delay_minutes:.1f}분 후)')
+        else:
+            # 1분 미만이면 초 단위로 스케줄링
+            schedule.every(retry_delay_seconds).seconds.do(retry_job)
+            logger.info(f'⏰ 슬로우 모드 재시도 스케줄: 그룹 {group_id} ({retry_delay_seconds}초 후)')
+        
+    except Exception as e:
+        logger.error(f'❌ 슬로우 모드 재시도 스케줄링 에러: {e}')
+
+def update_last_send_time(user_id, group_id):
+    """마지막 전송 시간 업데이트"""
+    try:
+        # Firebase에서 현재 상태 조회
+        status_data = get_auto_send_status_from_firebase(user_id)
+        if status_data:
+            # 마지막 전송 시간 업데이트
+            if 'last_send_times' not in status_data:
+                status_data['last_send_times'] = {}
+            
+            status_data['last_send_times'][str(group_id)] = datetime.now().isoformat()
+            
+            # Firebase에 업데이트된 상태 저장
+            save_auto_send_status_to_firebase(user_id, status_data)
+            logger.info(f'⏰ 그룹 {group_id} 마지막 전송 시간 업데이트')
+        
+    except Exception as e:
+        logger.error(f'❌ 마지막 전송 시간 업데이트 에러: {e}')
+
 def execute_auto_send_job(user_id, group_ids, message, media_info=None):
     """자동전송 작업 실행"""
     try:
@@ -2300,25 +2382,59 @@ def execute_auto_send_job(user_id, group_ids, message, media_info=None):
         success_count = 0
         for group_id in group_ids:
             try:
-                # 메시지 개수 확인 (설정에서 활성화된 경우)
+                # 두 가지 조건 확인: 메시지 개수 + 재전송 텀
                 settings_data = settings.get('settings', {})
                 enable_message_check = settings_data.get('enableMessageCheck', False)
                 message_threshold = settings_data.get('messageThreshold', 5)
+                repeat_interval = settings.get('repeatInterval', 30)  # 분 단위
                 
+                # 조건 1: 메시지 개수 확인
+                message_count_ok = True
                 if enable_message_check:
                     message_count = check_telegram_group_message_count(account_info, group_id)
                     logger.info(f'📊 그룹 {group_id} 메시지 개수: {message_count} (임계값: {message_threshold})')
                     
                     if message_count < message_threshold:
                         logger.info(f'⏭️ 그룹 {group_id} 메시지 개수 부족으로 전송 건너뜀')
-                        continue
+                        message_count_ok = False
+                
+                # 조건 2: 재전송 텀 확인
+                time_interval_ok = True
+                if message_count_ok:  # 메시지 개수 조건이 충족된 경우에만 시간 확인
+                    # Firebase에서 마지막 전송 시간 조회
+                    status_data = get_auto_send_status_from_firebase(user_id)
+                    if status_data and 'last_send_times' in status_data:
+                        last_send_time_str = status_data['last_send_times'].get(str(group_id))
+                        if last_send_time_str:
+                            last_send_time = datetime.fromisoformat(last_send_time_str)
+                            time_since_last_send = datetime.now() - last_send_time
+                            time_since_last_send_minutes = time_since_last_send.total_seconds() / 60
+                            
+                            logger.info(f'⏰ 그룹 {group_id} 마지막 전송: {time_since_last_send_minutes:.1f}분 전 (필요: {repeat_interval}분)')
+                            
+                            if time_since_last_send_minutes < repeat_interval:
+                                logger.info(f'⏭️ 그룹 {group_id} 재전송 텀 미경과로 전송 건너뜀')
+                                time_interval_ok = False
+                
+                # 두 조건 모두 충족되지 않으면 건너뜀
+                if not message_count_ok or not time_interval_ok:
+                    continue
                 
                 result = send_message_to_telegram_group(account_info, group_id, message, media_info)
                 if result:
                     success_count += 1
                     logger.info(f'✅ 자동전송 성공: 그룹 {group_id}')
+                    
+                    # 마지막 전송 시간 업데이트
+                    update_last_send_time(user_id, group_id)
                 else:
                     logger.error(f'❌ 자동전송 실패: 그룹 {group_id}')
+                    
+                    # 슬로우 모드 감지 및 재시도 스케줄링
+                    if isinstance(result, dict) and result.get('error') == 'flood_control':
+                        wait_seconds = result.get('wait_seconds', 480)  # 기본값 8분
+                        logger.info(f'⏳ 슬로우 모드 감지: 그룹 {group_id}, {wait_seconds}초 후 재시도')
+                        schedule_retry_for_group(user_id, group_id, message, media_info, wait_seconds)
                 
                 # 그룹 간 대기
                 time.sleep(group_interval)
@@ -2380,7 +2496,8 @@ def start_auto_send_job(user_id, group_ids, message, media_info=None):
             'message': message,
             'media_info': media_info,
             'started_at': datetime.now().isoformat(),
-            'job_id': job_id
+            'job_id': job_id,
+            'last_send_times': {group_id: None for group_id in group_ids}  # 각 그룹별 마지막 전송 시간
         })
         
         logger.info(f'✅ 자동전송 작업 시작됨: {user_id} (간격: {repeat_interval}분)')
