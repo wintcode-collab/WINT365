@@ -1893,11 +1893,6 @@ function setupTelegramGroupsEventListeners() {
     const infiniteSendToggle = document.getElementById('infiniteSendToggle');
     if (infiniteSendToggle) {
         infiniteSendToggle.addEventListener('change', toggleInfiniteSend);
-        // 더블클릭으로 설정 모달 다시 열기
-        infiniteSendToggle.addEventListener('dblclick', (e) => {
-            e.preventDefault();
-            showInfiniteSendModal();
-        });
     }
     
     // 무한 전송 설정 모달 닫기 버튼
@@ -2578,12 +2573,9 @@ function selectTelegramSavedMessage(messageIndex, savedMessages) {
 function toggleInfiniteSend(event) {
     console.log('🔄 무한 전송 토글:', event.target.checked);
     
+    const toggleLabel = document.querySelector('.toggle-label');
+    
     if (event.target.checked) {
-        // 이미 설정이 완료된 경우 모달을 열지 않음
-        if (window.infiniteSendEnabled) {
-            console.log('🔄 이미 설정이 완료됨');
-            return;
-        }
         // 설정 모달 열기
         showInfiniteSendModal();
     } else {
@@ -2617,6 +2609,17 @@ function closeInfiniteSendModal() {
     const modal = document.getElementById('infiniteSendModal');
     if (modal) {
         modal.style.display = 'none';
+    }
+    
+    // 토글 스위치를 OFF로 되돌리기 (설정 저장하지 않고 닫은 경우)
+    const infiniteSendToggle = document.getElementById('infiniteSendToggle');
+    const toggleLabel = document.querySelector('.toggle-label');
+    
+    if (infiniteSendToggle && !window.infiniteSendEnabled) {
+        infiniteSendToggle.checked = false;
+        if (toggleLabel) {
+            toggleLabel.textContent = '무한 전송';
+        }
     }
 }
 
@@ -2673,11 +2676,7 @@ function saveInfiniteSendSettings() {
         infiniteSendToggle.checked = true;
     }
     
-    // 라벨 업데이트
-    const toggleLabel = document.querySelector('.toggle-label');
-    if (toggleLabel) {
-        toggleLabel.textContent = '무한 전송 <small>(더블클릭: 설정)</small>';
-    }
+    // 라벨은 그대로 유지 (무한 전송)
     
     // 저장된 설정 표시
     const savedSettings = document.getElementById('savedSettings');
@@ -2972,7 +2971,7 @@ function stopInfiniteSend() {
     // 라벨 복원
     const toggleLabel = document.querySelector('.toggle-label');
     if (toggleLabel) {
-        toggleLabel.textContent = '무한 전송 <small>(더블클릭: 설정)</small>';
+        toggleLabel.textContent = '무한 전송';
     }
     
     // 저장된 설정 숨기기
