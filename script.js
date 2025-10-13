@@ -3140,7 +3140,7 @@ function setupAutoSendEventListeners() {
 
     // 자동 전송 토글 클릭 시 설정 모달 열기
     if (autoSendToggle) {
-        autoSendToggle.addEventListener('change', function() {
+        autoSendToggle.addEventListener('change', async function() {
             // 페이지가 언로드 중인지 확인
             if (isPageUnloading || document.visibilityState === 'hidden' || document.readyState === 'unload') {
                 console.log('🔄 페이지 언로드 중, 자동전송 중지 건너뜀');
