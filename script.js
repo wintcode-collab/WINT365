@@ -1581,6 +1581,12 @@ async function handleTestTelegramConnection() {
 function showAccountSelectionModal(accounts) {
     console.log('📋 계정 및 그룹 선택 모달 표시 중...', accounts);
     
+    // 기존 모달이 있으면 제거
+    const existingModal = document.getElementById('accountListModal');
+    if (existingModal) {
+        document.body.removeChild(existingModal);
+    }
+    
     // 계정 목록을 표시할 모달 생성
     const modal = document.createElement('div');
     modal.id = 'accountListModal';
@@ -1632,7 +1638,7 @@ function showAccountSelectionModal(accounts) {
                     cursor: pointer;
                     transition: all 0.3s ease;
                     position: relative;
-                " data-user-id="${account.user_id}">
+                " data-account='${JSON.stringify(account)}'>
                     <div style="display: flex; align-items: center; justify-content: space-between;">
                         <div style="flex: 1;">
                             <div style="color: #10B981; font-weight: 600; font-size: 16px; margin-bottom: 5px;">
@@ -3325,7 +3331,7 @@ function showAccountListAboveStatusBar(accounts) {
                     cursor: pointer;
                     transition: all 0.3s ease;
                     position: relative;
-                " data-user-id="${account.user_id}">
+                " data-account='${JSON.stringify(account)}'>
                     <div style="display: flex; align-items: center; justify-content: space-between;">
                         <div style="flex: 1;">
                             <div style="color: #10B981; font-weight: 600; font-size: 16px; margin-bottom: 5px;">
