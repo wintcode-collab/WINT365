@@ -2904,13 +2904,33 @@ def get_auto_send_status():
     """자동전송 상태 조회"""
     try:
         data = request.get_json()
+        account_name = data.get('account_name')
         user_id = data.get('userId')
+        
+        logger.info(f'🤖 자동전송 상태 조회 요청: account_name={account_name}, user_id={user_id}')
+        
+        # account_name이 있으면 user_id로 변환
+        if account_name and not user_id:
+            user_id = None
+            try:
+                accounts_response = requests.get(f"{FIREBASE_URL}/authenticated_accounts.json", timeout=10)
+                if accounts_response.status_code == 200:
+                    accounts_data = accounts_response.json()
+                    if accounts_data:
+                        for uid, account_data in accounts_data.items():
+                            if account_data and isinstance(account_data, dict):
+                                full_name = f"{account_data.get('first_name', '')} {account_data.get('last_name', '')}".strip()
+                                if full_name == account_name:
+                                    user_id = uid
+                                    break
+            except Exception as e:
+                logger.error(f'❌ 계정 조회 실패: {e}')
         
         if not user_id:
             return jsonify({
                 'success': False,
-                'error': '사용자 ID가 필요합니다.'
-            }), 400
+                'error': '계정을 찾을 수 없습니다.'
+            }), 404
         
         # 현재 작업 상태 확인
         is_running = user_id in auto_send_jobs
