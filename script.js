@@ -3220,7 +3220,11 @@ function setupAutoSendEventListeners() {
                 updateSendButtonText(true); // 자동전송 ON
             } else {
                 // 자동전송 중지
-                    stopAutoSend();
+                if (window.stopAutoSend) {
+                    window.stopAutoSend();
+                } else {
+                    console.warn('⚠️ stopAutoSend 가 아직 로드되지 않음');
+                }
                 hideAutoSendSettingsModal();
                 // 설정 표시 숨기기
                 const settingsDisplay = document.getElementById('autoSendSettingsDisplay');
