@@ -1946,6 +1946,11 @@ async function loadGroupsForAccount(account) {
             // 그룹 목록 표시
             if (result.groups && result.groups.length > 0) {
                 showGroupList(result.groups, account);
+                
+                // 실시간 업데이트 시작
+                setTimeout(() => {
+                    startRealtimeUpdates();
+                }, 2000); // 2초 후 시작
             } else {
                 alert(`✅ 텔레그램 연결 완료!\n\n👤 계정: ${account.first_name} ${account.last_name || ''}\n📱 전화번호: ${account.phone_number}\n🆔 사용자 ID: ${account.user_id}\n\n📭 참여한 그룹이 없습니다.`);
             }
@@ -3612,11 +3617,34 @@ function autoResizeInput(input) {
 // 그룹의 메시지 개수 확인
 async function checkGroupMessageCount(groupId) {
     try {
-        // TODO: 실제 API 호출로 그룹의 메시지 개수 확인
-        // 현재는 임시로 랜덤 값 반환
-        const messageCount = Math.floor(Math.random() * 20) + 1;
-        console.log(`📊 그룹 ${groupId}의 메시지 개수: ${messageCount}`);
-        return messageCount;
+        // 실제 API 호출로 그룹의 메시지 개수 확인
+        const userId = localStorage.getItem('lastSelectedAccount');
+        if (!userId) {
+            console.error('❌ 사용자 ID가 없습니다');
+            return 0;
+        }
+
+        const response = await fetch('/api/telegram/check-message-count', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                userId: userId,
+                groupId: groupId
+            })
+        });
+
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success) {
+                console.log(`📊 그룹 ${groupId}의 메시지 개수: ${result.messageCount}`);
+                return result.messageCount;
+            }
+        }
+        
+        console.error('❌ 메시지 개수 확인 API 실패');
+        return 0;
     } catch (error) {
         console.error('❌ 메시지 개수 확인 실패:', error);
         return 0;
@@ -3737,6 +3765,161 @@ function updateAutoSendSettingsDisplay() {
         settingsDisplay.style.display = 'none';
         console.log('🔴 자동 전송 OFF - 설정 표시 숨김');
     }
+}
+
+// 그룹별 실시간 상태 업데이트
+async function updateGroupStatusRealtime() {
+    try {
+        const groupItems = document.querySelectorAll('.group-item');
+        console.log(`🔄 ${groupItems.length}개 그룹의 상태 업데이트 시작`);
+        
+        for (const groupItem of groupItems) {
+            const groupId = groupItem.dataset.groupId;
+            if (!groupId) continue;
+            
+            // 메시지 개수 업데이트
+            const messageCountElement = document.getElementById(`messageCount-${groupId}`);
+            if (messageCountElement) {
+                try {
+                    const messageCount = await checkGroupMessageCount(groupId);
+                    messageCountElement.textContent = `${messageCount}개`;
+                    
+                    // 임계값과 비교하여 색상 변경
+                    const settings = loadAccountSettings('autoSend');
+                    const threshold = settings?.messageThreshold || 5;
+                    if (messageCount >= threshold) {
+                        messageCountElement.style.color = '#4CAF50'; // 초록색
+                    } else {
+                        messageCountElement.style.color = '#FF9800'; // 주황색
+                    }
+                } catch (error) {
+                    messageCountElement.textContent = '오류';
+                    messageCountElement.style.color = '#f44336'; // 빨간색
+                }
+            }
+            
+            // 다음 전송 시간 업데이트
+            const nextSendElement = document.getElementById(`nextSend-${groupId}`);
+            if (nextSendElement) {
+                try {
+                    const nextSendTime = await getNextSendTime(groupId);
+                    nextSendElement.textContent = nextSendTime;
+                } catch (error) {
+                    nextSendElement.textContent = '-';
+                }
+            }
+            
+            // 자동전송 상태 업데이트
+            const autoStatusElement = document.getElementById(`autoStatus-${groupId}`);
+            if (autoStatusElement) {
+                try {
+                    const autoStatus = await getAutoSendStatus(groupId);
+                    autoStatusElement.textContent = autoStatus.text;
+                    autoStatusElement.style.color = autoStatus.color;
+                } catch (error) {
+                    autoStatusElement.textContent = '대기';
+                    autoStatusElement.style.color = '#666';
+                }
+            }
+        }
+        
+        console.log('✅ 그룹 상태 업데이트 완료');
+    } catch (error) {
+        console.error('❌ 그룹 상태 업데이트 실패:', error);
+    }
+}
+
+// 다음 전송 시간 계산
+async function getNextSendTime(groupId) {
+    try {
+        const userId = localStorage.getItem('lastSelectedAccount');
+        if (!userId) return '-';
+        
+        // Firebase에서 마지막 전송 시간 조회
+        const response = await fetch('/api/auto-send/status', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                userId: userId
+            })
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success && result.status) {
+                const lastSendTimes = result.status.last_send_times || {};
+                const lastSendTimeStr = lastSendTimes[groupId];
+                
+                if (lastSendTimeStr) {
+                    const lastSendTime = new Date(lastSendTimeStr);
+                    const settings = loadAccountSettings('autoSend');
+                    const repeatInterval = (settings?.repeatInterval || 30) * 60 * 1000; // 분을 밀리초로 변환
+                    const nextSendTime = new Date(lastSendTime.getTime() + repeatInterval);
+                    const now = new Date();
+                    
+                    if (nextSendTime > now) {
+                        const diffMs = nextSendTime - now;
+                        const diffMinutes = Math.ceil(diffMs / (60 * 1000));
+                        return `${diffMinutes}분 후`;
+                    } else {
+                        return '전송 가능';
+                    }
+                }
+            }
+        }
+        
+        return '-';
+    } catch (error) {
+        console.error('❌ 다음 전송 시간 계산 실패:', error);
+        return '-';
+    }
+}
+
+// 자동전송 상태 조회
+async function getAutoSendStatus(groupId) {
+    try {
+        const userId = localStorage.getItem('lastSelectedAccount');
+        if (!userId) return { text: '대기', color: '#666' };
+        
+        const response = await fetch('/api/auto-send/status', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                userId: userId
+            })
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success && result.status) {
+                if (result.status.is_running) {
+                    return { text: '실행중', color: '#4CAF50' };
+                } else {
+                    return { text: '대기', color: '#666' };
+                }
+            }
+        }
+        
+        return { text: '대기', color: '#666' };
+    } catch (error) {
+        console.error('❌ 자동전송 상태 조회 실패:', error);
+        return { text: '대기', color: '#666' };
+    }
+}
+
+// 실시간 업데이트 시작
+function startRealtimeUpdates() {
+    console.log('🔄 실시간 업데이트 시작');
+    
+    // 초기 업데이트
+    updateGroupStatusRealtime();
+    
+    // 30초마다 업데이트
+    setInterval(updateGroupStatusRealtime, 30000);
 }
 
 

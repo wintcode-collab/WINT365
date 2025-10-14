@@ -2496,9 +2496,11 @@ def execute_auto_send_job(user_id, group_ids, message, media_info=None):
         current_repeats = auto_send_jobs.get(f'{user_id}_repeats', 0)
         
         if max_repeats > 0 and current_repeats >= max_repeats:
-            logger.info(f'✅ 자동전송 완료: 최대 반복 횟수 도달 - {user_id}')
+            logger.info(f'✅ 자동전송 완료: 최대 반복 횟수 도달 - {user_id} (현재: {current_repeats}, 최대: {max_repeats})')
             stop_auto_send_job(user_id)
             return True
+        elif max_repeats == 0:
+            logger.info(f'🔄 무제한 반복 모드: {user_id} (현재: {current_repeats + 1}회차)')
         
         # 각 그룹에 메시지 전송 (메시지 개수 확인 포함)
         success_count = 0
@@ -2526,8 +2528,11 @@ def execute_auto_send_job(user_id, group_ids, message, media_info=None):
                     message_count = check_telegram_group_message_count(account_info, group_id)
                     logger.info(f'📊 그룹 {group_id} 메시지 개수: {message_count} (임계값: {message_threshold})')
                     
-                    if message_count < message_threshold:
-                        logger.info(f'⏭️ 그룹 {group_id} 메시지 개수 부족으로 전송 건너뜀')
+                    if message_count >= message_threshold:
+                        logger.info(f'✅ 그룹 {group_id} 메시지 개수 충족: {message_count} >= {message_threshold}')
+                        message_count_ok = True
+                    else:
+                        logger.info(f'⏭️ 그룹 {group_id} 메시지 개수 부족으로 전송 건너뜀: {message_count} < {message_threshold}')
                         message_count_ok = False
                 
                 # 조건 2: 재전송 텀 확인 (첫 발송이 아닌 경우에만)
@@ -2549,7 +2554,10 @@ def execute_auto_send_job(user_id, group_ids, message, media_info=None):
                 
                 # OR 로직: 둘 중 하나라도 통과하면 전송, 둘 다 미충족이면 건너뜀
                 if (not message_count_ok) and (not time_interval_ok):
+                    logger.info(f'⏭️ 그룹 {group_id} 전송 조건 미충족: 메시지={message_count_ok}, 시간={time_interval_ok}')
                     continue
+                
+                logger.info(f'✅ 그룹 {group_id} 전송 조건 충족: 메시지={message_count_ok}, 시간={time_interval_ok}')
                 
                 result = send_message_to_telegram_group(account_info, group_id, message, media_info)
                 if result:
@@ -2642,14 +2650,12 @@ def start_auto_send_job(user_id, group_ids, message, media_info=None):
         def job():
             execute_auto_send_job(user_id, group_ids, message, media_info)
 
-        # 반복 스케줄 등록
+        # 반복 스케줄 등록 (메인 스케줄만 사용)
         schedule.every(repeat_interval).minutes.do(job)
-        # 빠른 검사 스케줄: 30초마다 조건(메시지 수 OR 시간) 충족 여부를 확인해 즉시 전송
-        try:
-            schedule.every(30).seconds.do(job)
-            logger.info('⚡ 빠른 검사 스케줄 등록(30초 간격)')
-        except Exception as _e:
-            logger.error(f'❌ 빠른 검사 스케줄 등록 실패: {_e}')
+        logger.info(f'⏰ 메인 반복 스케줄 등록: {repeat_interval}분 간격')
+        
+        # 빠른 검사 스케줄 제거 (중복 실행 방지)
+        # 30초마다 실행하면 반복 횟수가 계속 증가하는 문제 발생
 
         # 즉시 한 번 실행은 비동기로 트리거
         threading.Thread(target=execute_auto_send_job, args=(user_id, group_ids, message, media_info), daemon=True).start()
@@ -3125,12 +3131,7 @@ def restore_auto_send_jobs_from_firebase():
                             
                             schedule.every(repeat_interval).minutes.do(job)
                             logger.info(f'✅ 자동전송 스케줄 복원: {user_id} (간격: {repeat_interval}분)')
-                            # 빠른 검사 스케줄 복원: 30초 간격
-                            try:
-                                schedule.every(30).seconds.do(job)
-                                logger.info('⚡ 빠른 검사 스케줄 복원(30초 간격)')
-                            except Exception as _e:
-                                logger.error(f'❌ 빠른 검사 스케줄 복원 실패: {_e}')
+                            # 빠른 검사 스케줄 제거 (중복 실행 방지)
                             # 서버 재시작 직후에도 대기하지 않고 즉시 한 번 실행
                             try:
                                 execute_auto_send_job(user_id, status_data.get('group_ids', []), 
