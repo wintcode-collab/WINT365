@@ -3862,15 +3862,21 @@ function getApiBaseUrl() {
 async function stopAutoSend() {
     try {
         const accountName = document.getElementById('selectedAccountName')?.textContent?.trim();
-        if (!accountName) {
+        // 가능한 모든 경로로 userId 추출 시도
+        let userId = document.getElementById('selectedAccountUserId')?.textContent?.trim()
+            || document.querySelector('.account-item.selected')?.dataset?.userId
+            || window.currentSelectedAccount?.user_id
+            || window.selectedAccount?.user_id
+            || '';
+        if (!accountName && !userId) {
             console.warn('⚠️ 계정명이 없어 자동전송 중지 요청을 건너뜀');
             return;
         }
-        console.log('🛑 자동전송 중지 요청:', { account_name: accountName });
+        console.log('🛑 자동전송 중지 요청:', { account_name: accountName, userId });
         const resp = await fetch(`${getApiBaseUrl()}/api/auto-send/stop`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ account_name: accountName })
+            body: JSON.stringify({ account_name: accountName, userId })
         });
         const result = await resp.json().catch(() => ({}));
         console.log('🛑 자동전송 중지 응답:', resp.status, result);
