@@ -3140,6 +3140,32 @@ def restore_auto_send_jobs_from_firebase():
     except Exception as e:
         logger.error(f'🔥 자동전송 작업 복원 에러: {e}')
 
+def auto_resume_watchdog_loop():
+    """주기적으로 Firebase를 스캔해 is_active인데 메모리에 작업이 없으면 재개"""
+    logger.info('🛡️ 자동전송 워치독 시작(60초 주기)')
+    while True:
+        try:
+            url = f"{FIREBASE_URL}/auto_send_status.json"
+            response = requests.get(url, timeout=10)
+            if response.status_code == 200:
+                data = response.json() or {}
+                for user_id, status_data in data.items():
+                    if not status_data:
+                        continue
+                    if status_data.get('is_active') and user_id not in auto_send_jobs:
+                        logger.info(f'🛡️ 워치독: 실행 누락 감지 → 재개 시도: {user_id}')
+                        group_ids = status_data.get('group_ids', [])
+                        message = status_data.get('message', '')
+                        media_info = status_data.get('media_info')
+                        if group_ids:
+                            try:
+                                start_auto_send_job(user_id, group_ids, message, media_info)
+                            except Exception as _e:
+                                logger.error(f'🛡️ 워치독 재개 실패: {user_id} - {_e}')
+            time.sleep(60)
+        except Exception as e:
+            logger.error(f'🛡️ 워치독 루프 에러: {e}')
+            time.sleep(60)
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 3000))
     logger.info(f'🚀 WINT365 Python 서버 시작됨 - 포트: {port}')
@@ -3161,6 +3187,8 @@ if __name__ == '__main__':
     scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
     scheduler_thread.start()
     logger.info('🤖 자동전송 스케줄러 시작됨')
+    # 워치독 시작
+    threading.Thread(target=auto_resume_watchdog_loop, daemon=True).start()
     
     # 서버 시작 (Render에서는 HTTP 사용)
     app.run(host='0.0.0.0', port=port, debug=False)

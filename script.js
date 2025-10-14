@@ -2100,6 +2100,14 @@ function renderGroupsList(groups) {
         checkbox.addEventListener('change', function() {
             updateSelectedGroupsCount();
             updateGroupItemVisualState(this);
+            // 변경 즉시 계정별 선택 그룹 저장
+            try {
+                const key = getCurrentAccountKey ? getCurrentAccountKey() : null;
+                if (key) {
+                    const ids = Array.from(document.querySelectorAll('.group-checkbox:checked')).map(cb => cb.dataset.groupId);
+                    localStorage.setItem(`${key}_selectedGroups`, JSON.stringify(ids));
+                }
+            } catch (e) { console.warn('선택 그룹 자동 저장 실패', e); }
         });
     });
     
@@ -2315,6 +2323,13 @@ async function sendMessageToGroup() {
         alert('선택된 그룹의 ID를 찾을 수 없습니다. 페이지를 새로고침하고 다시 시도해주세요.');
         return;
     }
+    // 현재 선택 그룹을 계정별로 즉시 저장(복원용)
+    try {
+        const key = getCurrentAccountKey ? getCurrentAccountKey() : null;
+        if (key) {
+            localStorage.setItem(`${key}_selectedGroups`, JSON.stringify(validGroupIds));
+        }
+    } catch (e) { console.warn('선택 그룹 저장 실패', e); }
     
     // 원본 메시지 데이터가 있으면 우선 사용, 없으면 입력칸의 텍스트 사용
     let message;
