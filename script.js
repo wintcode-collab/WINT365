@@ -1890,6 +1890,11 @@ function showAccountList(accounts) {
             // 모달 닫기
             document.body.removeChild(modal);
             
+            // 마지막 선택 계정 저장 (자동 복원용)
+            try {
+                localStorage.setItem('lastSelectedAccount', String(selectedAccount.user_id));
+            } catch (e) { console.warn('lastSelectedAccount 저장 실패', e); }
+            
             // 선택된 계정으로 그룹 로드
             loadGroupsForAccount(selectedAccount);
             
@@ -1899,6 +1904,8 @@ function showAccountList(accounts) {
                 loadAutoSendSettings();
                 updateAutoSendSettingsDisplay();
                 updateSendButtonText();
+                // 서버 자동전송 상태로 토글/버튼 동기화
+                restoreAutoSendStatusFor(selectedAccount.user_id);
             }, 500);
         }
     });
@@ -2004,6 +2011,26 @@ function showTelegramGroupsWindow(groups, account) {
         }, 100);
         
         console.log('✅ 텔레그램 그룹 관리 창 표시 완료');
+
+    // 계정별 저장된 UI 상태 복원
+    try {
+        // 선택 그룹 복원
+        const key = getCurrentAccountKey ? getCurrentAccountKey() : (account?.user_id ? `account_${account.user_id}` : null);
+        if (key) {
+            const saved = JSON.parse(localStorage.getItem(`${key}_selectedGroups`) || '[]');
+            if (Array.isArray(saved) && saved.length) {
+                saved.forEach(gid => {
+                    const cb = document.querySelector(`.group-item input[type="checkbox"][data-group-id="${gid}"]`);
+                    if (cb) cb.checked = true;
+                });
+            }
+        }
+        // 저장된 메시지/버튼 상태는 기존 로직으로 즉시 반영됨
+        // 자동전송 상태 동기화
+        if (account?.user_id) {
+            restoreAutoSendStatusFor(account.user_id);
+        }
+    } catch (e) { console.warn('계정별 상태 복원 실패', e); }
     }
 }
 
@@ -3856,6 +3883,28 @@ function updateSendButtonText(isAutoSend = null) {
 // API URL 관리 함수 (동일 오리진 사용: CORS 회피)
 function getApiBaseUrl() {
     return '';
+}
+
+// 서버 자동전송 상태 복원 (특정 userId)
+async function restoreAutoSendStatusFor(userId) {
+    try {
+        if (!userId) return;
+        console.log('🔄 특정 계정 상태 복원 시작:', userId);
+        const resp = await fetch(`${getApiBaseUrl()}/api/auto-send/status`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId })
+        });
+        const data = await resp.json();
+        console.log('📊 특정 계정 상태:', data);
+        const toggle = document.getElementById('autoSendToggle');
+        if (data && data.success && toggle) {
+            toggle.checked = !!data.is_running;
+            updateSendButtonText(!!data.is_running);
+        }
+    } catch (e) {
+        console.warn('상태 복원 실패:', e);
+    }
 }
 
 // 자동전송 중지 API 호출
