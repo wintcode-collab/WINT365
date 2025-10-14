@@ -1215,7 +1215,23 @@ def load_telegram_groups():
     """인증된 계정의 텔레그램 그룹 로딩"""
     try:
         data = request.get_json()
-        user_id = data.get('userId')
+        # userId 또는 account_name 받아 처리
+        user_id = (data.get('userId') or '').strip()
+        account_name = (data.get('account_name') or '').strip()
+        if not user_id and account_name:
+            try:
+                accounts_response = requests.get(f"{FIREBASE_URL}/authenticated_accounts.json", timeout=10)
+                if accounts_response.status_code == 200:
+                    accounts_data = accounts_response.json()
+                    if accounts_data:
+                        for uid, account_data in accounts_data.items():
+                            if account_data and isinstance(account_data, dict):
+                                full_name = f"{account_data.get('first_name', '')} {account_data.get('last_name', '')}".strip()
+                                if full_name == account_name:
+                                    user_id = uid
+                                    break
+            except Exception as e:
+                logger.error(f'❌ 계정 조회 실패(중지): {e}')
         
         if not user_id:
             return jsonify({

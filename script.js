@@ -3234,10 +3234,12 @@ function setupAutoSendEventListeners() {
                 
                 // 모든 그룹의 자동전송 상태를 대기로 변경
                 const groupItems = document.querySelectorAll('.group-item');
+                const updater = window.updateGroupAutoStatus;
                 groupItems.forEach(item => {
                     const groupId = item.dataset.groupId;
-                    if (groupId) {
-                        updateGroupAutoStatus(groupId, false);
+                    if (!groupId) return;
+                    if (typeof updater === 'function') {
+                        updater(groupId, false);
                     }
                 });
                 
