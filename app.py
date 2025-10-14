@@ -53,9 +53,9 @@ def after_request(response):
     response.headers['Access-Control-Max-Age'] = '86400'
     return response
 
-# 프리플라이트(OPTIONS) 처리: /api/* 전부 200 반환
+# 프리플라이트(OPTIONS) 처리: /api/* 전부 200 반환 (고유 엔드포인트명)
 @app.route('/api/<path:path>', methods=['OPTIONS'])
-def handle_options(path):
+def cors_preflight_root(path):
     return '', 200
 
 # 마크다운을 HTML로 변환하는 함수
@@ -1114,9 +1114,9 @@ def health():
         'telethon_loaded': TelegramClient is not None
     })
 
-# OPTIONS 요청 처리
+# OPTIONS 요청 처리 (중복 피하기 위해 다른 함수명 사용)
 @app.route('/api/<path:path>', methods=['OPTIONS'])
-def handle_options(path):
+def cors_preflight(path):
     """CORS preflight 요청 처리"""
     logger.info(f'🔥 OPTIONS 요청 처리: /api/{path}')
     return '', 200
