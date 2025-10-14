@@ -2712,7 +2712,7 @@ def check_telegram_group_message_count(account_info, group_id):
             return 0
             
         session_bytes = base64.b64decode(session_b64)
-        temp_session_file = f'temp_message_count_{account_info["user_id"]}'
+        temp_session_file = f'/tmp/temp_message_count_{account_info["user_id"]}'
         
         # 임시 세션 파일 생성
         with open(f'{temp_session_file}.session', 'wb') as f:
@@ -2734,14 +2734,21 @@ def check_telegram_group_message_count(account_info, group_id):
                     logger.error('❌ 클라이언트 연결 실패')
                     return 0
                 
-                # 그룹 엔티티 가져오기
+                # 그룹 엔티티 가져오기 (에러 처리 개선)
                 try:
                     group_id_int = int(group_id)
                     group_entity = await client.get_entity(group_id_int)
                     logger.info(f'📊 그룹 엔티티 가져오기 성공: {group_entity.title}')
                 except Exception as e:
                     logger.error(f'❌ 그룹 엔티티 가져오기 실패: {e}')
-                    return 0
+                    # 사용자 ID로 직접 접근 시도
+                    try:
+                        from telethon.tl.types import PeerUser
+                        group_entity = await client.get_entity(PeerUser(group_id_int))
+                        logger.info(f'📊 사용자 엔티티로 접근 성공: {group_id}')
+                    except Exception as user_error:
+                        logger.error(f'❌ 사용자 엔티티 접근도 실패: {user_error}')
+                        return 0
                 
                 # 최근 메시지들 가져오기 (최대 100개)
                 messages = await client.get_messages(group_entity, limit=100)
@@ -2799,8 +2806,9 @@ def check_telegram_group_message_count(account_info, group_id):
             
             # 임시 파일 정리
             try:
-                os.remove(f'{temp_session_file}.session')
-                logger.info('📊 임시 세션 파일 정리 완료')
+                if os.path.exists(f'{temp_session_file}.session'):
+                    os.remove(f'{temp_session_file}.session')
+                    logger.info('📊 임시 세션 파일 정리 완료')
             except Exception as e:
                 logger.error(f'❌ 임시 파일 정리 실패: {e}')
                 
