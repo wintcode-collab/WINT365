@@ -3899,6 +3899,17 @@ async function restoreAutoSendStatusFor(userId) {
         console.log('📊 특정 계정 상태:', data);
         const toggle = document.getElementById('autoSendToggle');
         if (data && data.success && toggle) {
+            if (!data.is_running) {
+                // 서버 메모리에 없지만 Firebase에 활성이면 재개 시도
+                if (data.settings) {
+                    try {
+                        await fetch(`${getApiBaseUrl()}/api/auto-send/resume-if-active`, {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ userId })
+                        });
+                    } catch (e) { /* noop */ }
+                }
+            }
             toggle.checked = !!data.is_running;
             updateSendButtonText(!!data.is_running);
         }
@@ -4196,10 +4207,9 @@ function startAutoSendStatusUpdate() {
 async function restoreAutoSendStatusOnLoad() {
     try {
         console.log('🔄 페이지 로드 시 자동전송 상태 복원 시작');
-        
-        // 현재 선택된 계정 정보 가져오기
-        const accountName = document.getElementById('selectedAccountName').textContent;
-        if (!accountName || accountName === '계정을 선택하세요') {
+        // 계정 미선택이면 전역 복원 동작 금지 (계정 확정 시점에만 복원)
+        const lastUserId = localStorage.getItem('lastSelectedAccount');
+        if (!lastUserId) {
             console.log('❌ 계정이 선택되지 않음, 자동전송 상태 복원 건너뜀');
             return;
         }
@@ -4211,7 +4221,7 @@ async function restoreAutoSendStatusOnLoad() {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                account_name: accountName
+                userId: lastUserId
             })
         });
         

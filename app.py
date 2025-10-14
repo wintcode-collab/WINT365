@@ -1215,7 +1215,7 @@ def load_telegram_groups():
     """인증된 계정의 텔레그램 그룹 로딩"""
     try:
         data = request.get_json()
-        # userId 또는 account_name 받아 처리
+        # ㄴuserId 또는 account_name 받아 처리
         user_id = (data.get('userId') or '').strip()
         account_name = (data.get('account_name') or '').strip()
         if not user_id and account_name:
@@ -2949,6 +2949,34 @@ def stop_auto_send():
             'success': False,
             'error': f'자동전송 중지 실패: {str(error)}'
         }), 500
+
+# 자동전송 재개(필요 시) API: Firebase 상태가 활성인데 메모리에 작업이 없으면 복원
+@app.route('/api/auto-send/resume-if-active', methods=['POST'])
+def resume_auto_send_if_active():
+    try:
+        data = request.get_json() or {}
+        user_id = (data.get('userId') or '').strip()
+        if not user_id:
+            return jsonify({'success': False, 'error': 'userId가 필요합니다.'}), 400
+
+        # 이미 실행 중이면 그대로 성공 처리
+        if user_id in auto_send_jobs:
+            return jsonify({'success': True, 'resumed': False, 'message': '이미 실행 중입니다.'})
+
+        # Firebase 상태 확인
+        status = get_auto_send_status_from_firebase(user_id)
+        if status and status.get('is_active'):
+            group_ids = status.get('group_ids', [])
+            message = status.get('message', '')
+            media_info = status.get('media_info')
+            if group_ids:
+                ok = start_auto_send_job(user_id, group_ids, message, media_info)
+                if ok:
+                    return jsonify({'success': True, 'resumed': True, 'message': '자동전송을 재개했습니다.'})
+        return jsonify({'success': True, 'resumed': False, 'message': '재개할 작업이 없습니다.'})
+    except Exception as e:
+        logger.error(f'❌ 자동전송 재개 실패: {e}')
+        return jsonify({'success': False, 'error': f'재개 실패: {str(e)}'}), 500
 
 # 그룹 메시지 개수 확인 API
 @app.route('/api/telegram/check-message-count', methods=['POST'])
