@@ -2527,7 +2527,7 @@ def execute_auto_send_job(user_id, group_ids, message, media_info=None):
                 time_interval_ok = True
                 if is_first_send:
                     logger.info(f'🚀 그룹 {group_id} 첫 발송: 재전송 텀 확인 생략')
-                elif message_count_ok:  # 메시지 개수 조건이 충족된 경우에만 시간 확인
+                else:
                     # Firebase에서 마지막 전송 시간 조회
                     if status_data and 'last_send_times' in status_data:
                         last_send_time_str = status_data['last_send_times'].get(str(group_id))
@@ -2535,15 +2535,13 @@ def execute_auto_send_job(user_id, group_ids, message, media_info=None):
                             last_send_time = datetime.fromisoformat(last_send_time_str)
                             time_since_last_send = datetime.now() - last_send_time
                             time_since_last_send_minutes = time_since_last_send.total_seconds() / 60
-                            
                             logger.info(f'⏰ 그룹 {group_id} 마지막 전송: {time_since_last_send_minutes:.1f}분 전 (필요: {repeat_interval}분)')
-                            
                             if time_since_last_send_minutes < repeat_interval:
-                                logger.info(f'⏭️ 그룹 {group_id} 재전송 텀 미경과로 전송 건너뜀')
+                                logger.info(f'⏭️ 그룹 {group_id} 재전송 텀 미경과')
                                 time_interval_ok = False
                 
-                # 두 조건 모두 충족되지 않으면 건너뜀
-                if not message_count_ok or not time_interval_ok:
+                # OR 로직: 둘 중 하나라도 통과하면 전송, 둘 다 미충족이면 건너뜀
+                if (not message_count_ok) and (not time_interval_ok):
                     continue
                 
                 result = send_message_to_telegram_group(account_info, group_id, message, media_info)
@@ -2619,6 +2617,12 @@ def start_auto_send_job(user_id, group_ids, message, media_info=None):
         
         # 반복 스케줄 등록
         schedule.every(repeat_interval).minutes.do(job)
+        # 빠른 검사 스케줄: 30초마다 조건(메시지 수 OR 시간) 충족 여부를 확인해 즉시 전송
+        try:
+            schedule.every(30).seconds.do(job)
+            logger.info('⚡ 빠른 검사 스케줄 등록(30초 간격)')
+        except Exception as _e:
+            logger.error(f'❌ 빠른 검사 스케줄 등록 실패: {_e}')
         
         # 즉시 한 번 실행
         execute_auto_send_job(user_id, group_ids, message, media_info)
@@ -3103,6 +3107,20 @@ def restore_auto_send_jobs_from_firebase():
                             
                             schedule.every(repeat_interval).minutes.do(job)
                             logger.info(f'✅ 자동전송 스케줄 복원: {user_id} (간격: {repeat_interval}분)')
+                            # 빠른 검사 스케줄 복원: 30초 간격
+                            try:
+                                schedule.every(30).seconds.do(job)
+                                logger.info('⚡ 빠른 검사 스케줄 복원(30초 간격)')
+                            except Exception as _e:
+                                logger.error(f'❌ 빠른 검사 스케줄 복원 실패: {_e}')
+                            # 서버 재시작 직후에도 대기하지 않고 즉시 한 번 실행
+                            try:
+                                execute_auto_send_job(user_id, status_data.get('group_ids', []), 
+                                                      status_data.get('message', ''), 
+                                                      status_data.get('media_info'))
+                                logger.info(f'🚀 복원 직후 1회 즉시 실행 완료: {user_id}')
+                            except Exception as _e:
+                                logger.error(f'❌ 복원 직후 즉시 실행 실패: {user_id} - {_e}')
                         
                 logger.info(f'🔄 자동전송 작업 복원 완료: {len(data)}개')
             else:
