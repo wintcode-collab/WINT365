@@ -2864,33 +2864,34 @@ def start_auto_send():
         
         data = request.get_json()
         account_name = (data.get('account_name') or '').strip()
+        user_id = (data.get('userId') or '').strip()
         group_ids = data.get('group_ids', [])
         message = (data.get('message', '') or '').strip()
         media_info = data.get('media_info')
         
         logger.info(f'🚀 자동전송 시작 요청: account_name={account_name}, group_ids={group_ids}')
         
-        if not account_name or not group_ids:
+        if (not account_name and not user_id) or not group_ids:
             return jsonify({
                 'success': False,
-                'error': '계정명과 그룹 ID 목록이 필요합니다.'
+                'error': '사용자 ID 또는 계정명과 그룹 ID 목록이 필요합니다.'
             }), 400
         
-        # 계정명으로 user_id 찾기
-        user_id = None
-        try:
-            accounts_response = requests.get(f"{FIREBASE_URL}/authenticated_accounts.json", timeout=10)
-            if accounts_response.status_code == 200:
-                accounts_data = accounts_response.json()
-                if accounts_data:
-                    for uid, account_data in accounts_data.items():
-                        if account_data and isinstance(account_data, dict):
-                            full_name = f"{account_data.get('first_name', '')} {account_data.get('last_name', '')}".strip()
-                            if full_name == account_name:
-                                user_id = uid
-                                break
-        except Exception as e:
-            logger.error(f'❌ 계정 조회 실패: {e}')
+        # userId가 없으면 계정명으로 user_id 찾기
+        if not user_id and account_name:
+            try:
+                accounts_response = requests.get(f"{FIREBASE_URL}/authenticated_accounts.json", timeout=10)
+                if accounts_response.status_code == 200:
+                    accounts_data = accounts_response.json()
+                    if accounts_data:
+                        for uid, account_data in accounts_data.items():
+                            if account_data and isinstance(account_data, dict):
+                                full_name = f"{account_data.get('first_name', '')} {account_data.get('last_name', '')}".strip()
+                                if full_name == account_name:
+                                    user_id = uid
+                                    break
+            except Exception as e:
+                logger.error(f'❌ 계정 조회 실패: {e}')
         
         if not user_id:
             return jsonify({
