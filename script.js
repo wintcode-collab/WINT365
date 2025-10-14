@@ -3484,15 +3484,14 @@ function saveAutoSendSettings() {
     
     // Firebase에 자동전송 설정 저장
     console.log('🔥 자동전송 설정 저장 시작 - Firebase 호출');
-    saveAutoSendSettingsToFirebase(settings);
-    
-    // 설정 저장 완료 후 잠시 대기
-    setTimeout(() => {
-        console.log('⏰ 자동전송 설정 저장 완료, 이제 자동전송 가능');
-    }, 1000);
-    
-    // 메시지 개수 확인 상태 업데이트 (제거됨)
-    // updateMessageCheckStatus();
+    saveAutoSendSettingsToFirebase(settings).then(() => {
+        // 설정 저장 완료 후 자동전송 시작
+        console.log('⏰ 자동전송 설정 저장 완료, 자동전송 시작');
+        startAutoSendAfterSettingsSaved();
+    }).catch((error) => {
+        console.error('❌ 자동전송 설정 저장 실패:', error);
+        alert('자동전송 설정 저장에 실패했습니다.');
+    });
     
     // 자동 전송 토글을 ON으로 설정
     const autoSendToggle = document.getElementById('autoSendToggle');
@@ -3505,9 +3504,52 @@ function saveAutoSendSettings() {
     
     // 모달 닫기
     hideAutoSendSettingsModal();
-    
-    // 성공 메시지 표시
-    alert('자동 전송 설정이 저장되었습니다!');
+}
+
+// 설정 저장 후 자동전송 시작 함수
+async function startAutoSendAfterSettingsSaved() {
+    try {
+        console.log('🚀 설정 저장 후 자동전송 시작');
+        
+        // 현재 선택된 그룹들 확인
+        const checkedBoxes = document.querySelectorAll('.group-checkbox:checked');
+        if (checkedBoxes.length === 0) {
+            console.log('⚠️ 선택된 그룹이 없어 자동전송을 시작할 수 없습니다');
+            alert('자동전송을 시작하려면 그룹을 선택해주세요.');
+            return;
+        }
+        
+        const selectedGroupIds = Array.from(checkedBoxes).map(checkbox => checkbox.dataset.groupId);
+        console.log('📋 선택된 그룹들:', selectedGroupIds);
+        
+        // 현재 메시지 확인
+        const messageInput = document.querySelector('.message-input');
+        const message = messageInput ? messageInput.value.trim() : '';
+        
+        if (!message) {
+            console.log('⚠️ 메시지가 없어 자동전송을 시작할 수 없습니다');
+            alert('자동전송을 시작하려면 메시지를 입력해주세요.');
+            return;
+        }
+        
+        // 미디어 정보 확인
+        const mediaInfo = window.selectedMediaInfo || null;
+        
+        // 자동전송 시작
+        const success = await startAutoSendWithGroups(selectedGroupIds, message, mediaInfo);
+        
+        if (success) {
+            console.log('✅ 자동전송 시작 성공');
+            alert('🤖 자동전송이 시작되었습니다!\n\n설정된 간격마다 자동으로 전송됩니다.\nPC를 종료해도 계속 작동합니다.');
+        } else {
+            console.log('❌ 자동전송 시작 실패');
+            alert('❌ 자동전송 시작에 실패했습니다.\n\n자동전송 설정을 확인하고 다시 시도해주세요.');
+        }
+        
+    } catch (error) {
+        console.error('❌ 설정 저장 후 자동전송 시작 에러:', error);
+        alert('자동전송 시작 중 오류가 발생했습니다.');
+    }
 }
 
 // 입력창 자동 크기 조절 설정
@@ -4136,12 +4178,15 @@ async function saveAutoSendSettingsToFirebase(settings) {
         
         if (result.success) {
             console.log('✅ Firebase 자동전송 설정 저장 성공:', result);
+            return true;
         } else {
             console.error('❌ Firebase 자동전송 설정 저장 실패:', result);
+            throw new Error('Firebase 자동전송 설정 저장 실패');
         }
         
     } catch (error) {
         console.error('❌ Firebase 자동전송 설정 저장 에러:', error);
+        throw error;
     }
 }
 
