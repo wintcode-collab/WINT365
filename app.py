@@ -2706,7 +2706,7 @@ def check_telegram_group_message_count(account_info, group_id):
             return 0
             
         session_bytes = base64.b64decode(session_b64)
-        temp_session_file = f'temp_message_count_{account_info["user_id"]}'
+        temp_session_file = f'/tmp/temp_message_count_{account_info["user_id"]}'
         
         # 임시 세션 파일 생성
         with open(f'{temp_session_file}.session', 'wb') as f:
@@ -2755,8 +2755,8 @@ def check_telegram_group_message_count(account_info, group_id):
                         break
                 
                 if my_last_message_index == -1:
-                    logger.info('📊 내가 보낸 메시지를 찾을 수 없음 - 모든 메시지가 다른 사람들의 메시지')
-                    return len(messages)
+                    logger.info('📊 내가 보낸 메시지를 찾을 수 없음 - 0개로 처리')
+                    return 0
                 
                 # 내가 보낸 메시지 이후의 다른 사람들의 메시지 개수 계산
                 other_people_messages = 0
@@ -2793,10 +2793,13 @@ def check_telegram_group_message_count(account_info, group_id):
             
             # 임시 파일 정리
             try:
-                os.remove(f'{temp_session_file}.session')
-                logger.info('📊 임시 세션 파일 정리 완료')
+                if os.path.exists(f'{temp_session_file}.session'):
+                    os.remove(f'{temp_session_file}.session')
+                    logger.info('📊 임시 세션 파일 정리 완료')
+                else:
+                    logger.info('📊 임시 세션 파일이 이미 정리됨')
             except Exception as e:
-                logger.error(f'❌ 임시 파일 정리 실패: {e}')
+                logger.warning(f'⚠️ 임시 파일 정리 중 오류 (무시): {e}')
                 
     except Exception as e:
         logger.error(f'❌ 메시지 개수 확인 에러: {e}')
