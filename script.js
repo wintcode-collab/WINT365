@@ -3847,16 +3847,9 @@ function updateSendButtonText(isAutoSend = null) {
     }
 }
 
-// API URL 관리 함수
+// API URL 관리 함수 (동일 오리진 사용: CORS 회피)
 function getApiBaseUrl() {
-    const hostname = window.location.hostname;
-    if (hostname === 'xn--h89a770c.shop') {
-        // Render 서버 사용 (CORS 문제 해결됨)
-        return 'https://wint365-backend.onrender.com';
-    } else {
-        // 로컬 개발용
-        return 'http://localhost:3000';
-    }
+    return '';
 }
 
 // Firebase 자동전송 설정 저장 함수
