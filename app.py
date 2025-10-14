@@ -2460,8 +2460,8 @@ def execute_auto_send_job(user_id, group_ids, message, media_info=None):
         # 안전 가드: OFF 상태면 즉시 중단
         try:
             status_guard = get_auto_send_status_from_firebase(user_id)
-            if not status_guard or not status_guard.get('is_active', False):
-                logger.info(f'⛔ 자동전송 비활성 상태 감지, 실행 중단: {user_id}')
+            if not status_guard or not status_guard.get('is_active', False) or not status_guard.get('is_running', False):
+                logger.info(f'⛔ 자동전송 비활성/중지 상태 감지, 실행 중단: {user_id}')
                 return False
         except Exception as _e:
             logger.error(f'⛔ 상태 가드 확인 실패(계속 시도): {user_id} - {_e}')
@@ -2667,8 +2667,9 @@ def stop_auto_send_job(user_id):
     try:
         logger.info(f'🛑 자동전송 작업 중지: {user_id}')
         
-        # 스케줄 작업 제거
-        schedule.clear()
+        # 특정 사용자의 스케줄 작업만 제거 (schedule.clear() 대신)
+        # schedule.clear()는 모든 스케줄을 지우므로 사용하지 않음
+        # 대신 메모리에서 작업 제거하고 Firebase 상태만 업데이트
         
         # 메모리에서 작업 제거
         if user_id in auto_send_jobs:
@@ -2738,44 +2739,39 @@ def check_telegram_group_message_count(account_info, group_id):
                     logger.error(f'❌ 그룹 엔티티 가져오기 실패: {e}')
                     return 0
                 
-                # 안읽은 메시지 개수 가져오기 (더 간단하고 정확)
-                try:
-                    unread_count = await client.get_unread_count(group_entity)
-                    logger.info(f'📊 안읽은 메시지 개수: {unread_count}')
-                    return unread_count
-                except Exception as e:
-                    logger.warning(f'⚠️ 안읽은 메시지 개수 가져오기 실패, 기존 방식으로 대체: {e}')
-                    
-                    # 기존 방식으로 대체 (안읽은 메시지가 실패할 경우)
-                    messages = await client.get_messages(group_entity, limit=100)
-                    logger.info(f'📊 최근 메시지 {len(messages)}개 가져옴')
-                    
-                    # 내 사용자 정보 가져오기
-                    me = await client.get_me()
-                    my_user_id = me.id
-                    logger.info(f'📊 내 사용자 ID: {my_user_id}')
-                    
-                    # 내가 보낸 마지막 메시지 찾기
-                    my_last_message_index = -1
-                    for i, message in enumerate(messages):
-                        if hasattr(message, 'from_id') and message.from_id and message.from_id.user_id == my_user_id:
-                            my_last_message_index = i
-                            logger.info(f'📊 내가 보낸 마지막 메시지 발견: 인덱스 {i}, 메시지 ID {message.id}')
-                            break
-                    
-                    if my_last_message_index == -1:
-                        logger.info('📊 내가 보낸 메시지를 찾을 수 없음 - 0개로 처리')
-                        return 0
-                    
-                    # 내가 보낸 메시지 이후의 다른 사람들의 메시지 개수 계산
-                    other_people_messages = 0
-                    for i in range(my_last_message_index + 1, len(messages)):
-                        message = messages[i]
-                        if hasattr(message, 'from_id') and message.from_id and message.from_id.user_id != my_user_id:
-                            other_people_messages += 1
-                    
-                    logger.info(f'📊 내가 보낸 메시지 이후 다른 사람들의 메시지 개수: {other_people_messages} (내가 메시지를 보내면 0으로 리셋됨)')
-                    return other_people_messages
+                # 최근 메시지들을 가져와서 안읽은 메시지 개수 계산
+                messages = await client.get_messages(group_entity, limit=100)
+                logger.info(f'📊 최근 메시지 {len(messages)}개 가져옴')
+                
+                # 내 사용자 정보 가져오기
+                me = await client.get_me()
+                my_user_id = me.id
+                logger.info(f'📊 내 사용자 ID: {my_user_id}')
+                
+                # 내가 보낸 마지막 메시지 찾기
+                my_last_message_index = -1
+                for i, message in enumerate(messages):
+                    if hasattr(message, 'from_id') and message.from_id and message.from_id.user_id == my_user_id:
+                        my_last_message_index = i
+                        logger.info(f'📊 내가 보낸 마지막 메시지 발견: 인덱스 {i}, 메시지 ID {message.id}')
+                        break
+                
+                if my_last_message_index == -1:
+                    logger.info('📊 내가 보낸 메시지를 찾을 수 없음 - 전체 메시지 개수 반환')
+                    # 내가 보낸 메시지가 없으면 전체 메시지 개수 반환
+                    total_messages = len(messages)
+                    logger.info(f'📊 전체 메시지 개수: {total_messages}')
+                    return total_messages
+                
+                # 내가 보낸 메시지 이후의 다른 사람들의 메시지 개수 계산
+                other_people_messages = 0
+                for i in range(my_last_message_index + 1, len(messages)):
+                    message = messages[i]
+                    if hasattr(message, 'from_id') and message.from_id and message.from_id.user_id != my_user_id:
+                        other_people_messages += 1
+                
+                logger.info(f'📊 내가 보낸 메시지 이후 다른 사람들의 메시지 개수: {other_people_messages}')
+                return other_people_messages
                 
             except Exception as e:
                 logger.error(f'❌ 메시지 개수 확인 실패: {e}')
@@ -3114,7 +3110,8 @@ def restore_auto_send_jobs_from_firebase():
             data = response.json()
             if data:
                 for user_id, status_data in data.items():
-                    if status_data.get('is_active'):
+                    # is_active와 is_running 둘 다 True일 때만 복원
+                    if status_data.get('is_active') and status_data.get('is_running'):
                         logger.info(f'🔄 자동전송 작업 복원: {user_id}')
                         
                         # 메모리에 작업 복원
