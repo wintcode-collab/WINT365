@@ -1912,9 +1912,11 @@ function showAccountList(accounts) {
             loadAutoSendSettings();
             updateAutoSendSettingsDisplay();
             updateSendButtonText();
-            // 서버 자동전송 상태로 토글/버튼 동기화 + 단기 재동기화 폴링
-            restoreAutoSendStatusFor(selectedAccount.user_id);
-            startPostRestoreSync(selectedAccount.user_id);
+            // 서버 자동전송 상태로 토글/버튼 동기화 + 단기 재동기화 폴링 (모달이 열려있지 않을 때만)
+            if (!window.autoSendModalOpen && !window.autoSendSyncLocked) {
+                restoreAutoSendStatusFor(selectedAccount.user_id);
+                startPostRestoreSync(selectedAccount.user_id);
+            }
         }
     });
     
@@ -1989,21 +1991,31 @@ function startPostRestoreSync(userId) {
                 });
                 const data = await res.json();
                 if (data?.success) {
-                    // 토글/버튼 상태 반영
+                    // 토글/버튼 상태 반영 (모달이 열려있거나 잠금 상태가 아닐 때만)
                     const toggle = document.getElementById('autoSendToggle');
-                    if (toggle) toggle.checked = !!data.is_running;
-                    if (!data.is_running) {
-                        // OFF이면 로컬 스냅샷만 제거하고 체크박스는 유지 (사용자 선택 보존)
-                        try {
-                            const key = (typeof getCurrentAccountKey === 'function') ? getCurrentAccountKey() : null;
-                            if (key) localStorage.removeItem(`${key}_selectedGroups`);
-                            // 체크박스 자동 해제 제거 - 사용자가 선택한 그룹은 유지
-                            // document.querySelectorAll('.group-checkbox').forEach(cb => (cb.checked = false));
-                            // updateSelectedGroupsCount();
-                        } catch (_) {}
+                    if (toggle && !window.autoSendModalOpen && !window.autoSendSyncLocked) {
+                        console.log('🔄 PostRestoreSync: 서버 상태로 토글 변경:', data.is_running);
+                        toggle.checked = !!data.is_running;
+                        if (!data.is_running) {
+                            // OFF이면 로컬 스냅샷만 제거하고 체크박스는 유지 (사용자 선택 보존)
+                            try {
+                                const key = (typeof getCurrentAccountKey === 'function') ? getCurrentAccountKey() : null;
+                                if (key) localStorage.removeItem(`${key}_selectedGroups`);
+                                // 체크박스 자동 해제 제거 - 사용자가 선택한 그룹은 유지
+                                // document.querySelectorAll('.group-checkbox').forEach(cb => (cb.checked = false));
+                                // updateSelectedGroupsCount();
+                            } catch (_) {}
+                        }
+                        // 모달이 열려있지 않을 때만 UI 업데이트
+                        if (!window.autoSendModalOpen && !window.autoSendSyncLocked) {
+                            updateAutoSendSettingsDisplay();
+                            updateSendButtonText();
+                        }
+                    } else if (window.autoSendModalOpen) {
+                        console.log('🔄 PostRestoreSync: 모달이 열려있어서 토글 상태 변경 건너뜀');
+                    } else if (window.autoSendSyncLocked) {
+                        console.log('🔄 PostRestoreSync: 동기화 잠금 상태 - 토글 상태 변경 건너뜀');
                     }
-                    updateAutoSendSettingsDisplay();
-                    updateSendButtonText();
                 }
             } catch (_) {}
             if (Date.now() - startedAt < 30000) {
@@ -2039,8 +2051,8 @@ function showTelegramGroupsWindow(groups, account) {
         // 그룹 목록 렌더링
         renderGroupsList(groups);
         
-        // 자동전송 상태 복원: 그룹 렌더 직후 계정 기준으로 복원
-        if (account?.user_id) {
+        // 자동전송 상태 복원: 그룹 렌더 직후 계정 기준으로 복원 (모달이 열려있지 않을 때만)
+        if (account?.user_id && !window.autoSendModalOpen && !window.autoSendSyncLocked) {
             restoreAutoSendStatusFor(account.user_id);
             startPostRestoreSync(account.user_id);
         }
@@ -3371,6 +3383,7 @@ function setupAutoSendEventListeners() {
                 console.log('🔄 자동전송 토글 ON - 설정 모달 열기');
                 // 상태 동기화 잠금 설정 (토글이 OFF로 돌아가는 것 방지)
                 window.autoSendSyncLocked = true;
+                window.autoSendModalOpen = true; // 모달이 열려있음을 표시
                 showAutoSendSettingsModal();
                 updateSendButtonText(true); // 자동전송 ON
             } else {
@@ -3386,6 +3399,7 @@ function setupAutoSendEventListeners() {
                 hideAutoSendSettingsModal();
                 // 잠금 해제 및 설정 저장 플래그 리셋
                 window.autoSendSyncLocked = false;
+                window.autoSendModalOpen = false; // 모달 닫힘 표시
                 window.autoSendSettingsSaved = false;
                 localStorage.removeItem('autoSendSettingsSaved');
                 // 설정 표시 숨기기
@@ -3479,6 +3493,7 @@ function closeAutoSendSettingsModal() {
         toggle.checked = false;
         // 상태 동기화 잠금 해제 및 설정 저장 플래그 리셋
         window.autoSendSyncLocked = false;
+        window.autoSendModalOpen = false; // 모달 닫힘 표시
         window.autoSendSettingsSaved = false;
         localStorage.removeItem('autoSendSettingsSaved');
         updateSendButtonText(false);
@@ -3575,19 +3590,100 @@ function saveAutoSendSettings() {
     localStorage.setItem('autoSendSettingsSaved', 'true');
     console.log('✅ 자동전송 설정 저장 완료 - 토글 상태 유지');
     
-    alert('자동 전송 설정이 저장되었습니다!\n\n이제 "자동전송 시작" 버튼을 눌러서 자동전송을 시작하세요.');
-    
     // 자동 전송 토글을 ON으로 설정
     const autoSendToggle = document.getElementById('autoSendToggle');
     if (autoSendToggle) {
         autoSendToggle.checked = true;
     }
     
-    // 설정 표시 업데이트
-    updateAutoSendSettingsDisplay();
+    // 설정 모달 닫기
+    closeAutoSendSettingsModal();
     
-    // 모달 닫기
-    hideAutoSendSettingsModal();
+    // 자동전송 자동 시작
+    console.log('🚀 자동전송 설정 저장 후 자동 시작');
+    alert('자동 전송 설정이 저장되었습니다!\n\n자동전송을 시작합니다...');
+    
+    // 현재 선택된 그룹이 있는지 확인
+    const selectedGroups = Array.from(document.querySelectorAll('.group-checkbox:checked'));
+    if (selectedGroups.length === 0) {
+        alert('자동전송을 시작하려면 먼저 그룹을 선택해주세요.');
+        return;
+    }
+    
+    // 자동전송 시작
+    setTimeout(async () => {
+        try {
+            await startAutoSendWithCurrentSettings();
+        } catch (error) {
+            console.error('❌ 자동전송 자동 시작 실패:', error);
+            window.autoSendModalOpen = false; // 모달 닫힘 표시
+            alert('자동전송 시작에 실패했습니다. 다시 시도해주세요.');
+        }
+    }, 500);
+    
+    // 설정 표시 업데이트 (모달이 열려있을 때는 건너뜀)
+    if (!window.autoSendModalOpen) {
+        updateAutoSendSettingsDisplay();
+    }
+}
+
+// 현재 설정으로 자동전송 시작하는 함수
+async function startAutoSendWithCurrentSettings() {
+    try {
+        console.log('🚀 현재 설정으로 자동전송 시작');
+        
+        // 현재 선택된 그룹들
+        const selectedGroups = Array.from(document.querySelectorAll('.group-checkbox:checked'));
+        const validGroupIds = selectedGroups
+            .map(cb => cb.dataset.groupId)
+            .filter(id => id && id.trim() !== '');
+        
+        if (validGroupIds.length === 0) {
+            throw new Error('선택된 그룹이 없습니다');
+        }
+        
+        // 현재 메시지와 미디어 정보
+        const messageText = document.getElementById('messageInput')?.value?.trim() || '';
+        const mediaInfo = window.selectedMediaInfo || null;
+        
+        if (!messageText && !mediaInfo) {
+            throw new Error('메시지나 미디어를 입력해주세요');
+        }
+        
+        // 자동전송 설정 로드
+        const settings = loadAccountSettings('autoSend');
+        if (!settings) {
+            throw new Error('자동전송 설정을 찾을 수 없습니다');
+        }
+        
+        console.log('🔧 자동전송 시작 설정:', {
+            groupIds: validGroupIds,
+            message: messageText,
+            mediaInfo: mediaInfo,
+            settings: settings
+        });
+        
+        // Firebase에 설정 저장
+        await saveAutoSendSettingsToFirebase(settings);
+        
+        // 자동전송 시작
+        const success = await startAutoSendWithGroups(validGroupIds, messageText, mediaInfo);
+        
+        if (success) {
+            console.log('✅ 자동전송 시작 성공');
+            // 모달 상태 해제
+            window.autoSendModalOpen = false;
+            alert('🤖 자동전송이 시작되었습니다!\n\n설정된 간격마다 자동으로 전송됩니다.\nPC를 종료해도 계속 작동합니다.');
+        } else {
+            throw new Error('자동전송 시작에 실패했습니다');
+        }
+        
+    } catch (error) {
+        console.error('❌ 자동전송 시작 실패:', error);
+        window.autoSendModalOpen = false; // 모달 닫힘 표시
+        alert(`❌ 자동전송 시작 실패: ${error.message}`);
+        throw error;
+    }
 }
 
 // 설정 저장 후 자동전송 시작 함수
@@ -3756,6 +3852,12 @@ function updateAutoSendSettingsDisplay() {
     
     if (!settingsDisplay || !settingsInfo || !autoSendToggle) {
         console.log('❌ 필요한 요소가 없습니다');
+        return;
+    }
+    
+    // 모달이 열려있거나 잠금 상태일 때는 토글 상태를 변경하지 않음
+    if (window.autoSendModalOpen || window.autoSendSyncLocked) {
+        console.log('🔄 모달/잠금 상태 - 설정 표시 업데이트 건너뜀');
         return;
     }
     
@@ -4314,13 +4416,21 @@ async function restoreAutoSendStatusFor(userId) {
     }
         
         // 1) 토글을 서버 상태로 강제 일치(단, 설정이 저장된 상태이거나 사용자가 설정 중인 동안은 보류)
-        if (!window.autoSendSyncLocked && !window.autoSendSettingsSaved && toggle) {
+        if (!window.autoSendSyncLocked && !window.autoSendSettingsSaved && !window.autoSendModalOpen && toggle) {
+            console.log('🔄 서버 상태로 토글 변경:', data.is_running);
             toggle.checked = !!data.is_running;
             updateSendButtonText(!!data.is_running);
         } else if (window.autoSendSettingsSaved && toggle) {
             // 설정이 저장된 상태에서는 토글을 ON으로 유지
+            console.log('🔄 설정 저장됨 - 토글 ON 유지');
             toggle.checked = true;
             updateSendButtonText(true);
+        } else if (window.autoSendModalOpen && toggle) {
+            // 모달이 열려있는 동안에는 토글 상태 유지
+            console.log('🔄 모달이 열려있어서 토글 상태 변경 건너뜀 (서버 상태:', data.is_running, ')');
+        } else if (window.autoSendSyncLocked && toggle) {
+            // 동기화 잠금 상태에서는 토글 상태 유지
+            console.log('🔄 동기화 잠금 상태 - 토글 상태 변경 건너뜀 (서버 상태:', data.is_running, ')');
         }
 
         // 2) 그룹 체크박스를 서버 group_ids로 강제 반영
@@ -4642,18 +4752,23 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo) {
             console.log('✅ 자동전송 시작 성공:', autoSendResult);
             // 시작 확정 → 잠금 해제, 설정 저장 플래그 리셋, 바로 서버 상태 다시 받아 UI와 1:1 동기화
             window.autoSendSyncLocked = false;
+            window.autoSendModalOpen = false; // 모달 닫힘 표시
             window.autoSendSettingsSaved = false; // 자동전송이 시작되면 설정 저장 플래그 리셋
             localStorage.removeItem('autoSendSettingsSaved');
-            try { await restoreAutoSendStatusFor(String(account.user_id)); } catch(_){}
+            // 자동전송 시작 후에는 상태 복원하지 않음 (이미 시작된 상태이므로)
+            // try { await restoreAutoSendStatusFor(String(account.user_id)); } catch(_){}
             return true;
         } else {
             console.error('❌ 자동전송 시작 실패:', autoSendResult);
             window.autoSendSyncLocked = false; // 실패 시에도 잠금 해제
+            window.autoSendModalOpen = false; // 모달 닫힘 표시
             return false;
         }
         
     } catch (error) {
         console.error('❌ 자동전송 시작 에러:', error);
+        window.autoSendSyncLocked = false; // 에러 시에도 잠금 해제
+        window.autoSendModalOpen = false; // 모달 닫힘 표시
         return false;
     }
 }
@@ -4721,11 +4836,15 @@ async function restoreAutoSendStatusOnLoad() {
             console.log('📊 서버에서 가져온 자동전송 상태:', statusData);
             
             if (statusData.is_running) {
-                // 자동전송이 실행 중인 경우 UI 업데이트
+                // 자동전송이 실행 중인 경우 UI 업데이트 (모달이 열려있지 않을 때만)
                 const autoSendToggle = document.getElementById('autoSendToggle');
-                if (autoSendToggle) {
+                if (autoSendToggle && !window.autoSendModalOpen && !window.autoSendSyncLocked) {
                     autoSendToggle.checked = true;
                     console.log('✅ 자동전송 토글 ON으로 설정');
+                } else if (window.autoSendModalOpen) {
+                    console.log('🔄 OnLoad: 모달이 열려있어서 토글 상태 변경 건너뜀');
+                } else if (window.autoSendSyncLocked) {
+                    console.log('🔄 OnLoad: 동기화 잠금 상태 - 토글 상태 변경 건너뜀');
                 }
                 
                 // 그룹 상태 업데이트
