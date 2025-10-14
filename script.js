@@ -88,6 +88,9 @@ document.addEventListener('DOMContentLoaded', function() {
     setTimeout(() => {
         updateAutoSendSettingsDisplay();
     }, 100);
+    
+    // 로그인 상태 확인 및 자동 로그인
+    checkLoginState();
 });
 
 function initializeApp() {
@@ -102,6 +105,60 @@ function initializeApp() {
     
     // 에러 메시지 숨기기
     hideErrorMessage();
+}
+
+// 로그인 상태 확인 및 자동 로그인
+async function checkLoginState() {
+    try {
+        console.log('🔍 로그인 상태 확인 중...');
+        
+        // 저장된 사용자 이메일 확인
+        const savedEmail = localStorage.getItem('userEmail');
+        if (!savedEmail) {
+            console.log('❌ 저장된 이메일 없음, 로그인 화면 유지');
+            return;
+        }
+        
+        // Firebase에서 사용자 존재 여부 확인 (자동 로그인용)
+        const userExists = await checkUserExists(savedEmail);
+        if (userExists) {
+            console.log('✅ 자동 로그인 성공:', savedEmail);
+            
+            // 메인 앱 화면으로 전환
+            showMainApp(savedEmail);
+            
+            // 텔레그램 설정 및 자동전송 상태 복원
+            setTimeout(() => {
+                loadTelegramSettings();
+                restoreAutoSendStatusOnLoad();
+            }, 1000);
+            
+        } else {
+            console.log('❌ 자동 로그인 실패, 로그인 화면 유지');
+            // 저장된 이메일 삭제
+            localStorage.removeItem('userEmail');
+        }
+        
+    } catch (error) {
+        console.error('❌ 로그인 상태 확인 실패:', error);
+    }
+}
+
+// 로그아웃 함수
+function logout() {
+    try {
+        console.log('🚪 로그아웃 중...');
+        
+        // 저장된 이메일 삭제
+        localStorage.removeItem('userEmail');
+        
+        // 로그인 화면으로 전환
+        showLoginScreen();
+        
+        console.log('✅ 로그아웃 완료');
+    } catch (error) {
+        console.error('❌ 로그아웃 실패:', error);
+    }
 }
 
 function setupEventListeners() {
@@ -538,6 +595,26 @@ async function handleSignUp() {
 // 코드 등록 기능 제거됨
 
 // 유틸리티 함수들 - Firebase 연동
+async function checkUserExists(email) {
+    try {
+        // Firebase에서 사용자 존재 여부만 확인 (자동 로그인용)
+        const signUps = await window.firebaseService.getAllSignUps();
+        
+        for (const signUp of signUps) {
+            if (signUp.email === email) {
+                console.log(`사용자 존재 확인: ${email}`);
+                return true;
+            }
+        }
+        
+        console.log(`사용자 없음: ${email}`);
+        return false;
+    } catch (error) {
+        console.error('사용자 확인 실패:', error);
+        return false;
+    }
+}
+
 async function validateCredentials(email, password) {
     try {
         // Firebase에서 사용자 정보 확인
@@ -2118,19 +2195,12 @@ async function sendMessageToGroup() {
         return;
     }
     
-    // 자동 전송 ON 상태에서는 서버의 자동전송 API 호출
-    const autoSendToggle = document.getElementById('autoSendToggle');
-    if (autoSendToggle && autoSendToggle.checked) {
-        console.log('🔍 자동 전송 모드: 서버 자동전송 API 호출');
-        
-        // 자동전송 시작
-        const autoSendSuccess = await startAutoSendWithGroups(validGroupIds, message, mediaInfo);
-        if (autoSendSuccess) {
-            console.log('✅ 자동전송 시작 성공');
-            return; // 자동전송이 시작되면 여기서 종료
-        } else {
-            console.log('❌ 자동전송 시작 실패, 수동 전송으로 진행');
-        }
+    // 그룹 ID들 미리 추출
+    const selectedGroupIds = Array.from(checkedBoxes).map(checkbox => checkbox.dataset.groupId);
+    const validGroupIds = selectedGroupIds.filter(id => id && id !== 'undefined');
+    if (validGroupIds.length === 0) {
+        alert('선택된 그룹의 ID를 찾을 수 없습니다. 페이지를 새로고침하고 다시 시도해주세요.');
+        return;
     }
     
     // 원본 메시지 데이터가 있으면 우선 사용, 없으면 입력칸의 텍스트 사용
@@ -2159,19 +2229,25 @@ async function sendMessageToGroup() {
         message = messageInput.value.trim();
         console.log('📤 입력칸 텍스트 사용:', message);
     }
-    const selectedGroupIds = Array.from(checkedBoxes).map(checkbox => checkbox.dataset.groupId);
     
     console.log('🔍 선택된 그룹 ID들:', selectedGroupIds);
     console.log('🔍 체크된 체크박스들:', checkedBoxes);
-    
-    // 그룹 ID 유효성 검사
-    const validGroupIds = selectedGroupIds.filter(id => id && id !== 'undefined');
-    if (validGroupIds.length === 0) {
-        alert('선택된 그룹의 ID를 찾을 수 없습니다. 페이지를 새로고침하고 다시 시도해주세요.');
-        return;
-    }
-    
     console.log('🔍 유효한 그룹 ID들:', validGroupIds);
+    
+    // 자동 전송 ON 상태에서는 서버의 자동전송 API 호출
+    const autoSendToggle = document.getElementById('autoSendToggle');
+    if (autoSendToggle && autoSendToggle.checked) {
+        console.log('🔍 자동 전송 모드: 서버 자동전송 API 호출');
+        
+        // 자동전송 시작
+        const autoSendSuccess = await startAutoSendWithGroups(validGroupIds, message, mediaInfo);
+        if (autoSendSuccess) {
+            console.log('✅ 자동전송 시작 성공');
+            return; // 자동전송이 시작되면 여기서 종료
+        } else {
+            console.log('❌ 자동전송 시작 실패, 수동 전송으로 진행');
+        }
+    }
     
     // 버튼 상태 변경
     if (sendBtn) {
