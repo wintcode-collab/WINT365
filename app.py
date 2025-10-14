@@ -2631,6 +2631,7 @@ def start_auto_send_job(user_id, group_ids, message, media_info=None):
         # Firebase에 자동전송 상태 저장(선반영)
         save_auto_send_status_to_firebase(user_id, {
             'is_active': True,
+            'is_running': True,  # 자동전송 실행 상태 추가
             'group_ids': group_ids,
             'message': message,
             'media_info': media_info,
@@ -2676,16 +2677,16 @@ def stop_auto_send_job(user_id):
         if f'{user_id}_repeats' in auto_send_jobs:
             del auto_send_jobs[f'{user_id}_repeats']
         
-        # Firebase에서 자동전송 상태 삭제
+        # Firebase에서 자동전송 상태를 중지 상태로 업데이트
         try:
-            url = f"{FIREBASE_URL}/auto_send_status/{user_id}.json"
-            response = requests.delete(url, timeout=10)
-            if response.status_code == 200:
-                logger.info(f'🔥 Firebase 자동전송 상태 삭제 성공: {user_id}')
-            else:
-                logger.error(f'🔥 Firebase 자동전송 상태 삭제 실패: {response.status_code}')
+            save_auto_send_status_to_firebase(user_id, {
+                'is_active': False,
+                'is_running': False,  # 자동전송 중지 상태
+                'stopped_at': datetime.now().isoformat()
+            })
+            logger.info(f'🔥 Firebase 자동전송 상태 중지로 업데이트: {user_id}')
         except Exception as e:
-            logger.error(f'🔥 Firebase 자동전송 상태 삭제 에러: {e}')
+            logger.error(f'❌ Firebase 자동전송 상태 업데이트 에러: {e}')
         
         logger.info(f'✅ 자동전송 작업 중지됨: {user_id}')
         return True
@@ -3055,8 +3056,9 @@ def get_auto_send_status():
                 'error': '사용자 ID 또는 계정명이 필요합니다.'
             }), 400
         
-        # 현재 작업 상태 확인
-        is_running = user_id in auto_send_jobs
+        # 현재 작업 상태 확인 (Firebase 상태 우선 확인)
+        fb_status = get_auto_send_status_from_firebase(user_id) or {}
+        is_running = fb_status.get('is_running', False) or (user_id in auto_send_jobs)
         current_repeats = auto_send_jobs.get(f'{user_id}_repeats', 0)
         
         # 스케줄된 작업 개수 확인
