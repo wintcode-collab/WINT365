@@ -3821,6 +3821,16 @@ function updateSendButtonText(isAutoSend = null) {
     }
 }
 
+// API URL 관리 함수
+function getApiBaseUrl() {
+    const hostname = window.location.hostname;
+    if (hostname === 'xn--h89a770c.shop') {
+        return 'https://wint365-backend.onrender.com';
+    } else {
+        return 'http://localhost:3000';
+    }
+}
+
 // 계정별 설정 관리 함수들
 function getCurrentAccountKey() {
     const accountName = document.getElementById('selectedAccountName')?.textContent;
@@ -3934,7 +3944,7 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo) {
         }
         
         // 자동전송 시작 API 호출
-        const autoSendResponse = await fetch('/api/auto-send/start', {
+        const autoSendResponse = await fetch(`${getApiBaseUrl()}/api/auto-send/start`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

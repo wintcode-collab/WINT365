@@ -1089,6 +1089,61 @@ def health():
         'telethon_loaded': TelegramClient is not None
     })
 
+# API 테스트 엔드포인트
+@app.route('/api/test', methods=['GET', 'POST'])
+def api_test():
+    """API 연결 테스트"""
+    logger.info('🔥 API 테스트 엔드포인트 호출됨!')
+    return jsonify({
+        'success': True,
+        'message': 'API 연결 성공',
+        'method': request.method,
+        'timestamp': datetime.now().isoformat()
+    })
+
+# Firebase 연결 테스트 API
+@app.route('/api/firebase/test', methods=['GET'])
+def test_firebase_connection():
+    """Firebase 연결 테스트"""
+    try:
+        import requests
+        
+        # Firebase Realtime Database에 테스트 데이터 쓰기
+        test_data = {
+            'test': {
+                'timestamp': datetime.now().isoformat(),
+                'message': 'Firebase 연결 테스트',
+                'server': 'Render'
+            }
+        }
+        
+        url = f"{FIREBASE_URL}/test.json"
+        response = requests.put(url, json=test_data, timeout=10)
+        
+        if response.status_code == 200:
+            logger.info('✅ Firebase 연결 성공')
+            return jsonify({
+                'success': True,
+                'message': 'Firebase 연결 성공',
+                'firebase_url': FIREBASE_URL,
+                'timestamp': datetime.now().isoformat()
+            })
+        else:
+            logger.error(f'❌ Firebase 연결 실패: {response.status_code}')
+            return jsonify({
+                'success': False,
+                'error': f'Firebase 연결 실패: {response.status_code}',
+                'firebase_url': FIREBASE_URL
+            }), 500
+            
+    except Exception as e:
+        logger.error(f'❌ Firebase 연결 테스트 에러: {e}')
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'firebase_url': FIREBASE_URL
+        }), 500
+
 # 텔레그램 계정 목록 로딩 엔드포인트
 
 @app.route('/api/telegram/load-accounts', methods=['GET'])
@@ -2740,6 +2795,9 @@ def save_auto_send_settings():
 def start_auto_send():
     """자동전송 시작"""
     try:
+        logger.info('🔥 자동전송 API 호출됨!')
+        logger.info(f'🔥 요청 데이터: {request.get_json()}')
+        
         data = request.get_json()
         account_name = data.get('account_name')
         group_ids = data.get('group_ids', [])
