@@ -3773,12 +3773,13 @@ function updateAutoSendSettingsDisplay() {
     }
 }
 
-// 그룹별 실시간 상태 업데이트
+// 그룹별 실시간 상태 업데이트 (순차 처리로 동시 요청 제한)
 async function updateGroupStatusRealtime() {
     try {
         const groupItems = document.querySelectorAll('.group-item');
-        console.log(`🔄 ${groupItems.length}개 그룹의 상태 업데이트 시작`);
+        console.log(`🔄 ${groupItems.length}개 그룹의 상태 업데이트 시작 (순차 처리)`);
         
+        // 순차 처리로 동시 요청 제한
         for (const groupItem of groupItems) {
             const groupId = groupItem.dataset.groupId;
             if (!groupId) continue;
@@ -3827,9 +3828,12 @@ async function updateGroupStatusRealtime() {
                     autoStatusElement.style.color = '#666';
                 }
             }
+            
+            // 각 그룹 처리 후 1초 대기 (동시 요청 제한)
+            await new Promise(resolve => setTimeout(resolve, 1000));
         }
         
-        console.log('✅ 그룹 상태 업데이트 완료');
+        console.log('✅ 그룹 상태 업데이트 완료 (순차 처리)');
     } catch (error) {
         console.error('❌ 그룹 상태 업데이트 실패:', error);
     }
@@ -3924,8 +3928,8 @@ function startRealtimeUpdates() {
     // 초기 업데이트
     updateGroupStatusRealtime();
     
-    // 30초마다 업데이트
-    setInterval(updateGroupStatusRealtime, 30000);
+    // 5분마다 업데이트 (30초 → 5분으로 변경)
+    setInterval(updateGroupStatusRealtime, 300000);
 }
 
 

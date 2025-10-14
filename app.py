@@ -2734,14 +2734,29 @@ def check_telegram_group_message_count(account_info, group_id):
                     logger.error('❌ 클라이언트 연결 실패')
                     return 0
                 
-                # 그룹 엔티티 가져오기 (에러 처리 개선)
+                # 그룹 엔티티 가져오기 (다양한 타입 시도)
+                group_entity = None
+                group_id_int = int(group_id)
+                
+                # 1. 원본 ID로 시도
                 try:
-                    group_id_int = int(group_id)
                     group_entity = await client.get_entity(group_id_int)
-                    logger.info(f'📊 그룹 엔티티 가져오기 성공: {group_entity.title}')
+                    logger.info(f'📊 원본 ID로 엔티티 가져오기 성공: {group_entity.title}')
                 except Exception as e:
-                    logger.error(f'❌ 그룹 엔티티 가져오기 실패: {e}')
-                    # 사용자 ID로 직접 접근 시도
+                    logger.error(f'❌ 원본 ID로 엔티티 가져오기 실패: {e}')
+                
+                # 2. 그룹 ID로 시도 (음수 변환)
+                if not group_entity:
+                    try:
+                        # 양수 ID를 그룹 ID로 변환
+                        group_id_negative = -1000000000000 - group_id_int
+                        group_entity = await client.get_entity(group_id_negative)
+                        logger.info(f'📊 음수 ID로 엔티티 가져오기 성공: {group_entity.title}')
+                    except Exception as e:
+                        logger.error(f'❌ 음수 ID로 엔티티 가져오기 실패: {e}')
+                
+                # 3. 사용자 ID로 시도
+                if not group_entity:
                     try:
                         from telethon.tl.types import PeerUser
                         group_entity = await client.get_entity(PeerUser(group_id_int))
