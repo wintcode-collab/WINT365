@@ -1983,6 +1983,15 @@ function startPostRestoreSync(userId) {
                     // 토글/버튼 상태 반영
                     const toggle = document.getElementById('autoSendToggle');
                     if (toggle) toggle.checked = !!data.is_running;
+                    if (!data.is_running) {
+                        // OFF이면 로컬 스냅샷 제거 및 체크 해제로 UI 초기화
+                        try {
+                            const key = getCurrentAccountKey ? getCurrentAccountKey() : null;
+                            if (key) localStorage.removeItem(`${key}_selectedGroups`);
+                            document.querySelectorAll('.group-checkbox').forEach(cb => (cb.checked = false));
+                            updateSelectedGroupsCount();
+                        } catch (_) {}
+                    }
                     updateAutoSendSettingsDisplay();
                     updateSendButtonText();
                 }
@@ -2100,10 +2109,11 @@ function renderGroupsList(groups) {
         checkbox.addEventListener('change', function() {
             updateSelectedGroupsCount();
             updateGroupItemVisualState(this);
-            // 변경 즉시 계정별 선택 그룹 저장
+            // ON 상태에서만 변경 스냅샷 저장
             try {
+                const toggle = document.getElementById('autoSendToggle');
                 const key = getCurrentAccountKey ? getCurrentAccountKey() : null;
-                if (key) {
+                if (toggle && toggle.checked && key) {
                     const ids = Array.from(document.querySelectorAll('.group-checkbox:checked')).map(cb => cb.dataset.groupId);
                     localStorage.setItem(`${key}_selectedGroups`, JSON.stringify(ids));
                 }
@@ -2323,10 +2333,11 @@ async function sendMessageToGroup() {
         alert('선택된 그룹의 ID를 찾을 수 없습니다. 페이지를 새로고침하고 다시 시도해주세요.');
         return;
     }
-    // 현재 선택 그룹을 계정별로 즉시 저장(복원용)
+    // ON으로 시작할 때만 현재 선택 그룹을 계정별로 저장(복원 스냅샷)
     try {
+        const toggle = document.getElementById('autoSendToggle');
         const key = getCurrentAccountKey ? getCurrentAccountKey() : null;
-        if (key) {
+        if (toggle && toggle.checked && key) {
             localStorage.setItem(`${key}_selectedGroups`, JSON.stringify(validGroupIds));
         }
     } catch (e) { console.warn('선택 그룹 저장 실패', e); }
