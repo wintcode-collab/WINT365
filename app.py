@@ -3051,8 +3051,14 @@ def get_auto_send_status():
         # 스케줄된 작업 개수 확인
         scheduled_jobs = len(schedule.jobs)
         
-        # 설정 조회
+        # 설정 조회 (평탄화된 설정)
         settings = get_auto_send_settings_from_firebase(user_id)
+
+        # Firebase에 저장된 최신 상태(그룹/메시지/미디어)를 함께 반환하여 프론트가 서버 상태를 1:1로 복원할 수 있게 함
+        fb_status = get_auto_send_status_from_firebase(user_id) or {}
+        fb_group_ids = fb_status.get('group_ids', [])
+        fb_message = fb_status.get('message')
+        fb_media_info = fb_status.get('media_info')
         
         logger.info(f'🤖 자동전송 상태 조회: user_id={user_id}, is_running={is_running}, scheduled_jobs={scheduled_jobs}')
         
@@ -3062,7 +3068,10 @@ def get_auto_send_status():
             'current_repeats': current_repeats,
             'scheduled_jobs': scheduled_jobs,
             'settings': settings,
-            'job_info': auto_send_jobs.get(user_id) if is_running else None
+            'job_info': auto_send_jobs.get(user_id) if is_running else None,
+            'group_ids': fb_group_ids,
+            'message': fb_message,
+            'media_info': fb_media_info
         })
         
     except Exception as error:

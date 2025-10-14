@@ -3964,20 +3964,53 @@ async function restoreAutoSendStatusFor(userId) {
         const data = await resp.json();
         console.log('📊 특정 계정 상태:', data);
         const toggle = document.getElementById('autoSendToggle');
-        if (data && data.success && toggle) {
-            if (!data.is_running) {
-                // 서버 메모리에 없지만 Firebase에 활성이면 재개 시도
-                if (data.settings) {
-                    try {
-                        await fetch(`${getApiBaseUrl()}/api/auto-send/resume-if-active`, {
-                            method: 'POST', headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ userId })
-                        });
-                    } catch (e) { /* noop */ }
-                }
-            }
+        if (!(data && data.success)) return;
+
+        // 1) 토글을 서버 상태로 강제 일치
+        if (toggle) {
             toggle.checked = !!data.is_running;
             updateSendButtonText(!!data.is_running);
+        }
+
+        // 2) 그룹 체크박스를 서버 group_ids로 강제 반영
+        try {
+            const serverGroups = Array.isArray(data.group_ids) ? data.group_ids.map(String) : [];
+            const allCbs = document.querySelectorAll('.group-checkbox');
+            allCbs.forEach(cb => {
+                const gid = cb.dataset.groupId;
+                cb.checked = serverGroups.includes(String(gid));
+            });
+            updateSelectedGroupsCount();
+        } catch (_) {}
+
+        // 3) 저장된 메시지/미디어 강제 반영
+        try {
+            if (data.media_info || data.message) {
+                window.selectedMediaInfo = data.media_info || null;
+                const messageInput = document.querySelector('.message-input');
+                if (window.selectedMediaInfo) {
+                    if (messageInput) {
+                        messageInput.value = '';
+                        messageInput.placeholder = '💾 저장된 메시지가 선택되었습니다. 해제 후 입력하세요.';
+                        messageInput.disabled = true;
+                        messageInput.style.backgroundColor = '#f0f0f0';
+                        messageInput.style.cursor = 'not-allowed';
+                    }
+                } else if (messageInput) {
+                    messageInput.value = data.message || '';
+                    messageInput.disabled = false;
+                    messageInput.style.backgroundColor = '';
+                    messageInput.style.cursor = '';
+                }
+            }
+        } catch (_) {}
+
+        // 4) 서버가 is_running:false면 로컬 스냅샷 제거 및 UI 초기화(이전 로직 유지)
+        if (!data.is_running) {
+            try {
+                const key = getCurrentAccountKey ? getCurrentAccountKey() : null;
+                if (key) localStorage.removeItem(`${key}_selectedGroups`);
+            } catch (_) {}
         }
     } catch (e) {
         console.warn('상태 복원 실패:', e);
