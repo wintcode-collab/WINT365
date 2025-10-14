@@ -2504,10 +2504,9 @@ def execute_auto_send_job(user_id, group_ids, message, media_info=None):
         success_count = 0
         for i, group_id in enumerate(group_ids):
             try:
-                # 두 가지 조건 확인: 메시지 개수 + 재전송 텀
-                settings_data = settings.get('settings', {})
-                enable_message_check = settings_data.get('enableMessageCheck', False)
-                message_threshold = settings_data.get('messageThreshold', 5)
+                # 두 가지 조건 확인: 메시지 개수 + 재전송 텀 (평탄화된 설정 사용)
+                enable_message_check = settings.get('enableMessageCheck', False)
+                message_threshold = settings.get('messageThreshold', 5)
                 repeat_interval = settings.get('repeatInterval', 30)  # 분 단위
                 
                 # 조건 1: 메시지 개수 확인 (첫 발송이 아닌 경우에만)

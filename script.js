@@ -2354,8 +2354,13 @@ async function sendMessageToGroup() {
         console.log('🔥 API URL 확인:', getApiBaseUrl());
         
         // 자동전송 설정이 Firebase에 저장되어 있는지 확인하고 저장
-        const currentSettings = getGroupInterval();
-        console.log('🔥 현재 자동전송 설정:', currentSettings);
+        // 전체 자동전송 설정 객체 확보(계정별 저장값 우선)
+        let currentSettings = loadAccountSettings('autoSend');
+        if (!currentSettings || typeof currentSettings !== 'object') {
+            // 최소 기본값 보정
+            currentSettings = { groupInterval: 30, repeatInterval: 30, maxRepeats: 10, messageThreshold: 5, enableMessageCheck: false };
+        }
+        console.log('🔥 현재 자동전송 설정(객체):', currentSettings);
         
         // Firebase에 설정 저장
         console.log('🔥 자동전송 시작 전 Firebase 설정 저장');
