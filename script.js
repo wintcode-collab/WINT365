@@ -3850,7 +3850,7 @@ function updateSendButtonText(isAutoSend = null) {
 // API URL 관리 함수
 function getApiBaseUrl() {
     // HTTPS 로컬 서버 사용 (Mixed Content 문제 해결)
-    const url = 'https://192.168.55.248:3000';
+    const url = 'https://192.168.55.248:10000';
     console.log('🔥 API URL: HTTPS 로컬 서버 사용 -', url);
     console.log('🔥 현재 호스트:', window.location.hostname);
     return url;
