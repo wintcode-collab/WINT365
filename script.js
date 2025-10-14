@@ -4,7 +4,6 @@ let isCodeMode = false;
 let isCodeRegistrationMode = false;
 let isAnimationRunning = false;
 let currentAnimationTimer = null;
-let autoSendSyncLocked = false; // 자동전송 동기화 잠금 상태
 
 // 텔레그램 인증 관련 변수
 let telegramClient = null;
@@ -95,10 +94,6 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function initializeApp() {
-    // 🔥 자동전송 잠금 상태 초기화
-    autoSendSyncLocked = false;
-    console.log('🔓 자동전송 잠금 상태 초기화');
-    
     // 로컬 스토리지에서 설정 로드
     loadUserSettings();
     
@@ -1988,39 +1983,17 @@ function startPostRestoreSync(userId) {
                     // 토글/버튼 상태 반영
                     const toggle = document.getElementById('autoSendToggle');
                     if (toggle) toggle.checked = !!data.is_running;
+                    if (!data.is_running) {
+                        // OFF이면 로컬 스냅샷 제거 및 체크 해제로 UI 초기화
+                        try {
+                            const key = getCurrentAccountKey ? getCurrentAccountKey() : null;
+                            if (key) localStorage.removeItem(`${key}_selectedGroups`);
+                            document.querySelectorAll('.group-checkbox').forEach(cb => (cb.checked = false));
+                            updateSelectedGroupsCount();
+                        } catch (_) {}
+                    }
                     updateAutoSendSettingsDisplay();
                     updateSendButtonText();
-                    // 서버 상태로 그룹 체크박스 강제 동기화
-                    try {
-                        const serverGroups = Array.isArray(data.group_ids) ? data.group_ids.map(String) : [];
-                        const allCbs = document.querySelectorAll('.group-checkbox');
-                        allCbs.forEach(cb => {
-                            const gid = cb.dataset.groupId;
-                            cb.checked = serverGroups.includes(String(gid));
-                        });
-                        updateSelectedGroupsCount();
-                    } catch (_) {}
-                    // 서버 상태로 저장된 메시지 강제 동기화
-                    try {
-                        if (data.media_info || data.message) {
-                            window.selectedMediaInfo = data.media_info || null;
-                            const messageInput = document.querySelector('.message-input');
-                            if (window.selectedMediaInfo) {
-                                if (messageInput) {
-                                    messageInput.value = '';
-                                    messageInput.placeholder = '💾 저장된 메시지가 선택되었습니다. 해제 후 입력하세요.';
-                                    messageInput.disabled = true;
-                                    messageInput.style.backgroundColor = '#f0f0f0';
-                                    messageInput.style.cursor = 'not-allowed';
-                                }
-                            } else if (messageInput) {
-                                messageInput.value = data.message || '';
-                                messageInput.disabled = false;
-                                messageInput.style.backgroundColor = '';
-                                messageInput.style.cursor = '';
-                            }
-                        }
-                    } catch (_) {}
                 }
             } catch (_) {}
             if (Date.now() - startedAt < 30000) {
@@ -3337,17 +3310,9 @@ function setupAutoSendEventListeners() {
             
             if (this.checked) {
                 // 상태 동기화 잠금: 시작 확정 전까지 서버 상태로 UI를 덮어쓰지 않음
-                autoSendSyncLocked = true;
+                window.autoSendSyncLocked = true;
                 showAutoSendSettingsModal();
                 updateSendButtonText(true); // 자동전송 ON
-                
-                // 🔥 잠금 해제 타이머: 5초 후 자동 해제 (안전장치)
-                setTimeout(() => {
-                    if (autoSendSyncLocked) {
-                        console.log('⏰ 자동전송 잠금 자동 해제 (5초 타임아웃)');
-                        autoSendSyncLocked = false;
-                    }
-                }, 5000);
             } else {
                 // 자동전송 중지
                 if (window.stopAutoSend) {
@@ -3357,7 +3322,7 @@ function setupAutoSendEventListeners() {
                 }
                 hideAutoSendSettingsModal();
                 // 잠금 해제
-                autoSendSyncLocked = false;
+                window.autoSendSyncLocked = false;
                 // 설정 표시 숨기기
                 const settingsDisplay = document.getElementById('autoSendSettingsDisplay');
                 if (settingsDisplay) {
@@ -3435,10 +3400,6 @@ function hideAutoSendSettingsModal() {
     if (modal) {
         modal.style.display = 'none';
     }
-    
-    // 🔥 모달 숨길 때 잠금 해제
-    autoSendSyncLocked = false;
-    console.log('🔓 자동전송 잠금 해제 (모달 숨기기)');
 }
 
 // 자동 전송 설정 모달 닫기 (X 버튼으로 닫을 때)
@@ -3451,11 +3412,6 @@ function closeAutoSendSettingsModal() {
     if (toggle) {
         toggle.checked = false;
     }
-    
-    // 🔥 모달 닫을 때 잠금 해제
-    autoSendSyncLocked = false;
-    console.log('🔓 자동전송 잠금 해제 (모달 닫기)');
-}
     // 설정 표시 숨기기
     const settingsDisplay = document.getElementById('autoSendSettingsDisplay');
     if (settingsDisplay) {
@@ -3650,11 +3606,6 @@ async function checkSelectedGroupsMessageCount() {
 
 // 자동 전송 설정 표시 업데이트
 function updateAutoSendSettingsDisplay() {
-    if (autoSendSyncLocked) {
-        console.log('🔒 자동전송 동기화 잠금 중 - 설정 표시 업데이트 건너뜀');
-        return;
-    }
-    
     console.log('🔍 자동 전송 설정 표시 업데이트 중...');
     
     const settingsDisplay = document.getElementById('autoSendSettingsDisplay');
@@ -3702,13 +3653,15 @@ function updateAutoSendSettingsDisplay() {
             settingsInfo.innerHTML = '';
             settingsDisplay.style.display = 'block';
             
-            // 🔥 무한 루프 방지: setTimeout 제거하고 즉시 표시
+            // 각 설정을 0.5초 간격으로 순차적으로 추가
             settingsTexts.forEach((text, index) => {
-                if (index === 0) {
-                    settingsInfo.innerHTML = `<span class="setting-item">${text}</span>`;
-                } else {
-                    settingsInfo.innerHTML += `<span class="setting-item">${text}</span>`;
-                }
+                setTimeout(() => {
+                    if (index === 0) {
+                        settingsInfo.innerHTML = `<span class="setting-item">${text}</span>`;
+                    } else {
+                        settingsInfo.innerHTML += `<span class="setting-item">${text}</span>`;
+                    }
+                }, index * 500); // 0.5초 간격
             });
             
             console.log('✅ 설정 표시 완료');
@@ -4018,14 +3971,14 @@ async function restoreAutoSendStatusFor(userId) {
         if (!(data && data.success)) return;
 
         // 1) 토글을 서버 상태로 강제 일치(단, 사용자가 ON을 눌러 설정 중인 동안은 잠시 보류)
-        if (!autoSendSyncLocked && toggle) {
+        if (!window.autoSendSyncLocked && toggle) {
             toggle.checked = !!data.is_running;
             updateSendButtonText(!!data.is_running);
         }
 
         // 2) 그룹 체크박스를 서버 group_ids로 강제 반영
         try {
-            if (!autoSendSyncLocked) {
+            if (!window.autoSendSyncLocked) {
                 const serverGroups = Array.isArray(data.group_ids) ? data.group_ids.map(String) : [];
                 const allCbs = document.querySelectorAll('.group-checkbox');
                 allCbs.forEach(cb => {
@@ -4038,7 +3991,7 @@ async function restoreAutoSendStatusFor(userId) {
 
         // 3) 저장된 메시지/미디어 강제 반영
         try {
-            if (!autoSendSyncLocked && (data.media_info || data.message)) {
+            if (!window.autoSendSyncLocked && (data.media_info || data.message)) {
                 window.selectedMediaInfo = data.media_info || null;
                 const messageInput = document.querySelector('.message-input');
                 if (window.selectedMediaInfo) {
@@ -4321,12 +4274,12 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo) {
         if (autoSendResponse.ok && autoSendResult.success) {
             console.log('✅ 자동전송 시작 성공:', autoSendResult);
             // 시작 확정 → 잠금 해제, 바로 서버 상태 다시 받아 UI와 1:1 동기화
-            autoSendSyncLocked = false;
+            window.autoSendSyncLocked = false;
             try { await restoreAutoSendStatusFor(String(account.user_id)); } catch(_){}
             return true;
         } else {
             console.error('❌ 자동전송 시작 실패:', autoSendResult);
-            autoSendSyncLocked = false; // 실패 시에도 잠금 해제
+            window.autoSendSyncLocked = false; // 실패 시에도 잠금 해제
             return false;
         }
         
