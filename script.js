@@ -2380,16 +2380,17 @@ async function sendMessageToGroup() {
         console.log('🔍 자동 전송 모드: 서버 자동전송 API 호출');
         console.log('🔥 API URL 확인:', getApiBaseUrl());
         
-        // 자동전송 설정이 Firebase에 저장되어 있는지 확인하고 저장
-        // 전체 자동전송 설정 객체 확보(계정별 저장값 우선)
+        // 자동전송 설정이 Firebase에 저장되어 있는지 확인
         let currentSettings = loadAccountSettings('autoSend');
         if (!currentSettings || typeof currentSettings !== 'object') {
-            // 최소 기본값 보정
-            currentSettings = { groupInterval: 30, repeatInterval: 30, maxRepeats: 10, messageThreshold: 5, enableMessageCheck: false };
+            console.log('⚠️ 자동전송 설정이 없습니다. 설정 모달을 열어서 설정을 저장해주세요.');
+            alert('자동전송을 시작하려면 먼저 자동전송 설정을 저장해주세요.\n\n자동전송 토글을 클릭하여 설정을 완료한 후 다시 시도해주세요.');
+            return;
         }
+        
         console.log('🔥 현재 자동전송 설정(객체):', currentSettings);
         
-        // Firebase에 설정 저장
+        // Firebase에 설정 저장 (최신 설정으로 업데이트)
         console.log('🔥 자동전송 시작 전 Firebase 설정 저장');
         await saveAutoSendSettingsToFirebase(currentSettings);
         
@@ -3310,7 +3311,9 @@ function setupAutoSendEventListeners() {
             }
             
             if (this.checked) {
-                // 상태 동기화 잠금: 시작 확정 전까지 서버 상태로 UI를 덮어쓰지 않음
+                // 자동전송 토글 ON - 설정 모달만 열고 자동전송은 시작하지 않음
+                console.log('🔄 자동전송 토글 ON - 설정 모달 열기');
+                // 상태 동기화 잠금 설정 (토글이 OFF로 돌아가는 것 방지)
                 window.autoSendSyncLocked = true;
                 showAutoSendSettingsModal();
                 updateSendButtonText(true); // 자동전송 ON
@@ -3325,8 +3328,9 @@ function setupAutoSendEventListeners() {
                     console.warn('⚠️ stopAutoSend 가 아직 로드되지 않음');
                 }
                 hideAutoSendSettingsModal();
-                // 잠금 해제
+                // 잠금 해제 및 설정 저장 플래그 리셋
                 window.autoSendSyncLocked = false;
+                window.autoSendSettingsSaved = false;
                 // 설정 표시 숨기기
                 const settingsDisplay = document.getElementById('autoSendSettingsDisplay');
                 if (settingsDisplay) {
@@ -3413,13 +3417,18 @@ function closeAutoSendSettingsModal() {
     if (modal) {
         modal.style.display = 'none';
     }
-    // 토글 상태를 강제로 변경하지 않음 - 사용자가 설정을 저장하지 않고 닫은 경우에만 OFF
-    if (toggle && !toggle.checked) {
-        // 이미 OFF 상태라면 설정 표시만 숨기기
-        const settingsDisplay = document.getElementById('autoSendSettingsDisplay');
-        if (settingsDisplay) {
-            settingsDisplay.style.display = 'none';
-        }
+    // 설정을 저장하지 않고 닫은 경우 토글을 OFF로 변경
+    if (toggle && toggle.checked) {
+        toggle.checked = false;
+        // 상태 동기화 잠금 해제 및 설정 저장 플래그 리셋
+        window.autoSendSyncLocked = false;
+        window.autoSendSettingsSaved = false;
+        updateSendButtonText(false);
+    }
+    // 설정 표시 숨기기
+    const settingsDisplay = document.getElementById('autoSendSettingsDisplay');
+    if (settingsDisplay) {
+        settingsDisplay.style.display = 'none';
     }
 }
 
@@ -3485,11 +3494,14 @@ function saveAutoSendSettings() {
     // Firebase에 자동전송 설정 저장
     console.log('🔥 자동전송 설정 저장 시작 - Firebase 호출');
     saveAutoSendSettingsToFirebase(settings).then(() => {
-        // 설정 저장 완료 후 자동전송 시작
-        console.log('⏰ 자동전송 설정 저장 완료, 자동전송 시작');
-        setTimeout(() => {
-            startAutoSendAfterSettingsSaved();
-        }, 500); // 0.5초 대기 후 자동전송 시작
+        // 설정 저장 완료 - 자동전송은 시작하지 않음
+        console.log('⏰ 자동전송 설정 저장 완료');
+        
+        // 설정 저장 완료 표시 - 토글 상태 유지
+        window.autoSendSettingsSaved = true;
+        console.log('✅ 자동전송 설정 저장 완료 - 토글 상태 유지');
+        
+        alert('자동 전송 설정이 저장되었습니다!\n\n이제 "자동전송 시작" 버튼을 눌러서 자동전송을 시작하세요.');
     }).catch((error) => {
         console.error('❌ 자동전송 설정 저장 실패:', error);
         alert('자동전송 설정 저장에 실패했습니다.');
@@ -4023,10 +4035,14 @@ async function restoreAutoSendStatusFor(userId) {
         const toggle = document.getElementById('autoSendToggle');
         if (!(data && data.success)) return;
 
-        // 1) 토글을 서버 상태로 강제 일치(단, 사용자가 ON을 눌러 설정 중인 동안은 잠시 보류)
-        if (!window.autoSendSyncLocked && toggle) {
+        // 1) 토글을 서버 상태로 강제 일치(단, 설정이 저장된 상태이거나 사용자가 설정 중인 동안은 보류)
+        if (!window.autoSendSyncLocked && !window.autoSendSettingsSaved && toggle) {
             toggle.checked = !!data.is_running;
             updateSendButtonText(!!data.is_running);
+        } else if (window.autoSendSettingsSaved && toggle) {
+            // 설정이 저장된 상태에서는 토글을 ON으로 유지
+            toggle.checked = true;
+            updateSendButtonText(true);
         }
 
         // 2) 그룹 체크박스를 서버 group_ids로 강제 반영
@@ -4329,8 +4345,9 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo) {
         
         if (autoSendResponse.ok && autoSendResult.success) {
             console.log('✅ 자동전송 시작 성공:', autoSendResult);
-            // 시작 확정 → 잠금 해제, 바로 서버 상태 다시 받아 UI와 1:1 동기화
+            // 시작 확정 → 잠금 해제, 설정 저장 플래그 리셋, 바로 서버 상태 다시 받아 UI와 1:1 동기화
             window.autoSendSyncLocked = false;
+            window.autoSendSettingsSaved = false; // 자동전송이 시작되면 설정 저장 플래그 리셋
             try { await restoreAutoSendStatusFor(String(account.user_id)); } catch(_){}
             return true;
         } else {
