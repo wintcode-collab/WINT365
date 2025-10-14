@@ -3487,7 +3487,9 @@ function saveAutoSendSettings() {
     saveAutoSendSettingsToFirebase(settings).then(() => {
         // 설정 저장 완료 후 자동전송 시작
         console.log('⏰ 자동전송 설정 저장 완료, 자동전송 시작');
-        startAutoSendAfterSettingsSaved();
+        setTimeout(() => {
+            startAutoSendAfterSettingsSaved();
+        }, 500); // 0.5초 대기 후 자동전송 시작
     }).catch((error) => {
         console.error('❌ 자동전송 설정 저장 실패:', error);
         alert('자동전송 설정 저장에 실패했습니다.');
@@ -3513,27 +3515,32 @@ async function startAutoSendAfterSettingsSaved() {
         
         // 현재 선택된 그룹들 확인
         const checkedBoxes = document.querySelectorAll('.group-checkbox:checked');
-        if (checkedBoxes.length === 0) {
-            console.log('⚠️ 선택된 그룹이 없어 자동전송을 시작할 수 없습니다');
-            alert('자동전송을 시작하려면 그룹을 선택해주세요.');
-            return;
-        }
-        
         const selectedGroupIds = Array.from(checkedBoxes).map(checkbox => checkbox.dataset.groupId);
         console.log('📋 선택된 그룹들:', selectedGroupIds);
         
         // 현재 메시지 확인
         const messageInput = document.querySelector('.message-input');
         const message = messageInput ? messageInput.value.trim() : '';
-        
-        if (!message) {
-            console.log('⚠️ 메시지가 없어 자동전송을 시작할 수 없습니다');
-            alert('자동전송을 시작하려면 메시지를 입력해주세요.');
-            return;
-        }
+        console.log('📝 현재 메시지:', message ? '있음' : '없음');
         
         // 미디어 정보 확인
         const mediaInfo = window.selectedMediaInfo || null;
+        console.log('📎 미디어 정보:', mediaInfo ? '있음' : '없음');
+        
+        // 조건 검증 - 그룹이나 메시지가 없으면 사용자에게 알림
+        if (selectedGroupIds.length === 0) {
+            console.log('⚠️ 선택된 그룹이 없어 자동전송을 시작할 수 없습니다');
+            alert('자동전송을 시작하려면 그룹을 선택해주세요.');
+            return;
+        }
+        
+        if (!message && !mediaInfo) {
+            console.log('⚠️ 메시지와 미디어가 모두 없어 자동전송을 시작할 수 없습니다');
+            alert('자동전송을 시작하려면 메시지나 미디어를 입력해주세요.');
+            return;
+        }
+        
+        console.log('✅ 자동전송 시작 조건 만족, API 호출 시작');
         
         // 자동전송 시작
         const success = await startAutoSendWithGroups(selectedGroupIds, message, mediaInfo);
@@ -4152,7 +4159,7 @@ async function saveAutoSendSettingsToFirebase(settings) {
         }
         if (!userId) {
             console.error('❌ userId를 찾을 수 없어 Firebase 저장 불가');
-            return;
+            throw new Error('userId를 찾을 수 없습니다');
         }
 
         console.log('🔥 Firebase 자동전송 설정 저장 시작:', userId, settings);
