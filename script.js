@@ -95,6 +95,10 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function initializeApp() {
+    // 🔥 자동전송 잠금 상태 초기화
+    window.autoSendSyncLocked = false;
+    console.log('🔓 자동전송 잠금 상태 초기화');
+    
     // 로컬 스토리지에서 설정 로드
     loadUserSettings();
     
@@ -3336,6 +3340,14 @@ function setupAutoSendEventListeners() {
                 window.autoSendSyncLocked = true;
                 showAutoSendSettingsModal();
                 updateSendButtonText(true); // 자동전송 ON
+                
+                // 🔥 잠금 해제 타이머: 5초 후 자동 해제 (안전장치)
+                setTimeout(() => {
+                    if (window.autoSendSyncLocked) {
+                        console.log('⏰ 자동전송 잠금 자동 해제 (5초 타임아웃)');
+                        window.autoSendSyncLocked = false;
+                    }
+                }, 5000);
             } else {
                 // 자동전송 중지
                 if (window.stopAutoSend) {
@@ -3423,6 +3435,10 @@ function hideAutoSendSettingsModal() {
     if (modal) {
         modal.style.display = 'none';
     }
+    
+    // 🔥 모달 숨길 때 잠금 해제
+    window.autoSendSyncLocked = false;
+    console.log('🔓 자동전송 잠금 해제 (모달 숨기기)');
 }
 
 // 자동 전송 설정 모달 닫기 (X 버튼으로 닫을 때)
@@ -3435,6 +3451,11 @@ function closeAutoSendSettingsModal() {
     if (toggle) {
         toggle.checked = false;
     }
+    
+    // 🔥 모달 닫을 때 잠금 해제
+    window.autoSendSyncLocked = false;
+    console.log('🔓 자동전송 잠금 해제 (모달 닫기)');
+}
     // 설정 표시 숨기기
     const settingsDisplay = document.getElementById('autoSendSettingsDisplay');
     if (settingsDisplay) {
