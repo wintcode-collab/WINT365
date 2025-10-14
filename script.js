@@ -104,6 +104,11 @@ function initializeApp() {
     // 모든 입력 필드 초기화 (이메일 제외)
     clearAllInputsExceptEmail();
     
+    // 전송 버튼 상태 초기화
+    setTimeout(() => {
+        resetSendButtonState();
+    }, 1000);
+    
     // 에러 메시지 숨기기
     hideErrorMessage();
 }
@@ -4490,7 +4495,6 @@ async function restoreAutoSendStatusFor(userId) {
     } catch (e) {
         console.warn('상태 복원 실패:', e);
     }
-    */
 }
 
 // 자동전송 중지 API 호출
@@ -4901,9 +4905,4 @@ document.addEventListener('visibilitychange', function() {
 });
 
 // 페이지 로드 시 전송 버튼 상태 초기화
-document.addEventListener('DOMContentLoaded', function() {
-    // DOM이 로드된 후 전송 버튼 상태 초기화
-    setTimeout(() => {
-        resetSendButtonState();
-    }, 1000);
-});
+// DOM이 로드된 후 전송 버튼 상태 초기화는 initializeApp에서 처리됨
