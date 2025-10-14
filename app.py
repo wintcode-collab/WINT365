@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify, send_from_directory, send_file
-from flask_cors import CORS
+from flask_cors import CORS, cross_origin
 import os
 import json
 import time
@@ -2789,6 +2789,7 @@ def run_scheduler():
 
 # 자동전송 설정 저장 API
 @app.route('/api/auto-send/save-settings', methods=['POST'])
+@cross_origin(origins=ALLOWED_ORIGINS, methods=['POST','OPTIONS'], allow_headers=['Content-Type','Authorization'], max_age=86400)
 def save_auto_send_settings():
     """자동전송 설정 저장"""
     try:
@@ -2834,6 +2835,7 @@ def save_auto_send_settings():
 
 # 자동전송 시작 API
 @app.route('/api/auto-send/start', methods=['POST'])
+@cross_origin(origins=ALLOWED_ORIGINS, methods=['POST','OPTIONS'], allow_headers=['Content-Type','Authorization'], max_age=86400)
 def start_auto_send():
     """자동전송 시작"""
     try:
