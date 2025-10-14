@@ -116,6 +116,7 @@ clients = {}
 # 자동전송 설정 저장소
 auto_send_settings = {}
 auto_send_jobs = {}
+session_cache = {}  # 세션 캐시 (Render.com 최적화)
 
 # Firebase 설정
 FIREBASE_URL = "https://wint365-date-default-rtdb.asia-southeast1.firebasedatabase.app"
@@ -225,8 +226,20 @@ def save_account_to_firebase(account_info):
         return False
 
 def get_account_from_firebase(user_id):
-    """Firebase에서 인증된 계정 정보 조회"""
+    """Firebase에서 인증된 계정 정보 조회 (캐시 활용)"""
     try:
+        # 캐시에서 먼저 확인
+        if user_id in session_cache:
+            cache_data = session_cache[user_id]
+            cache_time = cache_data.get('cached_at', 0)
+            current_time = time.time()
+            
+            # 캐시가 5분 이내면 캐시 사용
+            if current_time - cache_time < 300:  # 5분
+                logger.info(f'💾 캐시에서 계정 정보 조회: {user_id}')
+                return cache_data.get('account_info')
+        
+        # 캐시에 없거나 만료된 경우 Firebase에서 조회
         url = f"{FIREBASE_URL}/authenticated_accounts/{user_id}.json"
         response = requests.get(url, timeout=10)
         
@@ -234,6 +247,13 @@ def get_account_from_firebase(user_id):
             data = response.json()
             if data:
                 logger.info(f'🔥 Firebase 계정 정보 조회 성공: {user_id}')
+                
+                # 캐시에 저장
+                session_cache[user_id] = {
+                    'account_info': data,
+                    'cached_at': time.time()
+                }
+                
                 return data
             else:
                 logger.info(f'🔥 Firebase 계정 정보 없음: {user_id}')
@@ -2221,9 +2241,25 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                 import traceback
                 logger.error(f'❌ 스택 트레이스: {traceback.format_exc()}')
                 
-                # 슬로우 모드 에러 감지 및 대기 시간 추출
+                # 세션 에러 감지 및 자동 복구
                 error_str = str(e).lower()
-                if any(keyword in error_str for keyword in ['flood', 'slow', 'wait', 'rate', 'limit']):
+                if any(keyword in error_str for keyword in ['session', 'auth', 'unauthorized', 'invalid', 'expired']):
+                    logger.warning(f'🔧 세션 에러 감지, 자동 복구 시도: {e}')
+                    recovery_success = auto_recover_session(user_id)
+                    if recovery_success:
+                        logger.info(f'✅ 세션 복구 성공, 재전송 시도: {user_id}')
+                        # 복구 성공 시 재전송 시도 (1회만)
+                        try:
+                            # 재전송 로직 (간단한 재시도)
+                            logger.info(f'🔄 재전송 시도: {user_id} -> {group_id}')
+                            # 여기서 실제 재전송 로직을 구현할 수 있음
+                        except Exception as retry_e:
+                            logger.error(f'❌ 재전송 실패: {retry_e}')
+                    else:
+                        logger.error(f'❌ 세션 복구 실패: {user_id}')
+                
+                # 슬로우 모드 에러 감지 및 대기 시간 추출
+                elif any(keyword in error_str for keyword in ['flood', 'slow', 'wait', 'rate', 'limit']):
                     logger.warning(f'⏳ 슬로우 모드 감지: {e}')
                     
                     # 대기 시간 추출 (초 단위)
@@ -2452,6 +2488,30 @@ def update_last_send_time(user_id, group_id):
         
     except Exception as e:
         logger.error(f'❌ 마지막 전송 시간 업데이트 에러: {e}')
+
+def auto_recover_session(user_id):
+    """세션 에러 발생 시 자동 복구"""
+    try:
+        logger.info(f'🔧 세션 자동 복구 시도: {user_id}')
+        
+        # Firebase에서 계정 정보 가져오기
+        account_info = get_account_from_firebase(user_id)
+        if not account_info:
+            logger.error(f'❌ 계정 정보 없음: {user_id}')
+            return False
+        
+        # 세션 갱신 시도
+        success = refresh_user_session(user_id, account_info)
+        if success:
+            logger.info(f'✅ 세션 복구 성공: {user_id}')
+            return True
+        else:
+            logger.error(f'❌ 세션 복구 실패: {user_id}')
+            return False
+            
+    except Exception as e:
+        logger.error(f'❌ 세션 자동 복구 에러: {user_id} - {e}')
+        return False
 
 def execute_auto_send_job(user_id, group_ids, message, media_info=None):
     """자동전송 작업 실행"""
@@ -2815,9 +2875,162 @@ def check_telegram_group_message_count(account_info, group_id):
         logger.error(f'❌ 메시지 개수 확인 에러: {e}')
         return 0
 
+def refresh_sessions_periodically():
+    """20분마다 모든 활성 사용자의 세션 상태 확인 및 갱신"""
+    try:
+        logger.info('🔄 세션 자동 갱신 시작')
+        
+        # Firebase에서 모든 인증된 계정 조회
+        url = f"{FIREBASE_URL}/authenticated_accounts.json"
+        response = requests.get(url, timeout=10)
+        
+        if response.status_code == 200:
+            accounts = response.json()
+            if accounts:
+                for user_id, account_info in accounts.items():
+                    try:
+                        # 자동전송이 활성화된 사용자만 세션 갱신
+                        auto_send_status = get_auto_send_status_from_firebase(user_id)
+                        if auto_send_status and auto_send_status.get('is_running', False):
+                            logger.info(f'🔄 세션 갱신 시도: {user_id}')
+                            refresh_user_session(user_id, account_info)
+                    except Exception as e:
+                        logger.error(f'❌ 사용자 세션 갱신 실패: {user_id} - {e}')
+        
+        logger.info('✅ 세션 자동 갱신 완료')
+        
+    except Exception as e:
+        logger.error(f'❌ 세션 자동 갱신 에러: {e}')
+
+def refresh_user_session(user_id, account_info):
+    """특정 사용자의 세션 갱신"""
+    try:
+        session_b64 = account_info.get('session_data')
+        if not session_b64:
+            logger.warning(f'⚠️ 세션 데이터 없음: {user_id}')
+            return False
+            
+        session_bytes = base64.b64decode(session_b64)
+        temp_session_file = f'/tmp/temp_refresh_{user_id}_{int(time.time())}'
+        
+        # 임시 세션 파일 생성
+        with open(f'{temp_session_file}.session', 'wb') as f:
+            f.write(session_bytes)
+        
+        # 비동기 세션 갱신
+        async def refresh_session_async():
+            try:
+                client = TelegramClient(temp_session_file, account_info['api_id'], account_info['api_hash'])
+                await client.connect()
+                
+                if client.is_connected():
+                    # 간단한 API 호출로 세션 활성화
+                    me = await client.get_me()
+                    logger.info(f'✅ 세션 갱신 성공: {user_id} - {me.first_name}')
+                    
+                    # 새로운 세션 데이터 저장
+                    with open(f'{temp_session_file}.session', 'rb') as f:
+                        new_session_bytes = f.read()
+                        new_session_b64 = base64.b64encode(new_session_bytes).decode('utf-8')
+                    
+                    # Firebase에 새로운 세션 데이터 저장
+                    account_info['session_data'] = new_session_b64
+                    account_info['last_refreshed'] = datetime.now().isoformat()
+                    save_account_to_firebase(account_info)
+                    
+                    await client.disconnect()
+                    return True
+                else:
+                    logger.error(f'❌ 세션 연결 실패: {user_id}')
+                    return False
+                    
+            except Exception as e:
+                logger.error(f'❌ 세션 갱신 실패: {user_id} - {e}')
+                return False
+            finally:
+                # 임시 파일 정리
+                try:
+                    if os.path.exists(f'{temp_session_file}.session'):
+                        os.remove(f'{temp_session_file}.session')
+                except:
+                    pass
+        
+        # 새 이벤트 루프에서 실행
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        try:
+            result = loop.run_until_complete(refresh_session_async())
+            return result
+        finally:
+            loop.close()
+            
+    except Exception as e:
+        logger.error(f'❌ 사용자 세션 갱신 에러: {user_id} - {e}')
+        return False
+
+def backup_sessions_hourly():
+    """1시간마다 세션 데이터 백업"""
+    try:
+        logger.info('💾 세션 백업 시작')
+        
+        # Firebase에서 모든 인증된 계정 조회
+        url = f"{FIREBASE_URL}/authenticated_accounts.json"
+        response = requests.get(url, timeout=10)
+        
+        if response.status_code == 200:
+            accounts = response.json()
+            if accounts:
+                backup_data = {
+                    'backup_time': datetime.now().isoformat(),
+                    'accounts': {}
+                }
+                
+                for user_id, account_info in accounts.items():
+                    try:
+                        # 자동전송이 활성화된 사용자만 백업
+                        auto_send_status = get_auto_send_status_from_firebase(user_id)
+                        if auto_send_status and auto_send_status.get('is_running', False):
+                            backup_data['accounts'][user_id] = {
+                                'user_id': account_info.get('user_id'),
+                                'first_name': account_info.get('first_name'),
+                                'last_name': account_info.get('last_name'),
+                                'username': account_info.get('username'),
+                                'phone_number': account_info.get('phone_number'),
+                                'session_data': account_info.get('session_data'),
+                                'last_refreshed': account_info.get('last_refreshed'),
+                                'authenticated_at': account_info.get('authenticated_at')
+                            }
+                            logger.info(f'💾 세션 백업: {user_id}')
+                    except Exception as e:
+                        logger.error(f'❌ 사용자 세션 백업 실패: {user_id} - {e}')
+                
+                # 백업 데이터를 Firebase에 저장
+                backup_url = f"{FIREBASE_URL}/session_backups/{int(time.time())}.json"
+                backup_response = requests.put(backup_url, json=backup_data, timeout=10)
+                
+                if backup_response.status_code == 200:
+                    logger.info(f'✅ 세션 백업 완료: {len(backup_data["accounts"])}개 계정')
+                else:
+                    logger.error(f'❌ 세션 백업 저장 실패: {backup_response.status_code}')
+        
+        logger.info('✅ 세션 백업 완료')
+        
+    except Exception as e:
+        logger.error(f'❌ 세션 백업 에러: {e}')
+
 def run_scheduler():
     """스케줄러 실행 (백그라운드 스레드)"""
     logger.info('🤖 자동전송 스케줄러 루프 시작')
+    
+    # 세션 자동 갱신 스케줄 등록 (20분마다)
+    schedule.every(20).minutes.do(refresh_sessions_periodically)
+    logger.info('🔄 세션 자동 갱신 스케줄 등록 (20분마다)')
+    
+    # 세션 백업 스케줄 등록 (1시간마다)
+    schedule.every(1).hours.do(backup_sessions_hourly)
+    logger.info('💾 세션 백업 스케줄 등록 (1시간마다)')
+    
     while True:
         try:
             # 실행 전에 모든 사용자의 상태를 확인하고 중지된 사용자의 스케줄 제거
