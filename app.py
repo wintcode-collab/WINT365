@@ -2457,6 +2457,14 @@ def execute_auto_send_job(user_id, group_ids, message, media_info=None):
     """자동전송 작업 실행"""
     try:
         logger.info(f'🤖 자동전송 작업 시작: {user_id}')
+        # 안전 가드: OFF 상태면 즉시 중단
+        try:
+            status_guard = get_auto_send_status_from_firebase(user_id)
+            if not status_guard or not status_guard.get('is_active', False):
+                logger.info(f'⛔ 자동전송 비활성 상태 감지, 실행 중단: {user_id}')
+                return False
+        except Exception as _e:
+            logger.error(f'⛔ 상태 가드 확인 실패(계속 시도): {user_id} - {_e}')
         
         # 계정 정보 조회
         account_info = get_account_from_firebase(user_id)
