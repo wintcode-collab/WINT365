@@ -4014,16 +4014,31 @@ window.stopAutoSend = stopAutoSend;
 async function saveAutoSendSettingsToFirebase(settings) {
     try {
         const accountName = document.getElementById('selectedAccountName')?.textContent;
-        if (!accountName) {
-            console.error('❌ 계정명이 없어서 Firebase 저장 불가');
+        // userId 우선 확보 (숫자 ID)
+        let userId = localStorage.getItem('lastSelectedAccount')?.trim();
+        if (!userId) {
+            // 화면에서 선택된 계정의 data-user-id 조회
+            userId = document.querySelector('.account-item.selected')?.dataset?.userId?.trim() || '';
+        }
+        if (!userId) {
+            // 최후: 계정 목록에서 이름 매핑
+            try {
+                const resp = await fetch('/api/telegram/load-accounts');
+                const json = await resp.json();
+                const found = (json.accounts || []).find(acc => `${acc.first_name} ${acc.last_name || ''}`.trim() === (accountName||'').trim());
+                if (found) userId = String(found.user_id);
+            } catch {}
+        }
+        if (!userId) {
+            console.error('❌ userId를 찾을 수 없어 Firebase 저장 불가');
             return;
         }
-        
-        console.log('🔥 Firebase 자동전송 설정 저장 시작:', accountName, settings);
+
+        console.log('🔥 Firebase 자동전송 설정 저장 시작:', userId, settings);
         console.log('🔥 API URL:', `${getApiBaseUrl()}/api/auto-send/save-settings`);
         
         const requestData = {
-            userId: accountName,
+            userId: userId,
             settings: settings
         };
         console.log('🔥 전송할 데이터:', requestData);
@@ -4172,7 +4187,7 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo) {
                 'Access-Control-Allow-Origin': '*',
             },
             body: JSON.stringify({
-                account_name: accountName,
+                userId: String(account.user_id),
                 group_ids: selectedGroups,
                 message: message,
                 media_info: mediaInfo
@@ -4210,9 +4225,7 @@ function startAutoSendStatusUpdate() {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    account_name: accountName
-                })
+                body: JSON.stringify({ userId: localStorage.getItem('lastSelectedAccount') })
             });
             
             if (response.ok) {
