@@ -3849,9 +3849,9 @@ function updateSendButtonText(isAutoSend = null) {
 
 // API URL 관리 함수
 function getApiBaseUrl() {
-    // 강제로 로컬 서버 사용 (CORS 문제 해결)
-    const url = 'http://192.168.55.248:3000';
-    console.log('🔥 API URL: 로컬 서버 사용 -', url);
+    // HTTPS 로컬 서버 사용 (Mixed Content 문제 해결)
+    const url = 'https://192.168.55.248:3000';
+    console.log('🔥 API URL: HTTPS 로컬 서버 사용 -', url);
     console.log('🔥 현재 호스트:', window.location.hostname);
     return url;
 }
