@@ -173,7 +173,7 @@ async function checkLoginState() {
             setTimeout(() => {
                 loadTelegramSettings();
                 loadAutoSendSettings(); // 자동전송 설정 로드
-                restoreAutoSendStatusOnLoad();
+                restoreAutoSendStatusOnLoad(); // 페이지 로드 시 자동전송 상태 복원
                 updateSendButtonText(); // 전송 버튼 텍스트 초기화
                 updateAutoSendSettingsDisplay(); // 자동전송 설정 표시 업데이트
             }, 1000);
@@ -1912,10 +1912,10 @@ function showAccountList(accounts) {
             loadAutoSendSettings();
             updateAutoSendSettingsDisplay();
             updateSendButtonText();
-            // 서버 자동전송 상태로 토글/버튼 동기화 + 단기 재동기화 폴링 (모달이 열려있지 않을 때만)
-            if (!window.autoSendModalOpen && !window.autoSendSyncLocked) {
+            // 서버 자동전송 상태로 토글/버튼 동기화 (모달이 열려있지 않을 때만)
+            if (!window.autoSendModalOpen) {
                 restoreAutoSendStatusFor(selectedAccount.user_id);
-                startPostRestoreSync(selectedAccount.user_id);
+                // startPostRestoreSync는 비활성화 유지 (5초마다 토글 덮어쓰는 문제)
             }
         }
     });
@@ -1978,8 +1978,14 @@ function showGroupList(groups, account) {
     showTelegramGroupsWindow(groups, account);
 }
 
-// 복원 직후 단기 재동기화: 30초 동안 5초 간격으로 서버 상태와 UI를 강제 동기화
+// 복원 직후 단기 재동기화: 30초 동안 5초 간격으로 서버 상태와 UI를 강제 동기화 (비활성화)
 function startPostRestoreSync(userId) {
+    // 함수 완전 비활성화 - 사용자가 직접 토글을 조작할 때만 변경
+    console.log('🔄 PostRestoreSync 비활성화됨 - 사용자 직접 조작만 허용');
+    return;
+    
+    // 기존 코드는 주석 처리
+    /*
     try {
         const startedAt = Date.now();
         const sync = async () => {
@@ -2024,6 +2030,7 @@ function startPostRestoreSync(userId) {
         };
         setTimeout(sync, 0);
     } catch (e) { console.warn('post-restore sync 실패', e); }
+    */
 }
 
 // 텔레그램 그룹 관리 창 표시
@@ -2052,13 +2059,13 @@ function showTelegramGroupsWindow(groups, account) {
         renderGroupsList(groups);
         
         // 자동전송 상태 복원: 그룹 렌더 직후 계정 기준으로 복원 (모달이 열려있지 않을 때만)
-        if (account?.user_id && !window.autoSendModalOpen && !window.autoSendSyncLocked) {
+        if (account?.user_id && !window.autoSendModalOpen) {
             restoreAutoSendStatusFor(account.user_id);
-            startPostRestoreSync(account.user_id);
+            // startPostRestoreSync는 비활성화 유지 (5초마다 토글 덮어쓰는 문제)
         }
         
-        // 자동전송 상태 주기적 업데이트 시작
-        startAutoSendStatusUpdate();
+        // 자동전송 상태 주기적 업데이트 시작 (비활성화)
+        // startAutoSendStatusUpdate();
         
         // 그룹 전체선택 버튼 이벤트 리스너 추가
         setupGroupSelectionButtons();
@@ -4368,8 +4375,21 @@ function getApiBaseUrl() {
     return '';
 }
 
-// 서버 자동전송 상태 복원 (특정 userId)
+// 서버 자동전송 상태 복원 (특정 userId) - 모달 보호 기능 포함
 async function restoreAutoSendStatusFor(userId) {
+    try {
+        if (!userId) return;
+        console.log('🔄 특정 계정 상태 복원 시작:', userId);
+        const resp = await fetch(`${getApiBaseUrl()}/api/auto-send/status`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId })
+        });
+        const data = await resp.json();
+        console.log('📊 특정 계정 상태:', data);
+    
+    // 기존 코드는 주석 처리
+    /*
     try {
         if (!userId) return;
         console.log('🔄 특정 계정 상태 복원 시작:', userId);
@@ -4415,22 +4435,14 @@ async function restoreAutoSendStatusFor(userId) {
         }
     }
         
-        // 1) 토글을 서버 상태로 강제 일치(단, 설정이 저장된 상태이거나 사용자가 설정 중인 동안은 보류)
-        if (!window.autoSendSyncLocked && !window.autoSendSettingsSaved && !window.autoSendModalOpen && toggle) {
+        // 1) 토글을 서버 상태로 강제 일치(단, 모달이 열려있을 때만 보류)
+        if (!window.autoSendModalOpen && toggle) {
             console.log('🔄 서버 상태로 토글 변경:', data.is_running);
             toggle.checked = !!data.is_running;
             updateSendButtonText(!!data.is_running);
-        } else if (window.autoSendSettingsSaved && toggle) {
-            // 설정이 저장된 상태에서는 토글을 ON으로 유지
-            console.log('🔄 설정 저장됨 - 토글 ON 유지');
-            toggle.checked = true;
-            updateSendButtonText(true);
         } else if (window.autoSendModalOpen && toggle) {
             // 모달이 열려있는 동안에는 토글 상태 유지
             console.log('🔄 모달이 열려있어서 토글 상태 변경 건너뜀 (서버 상태:', data.is_running, ')');
-        } else if (window.autoSendSyncLocked && toggle) {
-            // 동기화 잠금 상태에서는 토글 상태 유지
-            console.log('🔄 동기화 잠금 상태 - 토글 상태 변경 건너뜀 (서버 상태:', data.is_running, ')');
         }
 
         // 2) 그룹 체크박스를 서버 group_ids로 강제 반영
@@ -4478,6 +4490,7 @@ async function restoreAutoSendStatusFor(userId) {
     } catch (e) {
         console.warn('상태 복원 실패:', e);
     }
+    */
 }
 
 // 자동전송 중지 API 호출
@@ -4838,13 +4851,11 @@ async function restoreAutoSendStatusOnLoad() {
             if (statusData.is_running) {
                 // 자동전송이 실행 중인 경우 UI 업데이트 (모달이 열려있지 않을 때만)
                 const autoSendToggle = document.getElementById('autoSendToggle');
-                if (autoSendToggle && !window.autoSendModalOpen && !window.autoSendSyncLocked) {
+                if (autoSendToggle && !window.autoSendModalOpen) {
                     autoSendToggle.checked = true;
                     console.log('✅ 자동전송 토글 ON으로 설정');
                 } else if (window.autoSendModalOpen) {
                     console.log('🔄 OnLoad: 모달이 열려있어서 토글 상태 변경 건너뜀');
-                } else if (window.autoSendSyncLocked) {
-                    console.log('🔄 OnLoad: 동기화 잠금 상태 - 토글 상태 변경 건너뜀');
                 }
                 
                 // 그룹 상태 업데이트
