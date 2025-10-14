@@ -2611,22 +2611,8 @@ def start_auto_send_job(user_id, group_ids, message, media_info=None):
         
         # 스케줄 작업 등록
         job_id = f'auto_send_{user_id}'
-        
-        def job():
-            execute_auto_send_job(user_id, group_ids, message, media_info)
-        
-        # 반복 스케줄 등록
-        schedule.every(repeat_interval).minutes.do(job)
-        # 빠른 검사 스케줄: 30초마다 조건(메시지 수 OR 시간) 충족 여부를 확인해 즉시 전송
-        try:
-            schedule.every(30).seconds.do(job)
-            logger.info('⚡ 빠른 검사 스케줄 등록(30초 간격)')
-        except Exception as _e:
-            logger.error(f'❌ 빠른 검사 스케줄 등록 실패: {_e}')
-        
-        # 즉시 한 번 실행
-        execute_auto_send_job(user_id, group_ids, message, media_info)
-        
+
+        # 먼저 메모리/Firebase 상태를 올려 프론트가 즉시 ON으로 인식하게 함
         auto_send_jobs[user_id] = {
             'job_id': job_id,
             'group_ids': group_ids,
@@ -2635,7 +2621,7 @@ def start_auto_send_job(user_id, group_ids, message, media_info=None):
             'started_at': datetime.now().isoformat()
         }
         
-        # Firebase에 자동전송 상태 저장
+        # Firebase에 자동전송 상태 저장(선반영)
         save_auto_send_status_to_firebase(user_id, {
             'is_active': True,
             'group_ids': group_ids,
@@ -2645,6 +2631,21 @@ def start_auto_send_job(user_id, group_ids, message, media_info=None):
             'job_id': job_id,
             'last_send_times': {group_id: None for group_id in group_ids}  # 각 그룹별 마지막 전송 시간
         })
+
+        def job():
+            execute_auto_send_job(user_id, group_ids, message, media_info)
+
+        # 반복 스케줄 등록
+        schedule.every(repeat_interval).minutes.do(job)
+        # 빠른 검사 스케줄: 30초마다 조건(메시지 수 OR 시간) 충족 여부를 확인해 즉시 전송
+        try:
+            schedule.every(30).seconds.do(job)
+            logger.info('⚡ 빠른 검사 스케줄 등록(30초 간격)')
+        except Exception as _e:
+            logger.error(f'❌ 빠른 검사 스케줄 등록 실패: {_e}')
+
+        # 즉시 한 번 실행은 비동기로 트리거
+        threading.Thread(target=execute_auto_send_job, args=(user_id, group_ids, message, media_info), daemon=True).start()
         
         logger.info(f'✅ 자동전송 작업 시작됨: {user_id} (간격: {repeat_interval}분)')
         return True
