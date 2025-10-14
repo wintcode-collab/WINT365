@@ -1883,7 +1883,7 @@ function showAccountList(accounts) {
     });
     
     // 확인 버튼 이벤트
-    modal.querySelector('#confirmAccountSelection').addEventListener('click', () => {
+    modal.querySelector('#confirmAccountSelection').addEventListener('click', async () => {
         if (selectedAccount) {
             console.log('📱 확인된 계정:', selectedAccount);
             
@@ -1895,18 +1895,17 @@ function showAccountList(accounts) {
                 localStorage.setItem('lastSelectedAccount', String(selectedAccount.user_id));
             } catch (e) { console.warn('lastSelectedAccount 저장 실패', e); }
             
-            // 선택된 계정으로 그룹 로드
-            loadGroupsForAccount(selectedAccount);
-            
-            // 계정 변경 시 설정 복원
-            setTimeout(() => {
-                loadTelegramSettings();
-                loadAutoSendSettings();
-                updateAutoSendSettingsDisplay();
-                updateSendButtonText();
-                // 서버 자동전송 상태로 토글/버튼 동기화
-                restoreAutoSendStatusFor(selectedAccount.user_id);
-            }, 500);
+            // 선택된 계정으로 그룹 로드(완료까지 대기)
+            await loadGroupsForAccount(selectedAccount);
+
+            // 계정 변경 시 설정 복원(그룹 렌더 완료 후 순차 복원)
+            loadTelegramSettings();
+            loadAutoSendSettings();
+            updateAutoSendSettingsDisplay();
+            updateSendButtonText();
+            // 서버 자동전송 상태로 토글/버튼 동기화 + 단기 재동기화 폴링
+            restoreAutoSendStatusFor(selectedAccount.user_id);
+            startPostRestoreSync(selectedAccount.user_id);
         }
     });
     
@@ -1968,6 +1967,34 @@ function showGroupList(groups, account) {
     showTelegramGroupsWindow(groups, account);
 }
 
+// 복원 직후 단기 재동기화: 30초 동안 5초 간격으로 서버 상태와 UI를 강제 동기화
+function startPostRestoreSync(userId) {
+    try {
+        const startedAt = Date.now();
+        const sync = async () => {
+            try {
+                const res = await fetch('/api/auto-send/status', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId })
+                });
+                const data = await res.json();
+                if (data?.success) {
+                    // 토글/버튼 상태 반영
+                    const toggle = document.getElementById('autoSendToggle');
+                    if (toggle) toggle.checked = !!data.is_running;
+                    updateAutoSendSettingsDisplay();
+                    updateSendButtonText();
+                }
+            } catch (_) {}
+            if (Date.now() - startedAt < 30000) {
+                setTimeout(sync, 5000);
+            }
+        };
+        setTimeout(sync, 0);
+    } catch (e) { console.warn('post-restore sync 실패', e); }
+}
+
 // 텔레그램 그룹 관리 창 표시
 function showTelegramGroupsWindow(groups, account) {
     console.log('🎬 텔레그램 그룹 관리 창 표시 시작');
@@ -1993,10 +2020,11 @@ function showTelegramGroupsWindow(groups, account) {
         // 그룹 목록 렌더링
         renderGroupsList(groups);
         
-        // 자동전송 상태 복원
-        setTimeout(() => {
-            restoreAutoSendStatusOnLoad();
-        }, 1000);
+        // 자동전송 상태 복원: 그룹 렌더 직후 계정 기준으로 복원
+        if (account?.user_id) {
+            restoreAutoSendStatusFor(account.user_id);
+            startPostRestoreSync(account.user_id);
+        }
         
         // 자동전송 상태 주기적 업데이트 시작
         startAutoSendStatusUpdate();
@@ -2012,7 +2040,7 @@ function showTelegramGroupsWindow(groups, account) {
         
         console.log('✅ 텔레그램 그룹 관리 창 표시 완료');
 
-    // 계정별 저장된 UI 상태 복원
+        // 계정별 저장된 UI 상태 복원
     try {
         // 선택 그룹 복원
         const key = getCurrentAccountKey ? getCurrentAccountKey() : (account?.user_id ? `account_${account.user_id}` : null);
@@ -2026,10 +2054,7 @@ function showTelegramGroupsWindow(groups, account) {
             }
         }
         // 저장된 메시지/버튼 상태는 기존 로직으로 즉시 반영됨
-        // 자동전송 상태 동기화
-        if (account?.user_id) {
-            restoreAutoSendStatusFor(account.user_id);
-        }
+        // 자동전송 상태 동기화는 상단에서 처리됨
     } catch (e) { console.warn('계정별 상태 복원 실패', e); }
     }
 }
