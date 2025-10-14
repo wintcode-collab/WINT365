@@ -82,6 +82,7 @@ const elements = {
 document.addEventListener('DOMContentLoaded', function() {
     initializeApp();
     setupEventListeners();
+    setupErrorLogsEventListeners(); // 오류 로그 이벤트 리스너 설정
     startTypingAnimation();
     
     // 자동 전송 설정 표시 초기화
@@ -1981,22 +1982,16 @@ function startPostRestoreSync(userId) {
         const startedAt = Date.now();
         const sync = async () => {
             try {
-                // localStorage에서 토글 상태 확인
-                const toggleOnFromStorage = localStorage.getItem('autoSendToggleOn') === 'true';
-                
                 const res = await fetch('/api/auto-send/status', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        userId,
-                        toggleOn: toggleOnFromStorage
-                    })
+                    body: JSON.stringify({ userId })
                 });
                 const data = await res.json();
                 if (data?.success) {
                     // 토글/버튼 상태 반영
                     const toggle = document.getElementById('autoSendToggle');
-                    if (toggle) toggle.checked = !!(data.is_active || data.is_running);
+                    if (toggle) toggle.checked = !!data.is_running;
                     if (!data.is_running) {
                         // OFF이면 로컬 스냅샷만 제거하고 체크박스는 유지 (사용자 선택 보존)
                         try {
@@ -2899,13 +2894,6 @@ function selectTelegramSavedMessage(messageIndex, savedMessages) {
             messageInput.style.cursor = 'not-allowed';
         }
         
-        // 자동전송 상태 유지 확인
-        const autoSendToggle = document.getElementById('autoSendToggle');
-        if (autoSendToggle && autoSendToggle.checked) {
-            console.log('✅ 자동전송 상태 유지 - 저장된 메시지 선택 중');
-            // 자동전송이 ON 상태면 그대로 유지
-        }
-        
         // 저장된 메시지 버튼을 해제 버튼으로 변경
         const savedMessagesBtn = document.getElementById('savedMessagesBtn');
         console.log('💾 저장된 메시지 버튼 요소 찾기:', savedMessagesBtn);
@@ -2942,18 +2930,6 @@ function selectTelegramSavedMessage(messageIndex, savedMessages) {
         const key = (typeof getCurrentAccountKey === 'function') ? getCurrentAccountKey() : null;
         if (key) {
             localStorage.setItem(`${key}_selectedMediaInfo`, JSON.stringify(window.selectedMediaInfo));
-            
-            // 자동전송이 ON이면 현재 그룹 선택 스냅샷을 유지 저장(체크 해제 방지)
-            try {
-                const toggle = document.getElementById('autoSendToggle');
-                if (toggle && toggle.checked) {
-                    const ids = Array.from(document.querySelectorAll('.group-checkbox:checked')).map(cb => cb.dataset.groupId);
-                    localStorage.setItem(`${key}_selectedGroups`, JSON.stringify(ids));
-                    console.log('✅ 자동전송 ON 상태에서 그룹 선택 유지 저장');
-                }
-            } catch (e) {
-                console.warn('그룹 선택 유지 저장 실패:', e);
-            }
         }
         
         // 커스텀 이모지가 있는 경우 원본 객체 전체 보존
@@ -3050,13 +3026,6 @@ function closeSavedMessages() {
     const modal = document.getElementById('savedMessagesModal');
     if (modal) {
         modal.style.display = 'none';
-    }
-    
-    // 자동전송 상태 유지 확인
-    const autoSendToggle = document.getElementById('autoSendToggle');
-    if (autoSendToggle && autoSendToggle.checked) {
-        console.log('✅ 자동전송 상태 유지 - 저장된 메시지 모달 닫기 중');
-        // 자동전송이 ON 상태면 그대로 유지
     }
 }
 
@@ -3402,18 +3371,11 @@ function setupAutoSendEventListeners() {
                 console.log('🔄 자동전송 토글 ON - 설정 모달 열기');
                 // 상태 동기화 잠금 설정 (토글이 OFF로 돌아가는 것 방지)
                 window.autoSendSyncLocked = true;
-                
-                // localStorage에 자동전송 토글 상태 저장 (Firebase 아님)
-                localStorage.setItem('autoSendToggleOn', 'true');
-                
                 showAutoSendSettingsModal();
                 updateSendButtonText(true); // 자동전송 ON
             } else {
                 // 사용자가 명시적으로 자동전송을 OFF로 변경한 경우에만 중지
                 console.log('🛑 사용자가 자동전송을 OFF로 변경');
-                
-                // localStorage에서 자동전송 토글 상태 삭제
-                localStorage.removeItem('autoSendToggleOn');
                 
                 // 자동전송 중지
                 if (window.stopAutoSend) {
@@ -3928,8 +3890,167 @@ function clearAllData() {
     }
 }
 
+// 오류 로그 관련 함수들
+function showErrorLogsModal() {
+    const modal = document.getElementById('errorLogsModal');
+    if (modal) {
+        modal.style.display = 'flex';
+        loadErrorLogs();
+    }
+}
 
+function hideErrorLogsModal() {
+    const modal = document.getElementById('errorLogsModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
 
+async function loadErrorLogs() {
+    try {
+        const accountName = document.getElementById('selectedAccountName')?.textContent;
+        const accountPhone = document.getElementById('selectedAccountPhone')?.textContent;
+        
+        if (!accountName || accountName === '계정을 선택하세요') {
+            console.warn('계정이 선택되지 않음');
+            return;
+        }
+        
+        const userId = `${accountName}_${accountPhone}`.replace(/[^a-zA-Z0-9_]/g, '_');
+        
+        const response = await fetch('/api/auto-send/error-logs', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                userId: userId,
+                limit: 100
+            })
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            displayErrorLogs(result.logs || []);
+        } else {
+            console.error('오류 로그 조회 실패:', response.status);
+        }
+        
+    } catch (error) {
+        console.error('오류 로그 조회 에러:', error);
+    }
+}
+
+function displayErrorLogs(logs) {
+    const logsList = document.getElementById('errorLogsList');
+    const totalCount = document.getElementById('totalErrorCount');
+    const lastErrorTime = document.getElementById('lastErrorTime');
+    const noErrorsMessage = document.getElementById('noErrorsMessage');
+    
+    if (!logsList || !totalCount || !lastErrorTime || !noErrorsMessage) return;
+    
+    // 통계 업데이트
+    totalCount.textContent = logs.length;
+    
+    if (logs.length > 0) {
+        const lastLog = logs[0];
+        const lastTime = new Date(lastLog.timestamp);
+        lastErrorTime.textContent = lastTime.toLocaleString('ko-KR');
+        noErrorsMessage.style.display = 'none';
+        
+        // 오류 로그 목록 표시
+        logsList.innerHTML = logs.map(log => `
+            <div class="error-log-item">
+                <div class="error-log-header">
+                    <span class="error-log-type">${log.error_type}</span>
+                    <span class="error-log-time">${new Date(log.timestamp).toLocaleString('ko-KR')}</span>
+                </div>
+                <div class="error-log-message">${log.error_message}</div>
+                ${log.details ? `<div class="error-log-details">${JSON.stringify(log.details, null, 2)}</div>` : ''}
+            </div>
+        `).join('');
+    } else {
+        lastErrorTime.textContent = '없음';
+        noErrorsMessage.style.display = 'block';
+        logsList.innerHTML = '';
+    }
+}
+
+async function clearErrorLogs() {
+    try {
+        const accountName = document.getElementById('selectedAccountName')?.textContent;
+        const accountPhone = document.getElementById('selectedAccountPhone')?.textContent;
+        
+        if (!accountName || accountName === '계정을 선택하세요') {
+            console.warn('계정이 선택되지 않음');
+            return;
+        }
+        
+        const userId = `${accountName}_${accountPhone}`.replace(/[^a-zA-Z0-9_]/g, '_');
+        
+        if (!confirm('정말로 오류 로그를 삭제하시겠습니까?')) {
+            return;
+        }
+        
+        const response = await fetch('/api/auto-send/error-logs/clear', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                userId: userId
+            })
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            console.log('오류 로그 삭제 완료:', result.message);
+            loadErrorLogs(); // 목록 새로고침
+        } else {
+            console.error('오류 로그 삭제 실패:', response.status);
+        }
+        
+    } catch (error) {
+        console.error('오류 로그 삭제 에러:', error);
+    }
+}
+
+// 오류 로그 이벤트 리스너 설정
+function setupErrorLogsEventListeners() {
+    // 오류 로그 버튼
+    const errorLogsBtn = document.getElementById('errorLogsBtn');
+    if (errorLogsBtn) {
+        errorLogsBtn.addEventListener('click', showErrorLogsModal);
+    }
+    
+    // 오류 로그 모달 닫기 버튼
+    const closeErrorLogsBtn = document.getElementById('closeErrorLogsBtn');
+    if (closeErrorLogsBtn) {
+        closeErrorLogsBtn.addEventListener('click', hideErrorLogsModal);
+    }
+    
+    // 새로고침 버튼
+    const refreshErrorLogsBtn = document.getElementById('refreshErrorLogsBtn');
+    if (refreshErrorLogsBtn) {
+        refreshErrorLogsBtn.addEventListener('click', loadErrorLogs);
+    }
+    
+    // 로그 삭제 버튼
+    const clearErrorLogsBtn = document.getElementById('clearErrorLogsBtn');
+    if (clearErrorLogsBtn) {
+        clearErrorLogsBtn.addEventListener('click', clearErrorLogs);
+    }
+    
+    // 모달 외부 클릭 시 닫기
+    const errorLogsModal = document.getElementById('errorLogsModal');
+    if (errorLogsModal) {
+        errorLogsModal.addEventListener('click', function(e) {
+            if (e.target === errorLogsModal) {
+                hideErrorLogsModal();
+            }
+        });
+    }
+}
 
 // 개발자 도구용 함수 (콘솔에서 사용)
 window.clearAllData = clearAllData;
@@ -4150,16 +4271,10 @@ async function restoreAutoSendStatusFor(userId) {
     try {
         if (!userId) return;
         console.log('🔄 특정 계정 상태 복원 시작:', userId);
-        // localStorage에서 토글 상태 확인
-        const toggleOnFromStorage = localStorage.getItem('autoSendToggleOn') === 'true';
-        
         const resp = await fetch(`${getApiBaseUrl()}/api/auto-send/status`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                userId,
-                toggleOn: toggleOnFromStorage  // 토글 상태 전달
-            })
+            body: JSON.stringify({ userId })
         });
         const data = await resp.json();
         console.log('📊 특정 계정 상태:', data);
@@ -4198,25 +4313,12 @@ async function restoreAutoSendStatusFor(userId) {
         }
     }
         
-        // localStorage에서 토글 상태 복원
-        const toggleOnFromStorage = localStorage.getItem('autoSendToggleOn') === 'true';
-        
         // 1) 토글을 서버 상태로 강제 일치(단, 설정이 저장된 상태이거나 사용자가 설정 중인 동안은 보류)
         if (!window.autoSendSyncLocked && !window.autoSendSettingsSaved && toggle) {
-            // 서버에서 is_active 상태를 받아서 토글 상태 결정
-            toggle.checked = !!(data.is_active || data.is_running);
-            updateSendButtonText(!!(data.is_active || data.is_running));
-            console.log('✅ 서버 상태로 토글 복원:', { is_active: data.is_active, is_running: data.is_running });
-        } else if ((window.autoSendSettingsSaved || toggleOnFromStorage) && toggle) {
-            // 설정이 저장된 상태이거나 localStorage에 토글 ON 상태가 있으면 토글을 ON으로 유지
-            toggle.checked = true;
-            updateSendButtonText(true);
-            console.log('✅ localStorage 토글 상태로 복원:', toggleOnFromStorage);
-        }
-        
-        // 저장된 메시지가 선택된 상태에서 자동전송이 ON이면 상태 유지
-        if (window.selectedMediaInfo && toggle && toggle.checked) {
-            console.log('✅ 저장된 메시지 선택 상태에서 자동전송 상태 유지');
+            toggle.checked = !!data.is_running;
+            updateSendButtonText(!!data.is_running);
+        } else if (window.autoSendSettingsSaved && toggle) {
+            // 설정이 저장된 상태에서는 토글을 ON으로 유지
             toggle.checked = true;
             updateSendButtonText(true);
         }
@@ -4542,7 +4644,6 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo) {
             window.autoSendSyncLocked = false;
             window.autoSendSettingsSaved = false; // 자동전송이 시작되면 설정 저장 플래그 리셋
             localStorage.removeItem('autoSendSettingsSaved');
-            localStorage.removeItem('autoSendToggleOn'); // 자동전송 시작되면 토글 상태 삭제
             try { await restoreAutoSendStatusFor(String(account.user_id)); } catch(_){}
             return true;
         } else {
