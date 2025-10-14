@@ -2935,12 +2935,12 @@ def get_auto_send_status():
     """자동전송 상태 조회"""
     try:
         data = request.get_json()
-        user_id = data.get('userId')
+        user_id = data.get('userId') or data.get('account_name')
         
         if not user_id:
             return jsonify({
                 'success': False,
-                'error': '사용자 ID가 필요합니다.'
+                'error': '사용자 ID 또는 계정명이 필요합니다.'
             }), 400
         
         # 현재 작업 상태 확인
