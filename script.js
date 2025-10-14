@@ -3868,6 +3868,39 @@ async function stopAutoSend() {
             || window.currentSelectedAccount?.user_id
             || window.selectedAccount?.user_id
             || '';
+        // userId가 없으면 서버에서 계정 목록을 받아 매핑 (이름 → userId, 실패 시 전화번호로 매칭)
+        if (!userId && accountName) {
+            try {
+                const accResp = await fetch(`${getApiBaseUrl()}/api/telegram/load-accounts`, {
+                    method: 'GET'
+                });
+                const accData = await accResp.json();
+                const accounts = accData.accounts || accData || [];
+                // 1) 이름 매칭
+                let found = (accounts || []).find(a => {
+                    const full = `${a.first_name || ''} ${a.last_name || ''}`.trim();
+                    return full === accountName;
+                });
+                // 2) 전화번호 매칭 (DOM에서 선택된 번호 읽기)
+                if (!found) {
+                    const phoneText = document.getElementById('selectedAccountPhone')?.textContent?.trim();
+                    if (phoneText) {
+                        found = (accounts || []).find(a => (a.phone_number || '').trim() === phoneText);
+                    }
+                }
+                if (found && found.user_id) {
+                    userId = String(found.user_id);
+                }
+            } catch (e) {
+                console.warn('⚠️ 계정 목록 조회 실패(중지 준비)', e);
+            }
+        }
+        // 마지막 안전장치: userId가 여전히 없으면 사용자에게 안내하고 중지 요청 중단
+        if (!userId) {
+            console.warn('❌ userId 매핑 실패: 중지 요청을 보내지 않습니다');
+            alert('자동전송 중지에 필요한 계정 식별자를 찾지 못했습니다. 계정을 다시 선택한 후 시도해 주세요.');
+            return;
+        }
         if (!accountName && !userId) {
             console.warn('⚠️ 계정명이 없어 자동전송 중지 요청을 건너뜀');
             return;
