@@ -3141,8 +3141,12 @@ if __name__ == '__main__':
     else:
         logger.info('✅ MTProto API 사용 준비 완료!')
     
-    # Firebase에서 자동전송 작업 복원
-    restore_auto_send_jobs_from_firebase()
+    # Firebase에서 자동전송 작업 복원 (비동기)
+    try:
+        threading.Thread(target=restore_auto_send_jobs_from_firebase, daemon=True).start()
+        logger.info('🔄 자동전송 작업 복원(백그라운드) 시작')
+    except Exception as _e:
+        logger.error(f'❌ 자동전송 작업 복원 스레드 시작 실패: {_e}')
     
     # 자동전송 스케줄러 백그라운드 실행
     scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
