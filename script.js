@@ -2893,6 +2893,16 @@ function selectTelegramSavedMessage(messageIndex, savedMessages) {
         
         // 모달 닫기
         closeSavedMessages();
+
+        // 자동전송이 ON이면 현재 그룹 선택 스냅샷을 유지 저장(체크 해제 방지)
+        try {
+            const toggle = document.getElementById('autoSendToggle');
+            const key = getCurrentAccountKey ? getCurrentAccountKey() : null;
+            if (toggle && toggle.checked && key) {
+                const ids = Array.from(document.querySelectorAll('.group-checkbox:checked')).map(cb => cb.dataset.groupId);
+                localStorage.setItem(`${key}_selectedGroups`, JSON.stringify(ids));
+            }
+        } catch (e) { console.warn('저장된 메시지 선택 후 그룹 스냅샷 저장 실패', e); }
         
         console.log('✅ 텔레그램 저장된 메시지 선택 완료:', message.text?.substring(0, 50) + '...');
     }
