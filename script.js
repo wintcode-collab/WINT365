@@ -3849,11 +3849,14 @@ function updateSendButtonText(isAutoSend = null) {
 
 // API URL 관리 함수
 function getApiBaseUrl() {
-    // HTTPS 로컬 서버 사용 (Mixed Content 문제 해결)
-    const url = 'https://192.168.55.248:10000';
-    console.log('🔥 API URL: HTTPS 로컬 서버 사용 -', url);
-    console.log('🔥 현재 호스트:', window.location.hostname);
-    return url;
+    const hostname = window.location.hostname;
+    if (hostname === 'xn--h89a770c.shop') {
+        // Render 서버 사용 (CORS 문제 해결됨)
+        return 'https://wint365-backend.onrender.com';
+    } else {
+        // 로컬 개발용
+        return 'http://localhost:3000';
+    }
 }
 
 // Firebase 자동전송 설정 저장 함수

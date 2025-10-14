@@ -3076,5 +3076,5 @@ if __name__ == '__main__':
     scheduler_thread.start()
     logger.info('🤖 자동전송 스케줄러 시작됨')
     
-    # HTTPS 서버 시작 (Mixed Content 문제 해결)
-    app.run(host='0.0.0.0', port=port, debug=False, ssl_context='adhoc')
+    # 서버 시작 (Render에서는 HTTP 사용)
+    app.run(host='0.0.0.0', port=port, debug=False)
