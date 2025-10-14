@@ -3628,6 +3628,11 @@ async function checkSelectedGroupsMessageCount() {
 
 // 자동 전송 설정 표시 업데이트
 function updateAutoSendSettingsDisplay() {
+    if (autoSendSyncLocked) {
+        console.log('🔒 자동전송 동기화 잠금 중 - 설정 표시 업데이트 건너뜀');
+        return;
+    }
+    
     console.log('🔍 자동 전송 설정 표시 업데이트 중...');
     
     const settingsDisplay = document.getElementById('autoSendSettingsDisplay');
@@ -3675,15 +3680,13 @@ function updateAutoSendSettingsDisplay() {
             settingsInfo.innerHTML = '';
             settingsDisplay.style.display = 'block';
             
-            // 각 설정을 0.5초 간격으로 순차적으로 추가
+            // 🔥 무한 루프 방지: setTimeout 제거하고 즉시 표시
             settingsTexts.forEach((text, index) => {
-                setTimeout(() => {
-                    if (index === 0) {
-                        settingsInfo.innerHTML = `<span class="setting-item">${text}</span>`;
-                    } else {
-                        settingsInfo.innerHTML += `<span class="setting-item">${text}</span>`;
-                    }
-                }, index * 500); // 0.5초 간격
+                if (index === 0) {
+                    settingsInfo.innerHTML = `<span class="setting-item">${text}</span>`;
+                } else {
+                    settingsInfo.innerHTML += `<span class="setting-item">${text}</span>`;
+                }
             });
             
             console.log('✅ 설정 표시 완료');
