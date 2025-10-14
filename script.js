@@ -1972,12 +1972,18 @@ function showGroupList(groups, account) {
     showTelegramGroupsWindow(groups, account);
 }
 
-// 복원 직후 단기 재동기화: 30초 동안 5초 간격으로 서버 상태와 UI를 강제 동기화
+// 복원 직후 단기 재동기화: 10초 동안만 10초 간격으로 서버 상태와 UI를 강제 동기화
 function startPostRestoreSync(userId) {
     try {
         const startedAt = Date.now();
         const sync = async () => {
             try {
+                // 잠금 상태나 설정 저장 중이면 동기화 건너뜀
+                if (window.autoSendSyncLocked || window.autoSendSettingsSaved) {
+                    console.log('🔄 동기화 건너뜀: 잠금 상태 또는 설정 저장 중');
+                    return;
+                }
+                
                 const res = await fetch('/api/auto-send/status', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1985,28 +1991,28 @@ function startPostRestoreSync(userId) {
                 });
                 const data = await res.json();
                 if (data?.success) {
-                    // 토글/버튼 상태 반영
+                    // 토글/버튼 상태 반영 (조건부)
                     const toggle = document.getElementById('autoSendToggle');
-                    if (toggle) toggle.checked = !!data.is_running;
+                    if (toggle && !toggle.checked) {
+                        // 토글이 OFF인 경우에만 서버 상태로 동기화
+                        toggle.checked = !!data.is_running;
+                    }
                     if (!data.is_running) {
                         // OFF이면 로컬 스냅샷만 제거하고 체크박스는 유지 (사용자 선택 보존)
                         try {
                             const key = getCurrentAccountKey ? getCurrentAccountKey() : null;
                             if (key) localStorage.removeItem(`${key}_selectedGroups`);
-                            // 체크박스 자동 해제 제거 - 사용자가 선택한 그룹은 유지
-                            // document.querySelectorAll('.group-checkbox').forEach(cb => (cb.checked = false));
-                            // updateSelectedGroupsCount();
                         } catch (_) {}
                     }
                     updateAutoSendSettingsDisplay();
                     updateSendButtonText();
                 }
             } catch (_) {}
-            if (Date.now() - startedAt < 30000) {
-                setTimeout(sync, 5000);
+            if (Date.now() - startedAt < 10000) { // 30초 → 10초로 단축
+                setTimeout(sync, 10000); // 5초 → 10초로 간격 늘림
             }
         };
-        setTimeout(sync, 0);
+        setTimeout(sync, 2000); // 2초 후 시작
     } catch (e) { console.warn('post-restore sync 실패', e); }
 }
 
@@ -4220,8 +4226,11 @@ async function restoreAutoSendStatusFor(userId) {
 
         // 1) 토글을 서버 상태로 강제 일치(단, 설정이 저장된 상태이거나 사용자가 설정 중인 동안은 보류)
         if (!window.autoSendSyncLocked && !window.autoSendSettingsSaved && toggle) {
-            toggle.checked = !!data.is_running;
-            updateSendButtonText(!!data.is_running);
+            // 서버 상태가 OFF이고 사용자가 토글을 ON으로 설정한 경우는 무시
+            if (data.is_running || !toggle.checked) {
+                toggle.checked = !!data.is_running;
+                updateSendButtonText(!!data.is_running);
+            }
         } else if (window.autoSendSettingsSaved && toggle) {
             // 설정이 저장된 상태에서는 토글을 ON으로 유지
             toggle.checked = true;

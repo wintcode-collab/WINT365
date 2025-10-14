@@ -2766,7 +2766,7 @@ def check_telegram_group_message_count(account_info, group_id):
                 
                 # 내가 보낸 메시지 이후의 다른 사람들의 메시지 개수 계산
                 other_people_messages = 0
-                for i in range(my_last_message_index):
+                for i in range(my_last_message_index + 1, len(messages)):
                     message = messages[i]
                     if hasattr(message, 'from_id') and message.from_id and message.from_id.user_id != my_user_id:
                         other_people_messages += 1
