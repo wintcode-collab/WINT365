@@ -1984,12 +1984,13 @@ function startPostRestoreSync(userId) {
                     const toggle = document.getElementById('autoSendToggle');
                     if (toggle) toggle.checked = !!data.is_running;
                     if (!data.is_running) {
-                        // OFF이면 로컬 스냅샷 제거 및 체크 해제로 UI 초기화
+                        // OFF이면 로컬 스냅샷만 제거하고 체크박스는 유지 (사용자 선택 보존)
                         try {
                             const key = getCurrentAccountKey ? getCurrentAccountKey() : null;
                             if (key) localStorage.removeItem(`${key}_selectedGroups`);
-                            document.querySelectorAll('.group-checkbox').forEach(cb => (cb.checked = false));
-                            updateSelectedGroupsCount();
+                            // 체크박스 자동 해제 제거 - 사용자가 선택한 그룹은 유지
+                            // document.querySelectorAll('.group-checkbox').forEach(cb => (cb.checked = false));
+                            // updateSelectedGroupsCount();
                         } catch (_) {}
                     }
                     updateAutoSendSettingsDisplay();
@@ -3314,6 +3315,9 @@ function setupAutoSendEventListeners() {
                 showAutoSendSettingsModal();
                 updateSendButtonText(true); // 자동전송 ON
             } else {
+                // 사용자가 명시적으로 자동전송을 OFF로 변경한 경우에만 중지
+                console.log('🛑 사용자가 자동전송을 OFF로 변경');
+                
                 // 자동전송 중지
                 if (window.stopAutoSend) {
                     window.stopAutoSend();
@@ -3329,7 +3333,7 @@ function setupAutoSendEventListeners() {
                     settingsDisplay.style.display = 'none';
                 }
                 
-                // 모든 그룹의 자동전송 상태를 대기로 변경
+                // 모든 그룹의 자동전송 상태를 대기로 변경 (체크박스는 유지)
                 const groupItems = document.querySelectorAll('.group-item');
                 const updater = window.updateGroupAutoStatus;
                 groupItems.forEach(item => {
@@ -3409,13 +3413,13 @@ function closeAutoSendSettingsModal() {
     if (modal) {
         modal.style.display = 'none';
     }
-    if (toggle) {
-        toggle.checked = false;
-    }
-    // 설정 표시 숨기기
-    const settingsDisplay = document.getElementById('autoSendSettingsDisplay');
-    if (settingsDisplay) {
-        settingsDisplay.style.display = 'none';
+    // 토글 상태를 강제로 변경하지 않음 - 사용자가 설정을 저장하지 않고 닫은 경우에만 OFF
+    if (toggle && !toggle.checked) {
+        // 이미 OFF 상태라면 설정 표시만 숨기기
+        const settingsDisplay = document.getElementById('autoSendSettingsDisplay');
+        if (settingsDisplay) {
+            settingsDisplay.style.display = 'none';
+        }
     }
 }
 
