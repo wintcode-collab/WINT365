@@ -107,10 +107,41 @@ function initializeApp() {
     hideErrorMessage();
 }
 
+// Firebase 서비스 준비 대기
+async function waitForFirebaseService() {
+    let attempts = 0;
+    const maxAttempts = 50; // 5초 대기 (100ms * 50)
+    
+    while (attempts < maxAttempts) {
+        if (window.firebaseService) {
+            console.log('✅ Firebase 서비스 준비 완료');
+            
+            // Firebase 연결 테스트
+            try {
+                const signUps = await window.firebaseService.getAllSignUps();
+                console.log('✅ Firebase 데이터베이스 연결 확인됨');
+                return;
+            } catch (error) {
+                console.error('❌ Firebase 데이터베이스 연결 실패:', error);
+                throw new Error('Firebase 데이터베이스 연결 실패');
+            }
+        }
+        
+        console.log(`⏳ Firebase 서비스 대기 중... (${attempts + 1}/${maxAttempts})`);
+        await new Promise(resolve => setTimeout(resolve, 100));
+        attempts++;
+    }
+    
+    throw new Error('Firebase 서비스 초기화 실패');
+}
+
 // 로그인 상태 확인 및 자동 로그인
 async function checkLoginState() {
     try {
         console.log('🔍 로그인 상태 확인 중...');
+        
+        // Firebase 서비스 준비 대기
+        await waitForFirebaseService();
         
         // 저장된 사용자 이메일 확인
         const savedEmail = localStorage.getItem('userEmail');
@@ -118,6 +149,8 @@ async function checkLoginState() {
             console.log('❌ 저장된 이메일 없음, 로그인 화면 유지');
             return;
         }
+        
+        console.log('📧 저장된 이메일:', savedEmail);
         
         // Firebase에서 사용자 존재 여부 확인 (자동 로그인용)
         const userExists = await checkUserExists(savedEmail);
@@ -130,7 +163,10 @@ async function checkLoginState() {
             // 텔레그램 설정 및 자동전송 상태 복원
             setTimeout(() => {
                 loadTelegramSettings();
+                loadAutoSendSettings(); // 자동전송 설정 로드
                 restoreAutoSendStatusOnLoad();
+                updateSendButtonText(); // 전송 버튼 텍스트 초기화
+                updateAutoSendSettingsDisplay(); // 자동전송 설정 표시 업데이트
             }, 1000);
             
         } else {
@@ -141,6 +177,11 @@ async function checkLoginState() {
         
     } catch (error) {
         console.error('❌ 로그인 상태 확인 실패:', error);
+        
+        // Firebase 서비스 초기화 실패 시에도 기본 로그인 화면 유지
+        if (error.message.includes('Firebase 서비스 초기화 실패')) {
+            console.log('⚠️ Firebase 서비스 초기화 실패, 로그인 화면 유지');
+        }
     }
 }
 
@@ -757,7 +798,7 @@ function saveUserSettings() {
 // 이메일 저장/로드 함수들
 function saveUserEmail(email) {
     try {
-        localStorage.setItem('savedEmail', email);
+        localStorage.setItem('userEmail', email); // 키를 userEmail로 통일
         console.log('이메일 저장됨:', email);
     } catch (error) {
         console.error('이메일 저장 실패:', error);
@@ -766,7 +807,7 @@ function saveUserEmail(email) {
 
 function loadSavedEmail() {
     try {
-        const savedEmail = localStorage.getItem('savedEmail');
+        const savedEmail = localStorage.getItem('userEmail'); // 키를 userEmail로 통일
         if (savedEmail && elements.emailInput) {
             elements.emailInput.value = savedEmail;
             // 이메일이 있으면 플레이스홀더 숨기기
@@ -781,7 +822,7 @@ function loadSavedEmail() {
 
 function clearSavedEmail() {
     try {
-        localStorage.removeItem('savedEmail');
+        localStorage.removeItem('userEmail'); // 키를 userEmail로 통일
         console.log('저장된 이메일 삭제됨');
     } catch (error) {
         console.error('이메일 삭제 실패:', error);
@@ -1430,6 +1471,10 @@ async function completeTelegramAuth(verificationCode) {
                 lastName: authResult.user.last_name || ''
             };
             
+            // 계정별 텔레그램 설정 저장
+            saveAccountSettings('telegram', telegramSettings);
+            
+            // 전역 설정도 저장 (하위 호환성)
             localStorage.setItem('telegramSettings', JSON.stringify(telegramSettings));
             
             // 성공 메시지
@@ -1839,6 +1884,14 @@ function showAccountList(accounts) {
             
             // 선택된 계정으로 그룹 로드
             loadGroupsForAccount(selectedAccount);
+            
+            // 계정 변경 시 설정 복원
+            setTimeout(() => {
+                loadTelegramSettings();
+                loadAutoSendSettings();
+                updateAutoSendSettingsDisplay();
+                updateSendButtonText();
+            }, 500);
         }
     });
     
@@ -2243,15 +2296,21 @@ async function sendMessageToGroup() {
         const autoSendSuccess = await startAutoSendWithGroups(validGroupIds, message, mediaInfo);
         if (autoSendSuccess) {
             console.log('✅ 자동전송 시작 성공');
+            alert('🤖 자동전송이 시작되었습니다!\n\n설정된 간격마다 자동으로 전송됩니다.\nPC를 종료해도 계속 작동합니다.');
             return; // 자동전송이 시작되면 여기서 종료
         } else {
-            console.log('❌ 자동전송 시작 실패, 수동 전송으로 진행');
+            console.log('❌ 자동전송 시작 실패');
+            alert('❌ 자동전송 시작에 실패했습니다.\n\n자동전송 설정을 확인하고 다시 시도해주세요.');
+            return; // 자동전송 실패 시 수동전송으로 진행하지 않음
         }
     }
     
+    // 수동 전송 모드임을 명확히 표시
+    console.log('📤 수동 전송 모드: 즉시 전송 후 종료');
+    
     // 버튼 상태 변경
     if (sendBtn) {
-        sendBtn.textContent = '📤 전송 중...';
+        sendBtn.textContent = '📤 수동 전송 중...';
         sendBtn.disabled = true;
     }
     
@@ -2362,9 +2421,11 @@ async function sendMessageToGroup() {
                     console.error(`❌ 응답 상태: ${sendResponse.status}`);
                 }
                 
-                // 그룹 간 간격 (1초)
+                // 그룹 간 간격 적용
                 if (i < validGroupIds.length - 1) {
-                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    const groupInterval = getGroupInterval();
+                    console.log(`⏰ 그룹간 대기: ${groupInterval}초`);
+                    await new Promise(resolve => setTimeout(resolve, groupInterval * 1000));
                 }
                 
             } catch (error) {
@@ -3083,6 +3144,14 @@ function showAccountListAboveStatusBar(accounts) {
             
             // 선택된 계정으로 그룹 로드
             loadGroupsForAccount(selectedAccount);
+            
+            // 계정 변경 시 설정 복원
+            setTimeout(() => {
+                loadTelegramSettings();
+                loadAutoSendSettings();
+                updateAutoSendSettingsDisplay();
+                updateSendButtonText();
+            }, 500);
         }
     });
     
@@ -3131,6 +3200,7 @@ function setupAutoSendEventListeners() {
             
             if (this.checked) {
                 showAutoSendSettingsModal();
+                updateSendButtonText(true); // 자동전송 ON
             } else {
                 // 자동전송 중지
                 stopAutoSend();
@@ -3152,12 +3222,12 @@ function setupAutoSendEventListeners() {
                 
                 // 전송 버튼 상태 초기화
                 resetSendButtonState();
+                updateSendButtonText(false); // 자동전송 OFF
                 
                 // 추가적인 UI 상태 초기화
                 const sendButton = document.getElementById('sendButton');
                 if (sendButton) {
                     sendButton.disabled = false;
-                    sendButton.textContent = '전송';
                     sendButton.classList.remove('sending', 'disabled');
                     sendButton.style.opacity = '1';
                 }
@@ -3231,24 +3301,35 @@ function closeAutoSendSettingsModal() {
 
 // 자동 전송 설정 로드
 function loadAutoSendSettings() {
-    const savedSettings = localStorage.getItem('autoSendSettings');
-    if (savedSettings) {
-        const settings = JSON.parse(savedSettings);
+    try {
+        // 먼저 계정별 설정 확인
+        let settings = loadAccountSettings('autoSend');
         
-        const groupInterval = document.getElementById('groupInterval');
-        const repeatInterval = document.getElementById('repeatInterval');
-        const maxRepeats = document.getElementById('maxRepeats');
-        const messageThreshold = document.getElementById('messageThreshold');
-        const enableMessageCheck = document.getElementById('enableMessageCheck');
+        // 계정별 설정이 없으면 전역 설정 확인
+        if (!settings) {
+            const savedSettings = localStorage.getItem('autoSendSettings');
+            if (savedSettings) {
+                settings = JSON.parse(savedSettings);
+            }
+        }
         
-        if (groupInterval) groupInterval.value = settings.groupInterval || 30;
-        if (repeatInterval) repeatInterval.value = settings.repeatInterval || 30;
-        if (maxRepeats) maxRepeats.value = settings.maxRepeats || 10;
-        if (messageThreshold) messageThreshold.value = settings.messageThreshold || 5;
-        if (enableMessageCheck) enableMessageCheck.checked = settings.enableMessageCheck !== false;
-        
-        // 메시지 개수 확인 상태 업데이트 (제거됨)
-        // updateMessageCheckStatus();
+        if (settings) {
+            const groupInterval = document.getElementById('groupInterval');
+            const repeatInterval = document.getElementById('repeatInterval');
+            const maxRepeats = document.getElementById('maxRepeats');
+            const messageThreshold = document.getElementById('messageThreshold');
+            const enableMessageCheck = document.getElementById('enableMessageCheck');
+            
+            if (groupInterval) groupInterval.value = settings.groupInterval || 30;
+            if (repeatInterval) repeatInterval.value = settings.repeatInterval || 30;
+            if (maxRepeats) maxRepeats.value = settings.maxRepeats || 10;
+            if (messageThreshold) messageThreshold.value = settings.messageThreshold || 5;
+            if (enableMessageCheck) enableMessageCheck.checked = settings.enableMessageCheck !== false;
+            
+            console.log('자동전송 설정 로드됨:', settings);
+        }
+    } catch (error) {
+        console.error('자동전송 설정 로드 실패:', error);
     }
 }
 
@@ -3271,6 +3352,10 @@ function saveAutoSendSettings() {
     console.log('🔧 자동전송 설정 저장:', settings);
     console.log('🔧 그룹 간격 원본 값:', groupInterval, '변환된 값:', parseInt(groupInterval));
     
+    // 계정별 자동전송 설정 저장
+    saveAccountSettings('autoSend', settings);
+    
+    // 전역 설정도 저장 (하위 호환성)
     localStorage.setItem('autoSendSettings', JSON.stringify(settings));
     
     // 메시지 개수 확인 상태 업데이트 (제거됨)
@@ -3464,10 +3549,18 @@ function updateAutoSendSettingsDisplay() {
 // 저장된 텔레그램 설정 로드
 function loadTelegramSettings() {
     try {
-        const savedSettings = localStorage.getItem('telegramSettings');
-        if (savedSettings) {
-            const settings = JSON.parse(savedSettings);
-            
+        // 먼저 계정별 설정 확인
+        let settings = loadAccountSettings('telegram');
+        
+        // 계정별 설정이 없으면 전역 설정 확인
+        if (!settings) {
+            const savedSettings = localStorage.getItem('telegramSettings');
+            if (savedSettings) {
+                settings = JSON.parse(savedSettings);
+            }
+        }
+        
+        if (settings) {
             if (elements.telegramApiId) elements.telegramApiId.value = settings.apiId || '';
             if (elements.telegramApiHash) elements.telegramApiHash.value = settings.apiHash || '';
             if (elements.telegramPhone) elements.telegramPhone.value = settings.phone || '';
@@ -3700,10 +3793,109 @@ function updateSendButtonState(selectedCount) {
         if (selectedCount > 0) {
             sendBtn.disabled = false;
             sendBtn.style.opacity = '1';
+            updateSendButtonText(); // 자동전송 상태에 따라 텍스트 업데이트
         } else {
             sendBtn.disabled = true;
             sendBtn.style.opacity = '0.5';
         }
+    }
+}
+
+// 전송 버튼 텍스트 업데이트
+function updateSendButtonText(isAutoSend = null) {
+    const sendBtn = document.getElementById('sendMessageBtn');
+    const autoSendToggle = document.getElementById('autoSendToggle');
+    
+    if (sendBtn && autoSendToggle) {
+        const isAutoSendMode = isAutoSend !== null ? isAutoSend : autoSendToggle.checked;
+        
+        if (isAutoSendMode) {
+            sendBtn.textContent = '🤖 자동전송 시작';
+            sendBtn.style.backgroundColor = '#4CAF50'; // 녹색
+            sendBtn.style.borderColor = '#4CAF50';
+        } else {
+            sendBtn.textContent = '📤 수동 전송';
+            sendBtn.style.backgroundColor = '#2196F3'; // 파란색
+            sendBtn.style.borderColor = '#2196F3';
+        }
+    }
+}
+
+// 계정별 설정 관리 함수들
+function getCurrentAccountKey() {
+    const accountName = document.getElementById('selectedAccountName')?.textContent;
+    const accountPhone = document.getElementById('selectedAccountPhone')?.textContent;
+    
+    if (!accountName || accountName === '계정을 선택하세요') {
+        return null;
+    }
+    
+    // 계정명과 전화번호를 조합하여 고유 키 생성
+    return `${accountName}_${accountPhone}`.replace(/[^a-zA-Z0-9_]/g, '_');
+}
+
+function saveAccountSettings(settingsType, settings) {
+    try {
+        const accountKey = getCurrentAccountKey();
+        if (!accountKey) {
+            console.log('❌ 계정이 선택되지 않음, 설정 저장 건너뜀');
+            return false;
+        }
+        
+        const key = `accountSettings_${accountKey}_${settingsType}`;
+        localStorage.setItem(key, JSON.stringify(settings));
+        console.log(`✅ 계정별 ${settingsType} 설정 저장:`, accountKey, settings);
+        return true;
+    } catch (error) {
+        console.error(`❌ 계정별 ${settingsType} 설정 저장 실패:`, error);
+        return false;
+    }
+}
+
+function loadAccountSettings(settingsType) {
+    try {
+        const accountKey = getCurrentAccountKey();
+        if (!accountKey) {
+            console.log('❌ 계정이 선택되지 않음, 기본 설정 사용');
+            return null;
+        }
+        
+        const key = `accountSettings_${accountKey}_${settingsType}`;
+        const savedSettings = localStorage.getItem(key);
+        
+        if (savedSettings) {
+            const settings = JSON.parse(savedSettings);
+            console.log(`✅ 계정별 ${settingsType} 설정 로드:`, accountKey, settings);
+            return settings;
+        }
+        
+        console.log(`ℹ️ 계정별 ${settingsType} 설정 없음:`, accountKey);
+        return null;
+    } catch (error) {
+        console.error(`❌ 계정별 ${settingsType} 설정 로드 실패:`, error);
+        return null;
+    }
+}
+
+// 그룹간 간격 설정 가져오기
+function getGroupInterval() {
+    try {
+        // 먼저 계정별 설정 확인
+        const accountSettings = loadAccountSettings('autoSend');
+        if (accountSettings && accountSettings.groupInterval) {
+            return accountSettings.groupInterval;
+        }
+        
+        // 계정별 설정이 없으면 전역 설정 확인
+        const savedSettings = localStorage.getItem('autoSendSettings');
+        if (savedSettings) {
+            const settings = JSON.parse(savedSettings);
+            return settings.groupInterval || 30; // 기본값 30초
+        }
+        return 30; // 기본값
+    } catch (error) {
+        console.error('❌ 그룹간 간격 설정 조회 실패:', error);
+        return 30; // 기본값
     }
 }
 

@@ -1,13 +1,13 @@
 // Firebase 설정
 const firebaseConfig = {
-    // Firebase 프로젝트 설정
-    apiKey: "AlzaSyD4BXeUQZsUsY5Sy7ExymnlOyZ_5u37tAA",
+    // Firebase 프로젝트 설정 (실제 설정)
+    apiKey: "AIzaSyD4BXeUQZsUsY5Sy7ExymnIOyZ_5u37tAA",
     authDomain: "wint365-date.firebaseapp.com",
     databaseURL: "https://wint365-date-default-rtdb.asia-southeast1.firebasedatabase.app/",
     projectId: "wint365-date",
     storageBucket: "wint365-date.appspot.com",
-    messagingSenderId: "123456789",
-    appId: "1:123456789:web:abcdef123456"
+    messagingSenderId: "529722956693",
+    appId: "1:529722956693:web:abcdef123456"
 };
 
 // Firebase 초기화
@@ -400,7 +400,36 @@ class FirebaseService {
     }
 }
 
+// Firebase 연결 테스트 함수
+async function testFirebaseConnection() {
+    try {
+        console.log('🔥 Firebase 연결 테스트 시작...');
+        
+        // 데이터베이스 연결 테스트
+        const testRef = ref(database, 'test');
+        await set(testRef, { 
+            timestamp: new Date().toISOString(),
+            message: 'Firebase 연결 테스트'
+        });
+        
+        console.log('✅ Firebase 연결 성공!');
+        return true;
+    } catch (error) {
+        console.error('❌ Firebase 연결 실패:', error);
+        return false;
+    }
+}
+
 // 전역 Firebase 서비스 인스턴스
 window.firebaseService = new FirebaseService();
+
+// Firebase 연결 테스트 실행
+testFirebaseConnection().then(success => {
+    if (success) {
+        console.log('🎉 Firebase 서비스 준비 완료');
+    } else {
+        console.error('💥 Firebase 서비스 초기화 실패');
+    }
+});
 
 
