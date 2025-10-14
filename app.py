@@ -179,6 +179,13 @@ clients = {}
 auto_send_settings = {}
 auto_send_jobs = {}
 
+# 로컬 캐시 저장소 (Firebase 연결 실패 시 사용)
+local_cache = {
+    'auto_send_settings': {},
+    'auto_send_status': {},
+    'last_sync': {}
+}
+
 # Firebase 설정
 FIREBASE_URL = "https://wint365-date-default-rtdb.asia-southeast1.firebasedatabase.app"
 
@@ -2352,8 +2359,8 @@ def delete_account_from_firebase(user_id):
         return False
 
 # 자동전송 관련 함수들
-def save_auto_send_settings_to_firebase(user_id, settings):
-    """Firebase에 자동전송 설정 저장"""
+def save_auto_send_settings_to_firebase(user_id, settings, retry_count=3):
+    """Firebase에 자동전송 설정 저장 (재시도 로직 포함)"""
     try:
         logger.info(f'🔥 자동전송 설정 저장 시작: user_id={user_id}, settings={settings}')
         
@@ -2364,89 +2371,182 @@ def save_auto_send_settings_to_firebase(user_id, settings):
             'is_active': True
         }
         
+        # 로컬 캐시에 먼저 저장 (즉시 반영)
+        local_cache['auto_send_settings'][user_id] = settings_data
+        local_cache['last_sync'][f'settings_{user_id}'] = datetime.now().isoformat()
+        
         url = f"{FIREBASE_URL}/auto_send_settings/{user_id}.json"
-        logger.info(f'🔥 Firebase URL: {url}')
-        logger.info(f'🔥 전송할 데이터: {settings_data}')
         
-        response = requests.put(url, json=settings_data, timeout=10)
+        # 재시도 로직
+        for attempt in range(retry_count):
+            try:
+                logger.info(f'🔥 Firebase 저장 시도 {attempt + 1}/{retry_count}: {user_id}')
+                response = requests.put(url, json=settings_data, timeout=5)
+                
+                if response.status_code == 200:
+                    logger.info(f'🔥 Firebase 자동전송 설정 저장 성공: {user_id}')
+                    return True
+                else:
+                    logger.warning(f'🔥 Firebase 저장 실패 (시도 {attempt + 1}): {response.status_code}')
+                    if attempt < retry_count - 1:
+                        time.sleep(1)  # 1초 대기 후 재시도
+                        
+            except requests.exceptions.Timeout:
+                logger.warning(f'🔥 Firebase 타임아웃 (시도 {attempt + 1})')
+                if attempt < retry_count - 1:
+                    time.sleep(1)
+            except requests.exceptions.ConnectionError:
+                logger.warning(f'🔥 Firebase 연결 실패 (시도 {attempt + 1})')
+                if attempt < retry_count - 1:
+                    time.sleep(1)
         
-        logger.info(f'🔥 Firebase 응답 상태: {response.status_code}')
-        logger.info(f'🔥 Firebase 응답 내용: {response.text}')
-        
-        if response.status_code == 200:
-            logger.info(f'🔥 Firebase 자동전송 설정 저장 성공: {user_id}')
-            return True
-        else:
-            logger.error(f'🔥 Firebase 자동전송 설정 저장 실패: {response.status_code} - {response.text}')
-            return False
+        logger.error(f'🔥 Firebase 자동전송 설정 저장 최종 실패: {user_id}')
+        logger.info(f'💾 로컬 캐시에 저장됨: {user_id}')
+        return False  # Firebase 실패했지만 로컬 캐시는 성공
             
     except Exception as e:
         logger.error(f'🔥 Firebase 자동전송 설정 저장 에러: {e}')
+        # 로컬 캐시는 이미 저장됨
         return False
 
-def get_auto_send_settings_from_firebase(user_id):
-    """Firebase에서 자동전송 설정 조회"""
+def get_auto_send_settings_from_firebase(user_id, retry_count=3):
+    """Firebase에서 자동전송 설정 조회 (로컬 캐시 우선)"""
     try:
-        url = f"{FIREBASE_URL}/auto_send_settings/{user_id}.json"
-        response = requests.get(url, timeout=10)
+        # 먼저 로컬 캐시 확인
+        if user_id in local_cache['auto_send_settings']:
+            cached_data = local_cache['auto_send_settings'][user_id]
+            logger.info(f'💾 로컬 캐시에서 자동전송 설정 조회: {user_id}')
+            return cached_data.get('settings', {})
         
-        if response.status_code == 200:
-            data = response.json()
-            if data and data.get('is_active'):
-                logger.info(f'🔥 Firebase 자동전송 설정 조회 성공: {user_id}')
-                return data.get('settings', {})
-            else:
-                logger.info(f'🔥 Firebase 자동전송 설정 없음: {user_id}')
-                return None
-        else:
-            logger.error(f'🔥 Firebase 자동전송 설정 조회 실패: {response.status_code}')
-            return None
+        url = f"{FIREBASE_URL}/auto_send_settings/{user_id}.json"
+        
+        # 재시도 로직
+        for attempt in range(retry_count):
+            try:
+                logger.info(f'🔥 Firebase 설정 조회 시도 {attempt + 1}/{retry_count}: {user_id}')
+                response = requests.get(url, timeout=5)
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    if data and data.get('is_active'):
+                        # 로컬 캐시에 저장
+                        local_cache['auto_send_settings'][user_id] = data
+                        local_cache['last_sync'][f'settings_{user_id}'] = datetime.now().isoformat()
+                        
+                        logger.info(f'🔥 Firebase 자동전송 설정 조회 성공: {user_id}')
+                        return data.get('settings', {})
+                    else:
+                        logger.info(f'🔥 Firebase 자동전송 설정 없음: {user_id}')
+                        return None
+                else:
+                    logger.warning(f'🔥 Firebase 조회 실패 (시도 {attempt + 1}): {response.status_code}')
+                    if attempt < retry_count - 1:
+                        time.sleep(1)
+                        
+            except requests.exceptions.Timeout:
+                logger.warning(f'🔥 Firebase 타임아웃 (시도 {attempt + 1})')
+                if attempt < retry_count - 1:
+                    time.sleep(1)
+            except requests.exceptions.ConnectionError:
+                logger.warning(f'🔥 Firebase 연결 실패 (시도 {attempt + 1})')
+                if attempt < retry_count - 1:
+                    time.sleep(1)
+        
+        logger.error(f'🔥 Firebase 자동전송 설정 조회 최종 실패: {user_id}')
+        return None
             
     except Exception as e:
         logger.error(f'🔥 Firebase 자동전송 설정 조회 에러: {e}')
         return None
 
-def save_auto_send_status_to_firebase(user_id, status_data):
-    """Firebase에 자동전송 상태 저장"""
+def save_auto_send_status_to_firebase(user_id, status_data, retry_count=3):
+    """Firebase에 자동전송 상태 저장 (재시도 로직 포함)"""
     try:
         logger.info(f'🔥 자동전송 상태 저장 시작: user_id={user_id}, status={status_data}')
         
+        # 로컬 캐시에 먼저 저장 (즉시 반영)
+        local_cache['auto_send_status'][user_id] = status_data
+        local_cache['last_sync'][f'status_{user_id}'] = datetime.now().isoformat()
+        
         url = f"{FIREBASE_URL}/auto_send_status/{user_id}.json"
-        logger.info(f'🔥 Firebase URL: {url}')
         
-        response = requests.put(url, json=status_data, timeout=10)
+        # 재시도 로직
+        for attempt in range(retry_count):
+            try:
+                logger.info(f'🔥 Firebase 상태 저장 시도 {attempt + 1}/{retry_count}: {user_id}')
+                response = requests.put(url, json=status_data, timeout=5)
+                
+                if response.status_code == 200:
+                    logger.info(f'🔥 Firebase 자동전송 상태 저장 성공: {user_id}')
+                    return True
+                else:
+                    logger.warning(f'🔥 Firebase 상태 저장 실패 (시도 {attempt + 1}): {response.status_code}')
+                    if attempt < retry_count - 1:
+                        time.sleep(1)
+                        
+            except requests.exceptions.Timeout:
+                logger.warning(f'🔥 Firebase 타임아웃 (시도 {attempt + 1})')
+                if attempt < retry_count - 1:
+                    time.sleep(1)
+            except requests.exceptions.ConnectionError:
+                logger.warning(f'🔥 Firebase 연결 실패 (시도 {attempt + 1})')
+                if attempt < retry_count - 1:
+                    time.sleep(1)
         
-        logger.info(f'🔥 Firebase 응답 상태: {response.status_code}')
-        logger.info(f'🔥 Firebase 응답 내용: {response.text}')
-        
-        if response.status_code == 200:
-            logger.info(f'🔥 Firebase 자동전송 상태 저장 성공: {user_id}')
-            return True
-        else:
-            logger.error(f'🔥 Firebase 자동전송 상태 저장 실패: {response.status_code} - {response.text}')
-            return False
+        logger.error(f'🔥 Firebase 자동전송 상태 저장 최종 실패: {user_id}')
+        logger.info(f'💾 로컬 캐시에 저장됨: {user_id}')
+        return False  # Firebase 실패했지만 로컬 캐시는 성공
             
     except Exception as e:
         logger.error(f'🔥 Firebase 자동전송 상태 저장 에러: {e}')
+        # 로컬 캐시는 이미 저장됨
         return False
 
-def get_auto_send_status_from_firebase(user_id):
-    """Firebase에서 자동전송 상태 조회"""
+def get_auto_send_status_from_firebase(user_id, retry_count=3):
+    """Firebase에서 자동전송 상태 조회 (로컬 캐시 우선)"""
     try:
-        url = f"{FIREBASE_URL}/auto_send_status/{user_id}.json"
-        response = requests.get(url, timeout=10)
+        # 먼저 로컬 캐시 확인
+        if user_id in local_cache['auto_send_status']:
+            cached_data = local_cache['auto_send_status'][user_id]
+            logger.info(f'💾 로컬 캐시에서 자동전송 상태 조회: {user_id}')
+            return cached_data
         
-        if response.status_code == 200:
-            data = response.json()
-            if data:
-                logger.info(f'🔥 Firebase 자동전송 상태 조회 성공: {user_id}')
-                return data
-            else:
-                logger.info(f'🔥 Firebase 자동전송 상태 없음: {user_id}')
-                return None
-        else:
-            logger.error(f'🔥 Firebase 자동전송 상태 조회 실패: {response.status_code}')
-            return None
+        url = f"{FIREBASE_URL}/auto_send_status/{user_id}.json"
+        
+        # 재시도 로직
+        for attempt in range(retry_count):
+            try:
+                logger.info(f'🔥 Firebase 상태 조회 시도 {attempt + 1}/{retry_count}: {user_id}')
+                response = requests.get(url, timeout=5)
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    if data:
+                        # 로컬 캐시에 저장
+                        local_cache['auto_send_status'][user_id] = data
+                        local_cache['last_sync'][f'status_{user_id}'] = datetime.now().isoformat()
+                        
+                        logger.info(f'🔥 Firebase 자동전송 상태 조회 성공: {user_id}')
+                        return data
+                    else:
+                        logger.info(f'🔥 Firebase 자동전송 상태 없음: {user_id}')
+                        return None
+                else:
+                    logger.warning(f'🔥 Firebase 상태 조회 실패 (시도 {attempt + 1}): {response.status_code}')
+                    if attempt < retry_count - 1:
+                        time.sleep(1)
+                        
+            except requests.exceptions.Timeout:
+                logger.warning(f'🔥 Firebase 타임아웃 (시도 {attempt + 1})')
+                if attempt < retry_count - 1:
+                    time.sleep(1)
+            except requests.exceptions.ConnectionError:
+                logger.warning(f'🔥 Firebase 연결 실패 (시도 {attempt + 1})')
+                if attempt < retry_count - 1:
+                    time.sleep(1)
+        
+        logger.error(f'🔥 Firebase 자동전송 상태 조회 최종 실패: {user_id}')
+        return None
             
     except Exception as e:
         logger.error(f'🔥 Firebase 자동전송 상태 조회 에러: {e}')
@@ -2694,7 +2794,7 @@ def start_auto_send_job(user_id, group_ids, message, media_info=None):
         # 기존 작업 중지
         stop_auto_send_job(user_id)
         
-        # 설정 조회
+        # 설정 조회 (로컬 캐시 우선)
         settings = get_auto_send_settings_from_firebase(user_id)
         if not settings:
             logger.warning(f'⚠️ 자동전송 설정 없음, 기본 설정으로 시작: {user_id}')
@@ -2706,7 +2806,7 @@ def start_auto_send_job(user_id, group_ids, message, media_info=None):
                 'messageThreshold': 5,
                 'enableMessageCheck': False
             }
-            # Firebase에 기본 설정 저장
+            # Firebase에 기본 설정 저장 (로컬 캐시 포함)
             save_auto_send_settings_to_firebase(user_id, default_settings)
             settings = default_settings
         
