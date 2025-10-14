@@ -1983,17 +1983,39 @@ function startPostRestoreSync(userId) {
                     // 토글/버튼 상태 반영
                     const toggle = document.getElementById('autoSendToggle');
                     if (toggle) toggle.checked = !!data.is_running;
-                    if (!data.is_running) {
-                        // OFF이면 로컬 스냅샷 제거 및 체크 해제로 UI 초기화
-                        try {
-                            const key = getCurrentAccountKey ? getCurrentAccountKey() : null;
-                            if (key) localStorage.removeItem(`${key}_selectedGroups`);
-                            document.querySelectorAll('.group-checkbox').forEach(cb => (cb.checked = false));
-                            updateSelectedGroupsCount();
-                        } catch (_) {}
-                    }
                     updateAutoSendSettingsDisplay();
                     updateSendButtonText();
+                    // 서버 상태로 그룹 체크박스 강제 동기화
+                    try {
+                        const serverGroups = Array.isArray(data.group_ids) ? data.group_ids.map(String) : [];
+                        const allCbs = document.querySelectorAll('.group-checkbox');
+                        allCbs.forEach(cb => {
+                            const gid = cb.dataset.groupId;
+                            cb.checked = serverGroups.includes(String(gid));
+                        });
+                        updateSelectedGroupsCount();
+                    } catch (_) {}
+                    // 서버 상태로 저장된 메시지 강제 동기화
+                    try {
+                        if (data.media_info || data.message) {
+                            window.selectedMediaInfo = data.media_info || null;
+                            const messageInput = document.querySelector('.message-input');
+                            if (window.selectedMediaInfo) {
+                                if (messageInput) {
+                                    messageInput.value = '';
+                                    messageInput.placeholder = '💾 저장된 메시지가 선택되었습니다. 해제 후 입력하세요.';
+                                    messageInput.disabled = true;
+                                    messageInput.style.backgroundColor = '#f0f0f0';
+                                    messageInput.style.cursor = 'not-allowed';
+                                }
+                            } else if (messageInput) {
+                                messageInput.value = data.message || '';
+                                messageInput.disabled = false;
+                                messageInput.style.backgroundColor = '';
+                                messageInput.style.cursor = '';
+                            }
+                        }
+                    } catch (_) {}
                 }
             } catch (_) {}
             if (Date.now() - startedAt < 30000) {
