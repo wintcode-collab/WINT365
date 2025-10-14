@@ -107,6 +107,14 @@ function initializeApp() {
     hideErrorMessage();
 }
 
+// 진행상황 섹션 숨기기 함수
+function hideProgressSection() {
+    const progressSection = document.getElementById('progressSection');
+    if (progressSection) {
+        progressSection.style.display = 'none';
+    }
+}
+
 // Firebase 서비스 준비 대기
 async function waitForFirebaseService() {
     let attempts = 0;
@@ -2291,6 +2299,15 @@ async function sendMessageToGroup() {
     const autoSendToggle = document.getElementById('autoSendToggle');
     if (autoSendToggle && autoSendToggle.checked) {
         console.log('🔍 자동 전송 모드: 서버 자동전송 API 호출');
+        console.log('🔥 API URL 확인:', getApiBaseUrl());
+        
+        // 자동전송 설정이 Firebase에 저장되어 있는지 확인하고 저장
+        const currentSettings = getGroupInterval();
+        console.log('🔥 현재 자동전송 설정:', currentSettings);
+        
+        // Firebase에 설정 저장
+        console.log('🔥 자동전송 시작 전 Firebase 설정 저장');
+        await saveAutoSendSettingsToFirebase(currentSettings);
         
         // 자동전송 시작
         const autoSendSuccess = await startAutoSendWithGroups(validGroupIds, message, mediaInfo);
@@ -3358,6 +3375,15 @@ function saveAutoSendSettings() {
     // 전역 설정도 저장 (하위 호환성)
     localStorage.setItem('autoSendSettings', JSON.stringify(settings));
     
+    // Firebase에 자동전송 설정 저장
+    console.log('🔥 자동전송 설정 저장 시작 - Firebase 호출');
+    saveAutoSendSettingsToFirebase(settings);
+    
+    // 설정 저장 완료 후 잠시 대기
+    setTimeout(() => {
+        console.log('⏰ 자동전송 설정 저장 완료, 이제 자동전송 가능');
+    }, 1000);
+    
     // 메시지 개수 확인 상태 업데이트 (제거됨)
     // updateMessageCheckStatus();
     
@@ -3823,11 +3849,51 @@ function updateSendButtonText(isAutoSend = null) {
 
 // API URL 관리 함수
 function getApiBaseUrl() {
-    const hostname = window.location.hostname;
-    if (hostname === 'xn--h89a770c.shop') {
-        return 'https://wint365-backend.onrender.com';
-    } else {
-        return 'http://localhost:3000';
+    // 강제로 로컬 서버 사용 (CORS 문제 해결)
+    const url = 'http://192.168.55.248:3000';
+    console.log('🔥 API URL: 로컬 서버 사용 -', url);
+    console.log('🔥 현재 호스트:', window.location.hostname);
+    return url;
+}
+
+// Firebase 자동전송 설정 저장 함수
+async function saveAutoSendSettingsToFirebase(settings) {
+    try {
+        const accountName = document.getElementById('selectedAccountName')?.textContent;
+        if (!accountName) {
+            console.error('❌ 계정명이 없어서 Firebase 저장 불가');
+            return;
+        }
+        
+        console.log('🔥 Firebase 자동전송 설정 저장 시작:', accountName, settings);
+        console.log('🔥 API URL:', `${getApiBaseUrl()}/api/auto-send/save-settings`);
+        
+        const requestData = {
+            userId: accountName,
+            settings: settings
+        };
+        console.log('🔥 전송할 데이터:', requestData);
+        
+        const response = await fetch(`${getApiBaseUrl()}/api/auto-send/save-settings`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(requestData)
+        });
+        
+        console.log('🔥 응답 상태:', response.status);
+        const result = await response.json();
+        console.log('🔥 응답 내용:', result);
+        
+        if (result.success) {
+            console.log('✅ Firebase 자동전송 설정 저장 성공:', result);
+        } else {
+            console.error('❌ Firebase 자동전송 설정 저장 실패:', result);
+        }
+        
+    } catch (error) {
+        console.error('❌ Firebase 자동전송 설정 저장 에러:', error);
     }
 }
 
@@ -3943,11 +4009,13 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo) {
             throw new Error('계정을 찾을 수 없습니다.');
         }
         
-        // 자동전송 시작 API 호출
+        // 자동전송 시작 API 호출 (CORS 우회)
         const autoSendResponse = await fetch(`${getApiBaseUrl()}/api/auto-send/start`, {
             method: 'POST',
+            mode: 'cors',
             headers: {
                 'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
             },
             body: JSON.stringify({
                 account_name: accountName,

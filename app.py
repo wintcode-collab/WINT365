@@ -27,11 +27,27 @@ except ImportError as e:
     TelegramClient = None
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, origins=['https://xn--h89a770c.shop', 'http://localhost:3000', 'http://127.0.0.1:3000'], 
+     allow_headers=['Content-Type', 'Authorization'], 
+     methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# CORS 헤더 추가 미들웨어
+@app.after_request
+def after_request(response):
+    origin = request.headers.get('Origin')
+    if origin in ['https://xn--h89a770c.shop', 'http://localhost:3000', 'http://127.0.0.1:3000', 'http://192.168.55.248:3000']:
+        response.headers.add('Access-Control-Allow-Origin', origin)
+    else:
+        response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,Access-Control-Allow-Origin')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    response.headers.add('Access-Control-Allow-Credentials', 'true')
+    response.headers.add('Access-Control-Max-Age', '86400')
+    return response
 
 # 마크다운을 HTML로 변환하는 함수
 def convert_markdown_to_html(text):
@@ -1088,6 +1104,13 @@ def health():
         'timestamp': datetime.now().isoformat(),
         'telethon_loaded': TelegramClient is not None
     })
+
+# OPTIONS 요청 처리
+@app.route('/api/<path:path>', methods=['OPTIONS'])
+def handle_options(path):
+    """CORS preflight 요청 처리"""
+    logger.info(f'🔥 OPTIONS 요청 처리: /api/{path}')
+    return '', 200
 
 # API 테스트 엔드포인트
 @app.route('/api/test', methods=['GET', 'POST'])
@@ -2546,8 +2569,18 @@ def start_auto_send_job(user_id, group_ids, message, media_info=None):
         # 설정 조회
         settings = get_auto_send_settings_from_firebase(user_id)
         if not settings:
-            logger.error(f'❌ 자동전송 시작 실패: 설정 없음 - {user_id}')
-            return False
+            logger.warning(f'⚠️ 자동전송 설정 없음, 기본 설정으로 시작: {user_id}')
+            # 기본 설정 생성
+            default_settings = {
+                'groupInterval': 30,
+                'repeatInterval': 30,
+                'maxRepeats': 10,
+                'messageThreshold': 5,
+                'enableMessageCheck': False
+            }
+            # Firebase에 기본 설정 저장
+            save_auto_send_settings_to_firebase(user_id, default_settings)
+            settings = default_settings
         
         logger.info(f'🔥 Firebase에서 가져온 설정: {settings}')
         
