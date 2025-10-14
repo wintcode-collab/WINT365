@@ -2737,36 +2737,44 @@ def check_telegram_group_message_count(account_info, group_id):
                     logger.error(f'❌ 그룹 엔티티 가져오기 실패: {e}')
                     return 0
                 
-                # 최근 메시지들 가져오기 (최대 100개)
-                messages = await client.get_messages(group_entity, limit=100)
-                logger.info(f'📊 최근 메시지 {len(messages)}개 가져옴')
-                
-                # 내 사용자 정보 가져오기
-                me = await client.get_me()
-                my_user_id = me.id
-                logger.info(f'📊 내 사용자 ID: {my_user_id}')
-                
-                # 내가 보낸 마지막 메시지 찾기
-                my_last_message_index = -1
-                for i, message in enumerate(messages):
-                    if hasattr(message, 'from_id') and message.from_id and message.from_id.user_id == my_user_id:
-                        my_last_message_index = i
-                        logger.info(f'📊 내가 보낸 마지막 메시지 발견: 인덱스 {i}, 메시지 ID {message.id}')
-                        break
-                
-                if my_last_message_index == -1:
-                    logger.info('📊 내가 보낸 메시지를 찾을 수 없음 - 0개로 처리')
-                    return 0
-                
-                # 내가 보낸 메시지 이후의 다른 사람들의 메시지 개수 계산
-                other_people_messages = 0
-                for i in range(my_last_message_index + 1, len(messages)):
-                    message = messages[i]
-                    if hasattr(message, 'from_id') and message.from_id and message.from_id.user_id != my_user_id:
-                        other_people_messages += 1
-                
-                logger.info(f'📊 내가 보낸 메시지 이후 다른 사람들의 메시지 개수: {other_people_messages} (내가 메시지를 보내면 0으로 리셋됨)')
-                return other_people_messages
+                # 안읽은 메시지 개수 가져오기 (더 간단하고 정확)
+                try:
+                    unread_count = await client.get_unread_count(group_entity)
+                    logger.info(f'📊 안읽은 메시지 개수: {unread_count}')
+                    return unread_count
+                except Exception as e:
+                    logger.warning(f'⚠️ 안읽은 메시지 개수 가져오기 실패, 기존 방식으로 대체: {e}')
+                    
+                    # 기존 방식으로 대체 (안읽은 메시지가 실패할 경우)
+                    messages = await client.get_messages(group_entity, limit=100)
+                    logger.info(f'📊 최근 메시지 {len(messages)}개 가져옴')
+                    
+                    # 내 사용자 정보 가져오기
+                    me = await client.get_me()
+                    my_user_id = me.id
+                    logger.info(f'📊 내 사용자 ID: {my_user_id}')
+                    
+                    # 내가 보낸 마지막 메시지 찾기
+                    my_last_message_index = -1
+                    for i, message in enumerate(messages):
+                        if hasattr(message, 'from_id') and message.from_id and message.from_id.user_id == my_user_id:
+                            my_last_message_index = i
+                            logger.info(f'📊 내가 보낸 마지막 메시지 발견: 인덱스 {i}, 메시지 ID {message.id}')
+                            break
+                    
+                    if my_last_message_index == -1:
+                        logger.info('📊 내가 보낸 메시지를 찾을 수 없음 - 0개로 처리')
+                        return 0
+                    
+                    # 내가 보낸 메시지 이후의 다른 사람들의 메시지 개수 계산
+                    other_people_messages = 0
+                    for i in range(my_last_message_index + 1, len(messages)):
+                        message = messages[i]
+                        if hasattr(message, 'from_id') and message.from_id and message.from_id.user_id != my_user_id:
+                            other_people_messages += 1
+                    
+                    logger.info(f'📊 내가 보낸 메시지 이후 다른 사람들의 메시지 개수: {other_people_messages} (내가 메시지를 보내면 0으로 리셋됨)')
+                    return other_people_messages
                 
             except Exception as e:
                 logger.error(f'❌ 메시지 개수 확인 실패: {e}')
