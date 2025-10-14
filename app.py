@@ -3135,6 +3135,7 @@ def get_auto_send_status():
     try:
         data = request.get_json()
         user_id = (data.get('userId') or data.get('account_name') or '').strip()
+        toggle_on_from_client = data.get('toggleOn', False)  # 클라이언트에서 토글 ON 상태 전달
         
         if not user_id:
             return jsonify({
@@ -3158,11 +3159,15 @@ def get_auto_send_status():
         fb_message = fb_status.get('message')
         fb_media_info = fb_status.get('media_info')
         
-        logger.info(f'🤖 자동전송 상태 조회: user_id={user_id}, is_running={is_running}, scheduled_jobs={scheduled_jobs}')
+        # 클라이언트에서 토글 ON 상태를 전달받았으면 is_active=True로 처리
+        is_active = is_running or toggle_on_from_client
+        
+        logger.info(f'🤖 자동전송 상태 조회: user_id={user_id}, is_running={is_running}, scheduled_jobs={scheduled_jobs}, toggle_on={toggle_on_from_client}')
         
         return jsonify({
             'success': True,
             'is_running': is_running,
+            'is_active': is_active,  # 토글 상태 반영
             'current_repeats': current_repeats,
             'scheduled_jobs': scheduled_jobs,
             'settings': settings,

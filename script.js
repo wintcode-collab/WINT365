@@ -1982,16 +1982,22 @@ function startPostRestoreSync(userId) {
         const startedAt = Date.now();
         const sync = async () => {
             try {
+                // localStorage에서 토글 상태 확인
+                const toggleOnFromStorage = localStorage.getItem('autoSendToggleOn') === 'true';
+                
                 const res = await fetch('/api/auto-send/status', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userId })
+                    body: JSON.stringify({ 
+                        userId,
+                        toggleOn: toggleOnFromStorage
+                    })
                 });
                 const data = await res.json();
                 if (data?.success) {
                     // 토글/버튼 상태 반영
                     const toggle = document.getElementById('autoSendToggle');
-                    if (toggle) toggle.checked = !!data.is_running;
+                    if (toggle) toggle.checked = !!(data.is_active || data.is_running);
                     if (!data.is_running) {
                         // OFF이면 로컬 스냅샷만 제거하고 체크박스는 유지 (사용자 선택 보존)
                         try {
@@ -4305,10 +4311,16 @@ async function restoreAutoSendStatusFor(userId) {
     try {
         if (!userId) return;
         console.log('🔄 특정 계정 상태 복원 시작:', userId);
+        // localStorage에서 토글 상태 확인
+        const toggleOnFromStorage = localStorage.getItem('autoSendToggleOn') === 'true';
+        
         const resp = await fetch(`${getApiBaseUrl()}/api/auto-send/status`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId })
+            body: JSON.stringify({ 
+                userId,
+                toggleOn: toggleOnFromStorage  // 토글 상태 전달
+            })
         });
         const data = await resp.json();
         console.log('📊 특정 계정 상태:', data);
@@ -4351,9 +4363,11 @@ async function restoreAutoSendStatusFor(userId) {
         const toggleOnFromStorage = localStorage.getItem('autoSendToggleOn') === 'true';
         
         // 1) 토글을 서버 상태로 강제 일치(단, 설정이 저장된 상태이거나 사용자가 설정 중인 동안은 보류)
-        if (!window.autoSendSyncLocked && !window.autoSendSettingsSaved && !toggleOnFromStorage && toggle) {
-            toggle.checked = !!data.is_running;
-            updateSendButtonText(!!data.is_running);
+        if (!window.autoSendSyncLocked && !window.autoSendSettingsSaved && toggle) {
+            // 서버에서 is_active 상태를 받아서 토글 상태 결정
+            toggle.checked = !!(data.is_active || data.is_running);
+            updateSendButtonText(!!(data.is_active || data.is_running));
+            console.log('✅ 서버 상태로 토글 복원:', { is_active: data.is_active, is_running: data.is_running });
         } else if ((window.autoSendSettingsSaved || toggleOnFromStorage) && toggle) {
             // 설정이 저장된 상태이거나 localStorage에 토글 ON 상태가 있으면 토글을 ON으로 유지
             toggle.checked = true;
