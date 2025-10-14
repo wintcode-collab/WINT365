@@ -310,7 +310,6 @@
                                         </label>
                                         <div class="auto-send-settings-display" id="autoSendSettingsDisplay" style="display: none;">
                                             <span class="settings-info" id="settingsInfo"></span>
-                                            <button class="error-logs-btn" id="errorLogsBtn" title="자동전송 오류 로그 보기">🚨 오류 로그</button>
                                         </div>
                                     </div>
                                 </div>
@@ -437,34 +436,6 @@
 
             <div class="auto-send-settings-footer">
                 <button class="auto-send-save-btn" id="autoSendSaveBtn">💾 설정 저장</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- 자동전송 오류 로그 모달 -->
-    <div class="error-logs-modal" id="errorLogsModal" style="display: none;">
-        <div class="error-logs-content">
-            <div class="error-logs-header">
-                <h3>🚨 자동전송 오류 로그</h3>
-                <div class="error-logs-actions">
-                    <button class="refresh-error-logs-btn" id="refreshErrorLogsBtn">🔄 새로고침</button>
-                    <button class="clear-error-logs-btn" id="clearErrorLogsBtn">🗑️ 로그 삭제</button>
-                    <button class="close-error-logs-btn" id="closeErrorLogsBtn">×</button>
-                </div>
-            </div>
-            
-            <div class="error-logs-body">
-                <div class="error-logs-stats" id="errorLogsStats">
-                    <span class="stats-item">📊 총 오류: <span id="totalErrorCount">0</span>개</span>
-                    <span class="stats-item">⏰ 마지막 오류: <span id="lastErrorTime">없음</span></span>
-                </div>
-                
-                <div class="error-logs-list" id="errorLogsList">
-                    <div class="no-errors-message" id="noErrorsMessage">
-                        <p>🎉 오류가 없습니다!</p>
-                        <p>자동전송이 정상적으로 작동 중입니다.</p>
-                    </div>
-                </div>
             </div>
         </div>
     </div>
