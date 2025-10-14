@@ -2380,16 +2380,17 @@ async function sendMessageToGroup() {
         console.log('🔍 자동 전송 모드: 서버 자동전송 API 호출');
         console.log('🔥 API URL 확인:', getApiBaseUrl());
         
-        // 자동전송 설정이 Firebase에 저장되어 있는지 확인하고 저장
-        // 전체 자동전송 설정 객체 확보(계정별 저장값 우선)
+        // 자동전송 설정이 Firebase에 저장되어 있는지 확인
         let currentSettings = loadAccountSettings('autoSend');
         if (!currentSettings || typeof currentSettings !== 'object') {
-            // 최소 기본값 보정
-            currentSettings = { groupInterval: 30, repeatInterval: 30, maxRepeats: 10, messageThreshold: 5, enableMessageCheck: false };
+            console.log('⚠️ 자동전송 설정이 없습니다. 설정 모달을 열어서 설정을 저장해주세요.');
+            alert('자동전송을 시작하려면 먼저 자동전송 설정을 저장해주세요.\n\n자동전송 토글을 클릭하여 설정을 완료한 후 다시 시도해주세요.');
+            return;
         }
+        
         console.log('🔥 현재 자동전송 설정(객체):', currentSettings);
         
-        // Firebase에 설정 저장
+        // Firebase에 설정 저장 (최신 설정으로 업데이트)
         console.log('🔥 자동전송 시작 전 Firebase 설정 저장');
         await saveAutoSendSettingsToFirebase(currentSettings);
         
@@ -3310,8 +3311,8 @@ function setupAutoSendEventListeners() {
             }
             
             if (this.checked) {
-                // 상태 동기화 잠금: 시작 확정 전까지 서버 상태로 UI를 덮어쓰지 않음
-                window.autoSendSyncLocked = true;
+                // 자동전송 토글 ON - 설정 모달만 열고 자동전송은 시작하지 않음
+                console.log('🔄 자동전송 토글 ON - 설정 모달 열기');
                 showAutoSendSettingsModal();
                 updateSendButtonText(true); // 자동전송 ON
             } else {
@@ -3485,11 +3486,9 @@ function saveAutoSendSettings() {
     // Firebase에 자동전송 설정 저장
     console.log('🔥 자동전송 설정 저장 시작 - Firebase 호출');
     saveAutoSendSettingsToFirebase(settings).then(() => {
-        // 설정 저장 완료 후 자동전송 시작
-        console.log('⏰ 자동전송 설정 저장 완료, 자동전송 시작');
-        setTimeout(() => {
-            startAutoSendAfterSettingsSaved();
-        }, 500); // 0.5초 대기 후 자동전송 시작
+        // 설정 저장 완료 - 자동전송은 시작하지 않음
+        console.log('⏰ 자동전송 설정 저장 완료');
+        alert('자동 전송 설정이 저장되었습니다!\n\n이제 "자동전송 시작" 버튼을 눌러서 자동전송을 시작하세요.');
     }).catch((error) => {
         console.error('❌ 자동전송 설정 저장 실패:', error);
         alert('자동전송 설정 저장에 실패했습니다.');
