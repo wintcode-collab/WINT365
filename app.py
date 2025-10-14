@@ -2462,6 +2462,11 @@ def execute_auto_send_job(user_id, group_ids, message, media_info=None):
             status_guard = get_auto_send_status_from_firebase(user_id)
             if not status_guard or not status_guard.get('is_active', False) or not status_guard.get('is_running', False):
                 logger.info(f'⛔ 자동전송 비활성/중지 상태 감지, 실행 중단: {user_id}')
+                # 메모리에서도 작업 제거
+                if user_id in auto_send_jobs:
+                    del auto_send_jobs[user_id]
+                if f'{user_id}_repeats' in auto_send_jobs:
+                    del auto_send_jobs[f'{user_id}_repeats']
                 return False
         except Exception as _e:
             logger.error(f'⛔ 상태 가드 확인 실패(계속 시도): {user_id} - {_e}')
@@ -2667,9 +2672,9 @@ def stop_auto_send_job(user_id):
     try:
         logger.info(f'🛑 자동전송 작업 중지: {user_id}')
         
-        # 특정 사용자의 스케줄 작업만 제거 (schedule.clear() 대신)
+        # 특정 사용자의 스케줄 작업만 제거
         # schedule.clear()는 모든 스케줄을 지우므로 사용하지 않음
-        # 대신 메모리에서 작업 제거하고 Firebase 상태만 업데이트
+        # 대신 특정 사용자의 스케줄만 제거하는 방법 사용
         
         # 메모리에서 작업 제거
         if user_id in auto_send_jobs:
@@ -2815,6 +2820,21 @@ def run_scheduler():
     logger.info('🤖 자동전송 스케줄러 루프 시작')
     while True:
         try:
+            # 실행 전에 모든 사용자의 상태를 확인하고 중지된 사용자의 스케줄 제거
+            for user_id in list(auto_send_jobs.keys()):
+                if user_id.endswith('_repeats'):
+                    continue
+                try:
+                    status = get_auto_send_status_from_firebase(user_id)
+                    if not status or not status.get('is_running', False):
+                        logger.info(f'🛑 중지된 사용자 스케줄 정리: {user_id}')
+                        if user_id in auto_send_jobs:
+                            del auto_send_jobs[user_id]
+                        if f'{user_id}_repeats' in auto_send_jobs:
+                            del auto_send_jobs[f'{user_id}_repeats']
+                except Exception as _e:
+                    logger.warning(f'⚠️ 사용자 상태 확인 실패: {user_id} - {_e}')
+            
             schedule.run_pending()
             time.sleep(1)
         except Exception as e:
