@@ -2101,7 +2101,7 @@ function renderGroupsList(groups) {
             <div class="group-status-info">
                 <div class="group-message-count">
                     <span class="status-label">메시지 수:</span>
-                    <span class="status-value" id="messageCount-${group.id}">확인 중...</span>
+                    <span class="status-value" id="messageCount-${group.id}">0개</span>
                 </div>
                 <div class="group-next-send">
                     <span class="status-label">다음 전송:</span>
@@ -3925,8 +3925,8 @@ async function getAutoSendStatus(groupId) {
 function startRealtimeUpdates() {
     console.log('🔄 실시간 업데이트 시작');
     
-    // 초기 업데이트
-    updateGroupStatusRealtime();
+    // 초기 업데이트는 건너뛰고 기본값 0개로 표시
+    // updateGroupStatusRealtime(); // 주석 처리
     
     // 5분마다 업데이트 (30초 → 5분으로 변경)
     setInterval(updateGroupStatusRealtime, 300000);
