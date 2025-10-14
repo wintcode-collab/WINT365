@@ -82,6 +82,7 @@ const elements = {
 document.addEventListener('DOMContentLoaded', function() {
     initializeApp();
     setupEventListeners();
+    setupErrorLogsEventListeners(); // 오류 로그 이벤트 리스너 설정
     startTypingAnimation();
     
     // 자동 전송 설정 표시 초기화
@@ -646,6 +647,10 @@ async function handleSignUp() {
 // 유틸리티 함수들 - Firebase 연동
 async function checkUserExists(email) {
     try {
+        if (!window.firebaseService) {
+            throw new Error('Firebase 서비스가 초기화되지 않았습니다.');
+        }
+        
         // Firebase에서 사용자 존재 여부만 확인 (자동 로그인용)
         const signUps = await window.firebaseService.getAllSignUps();
         
@@ -666,6 +671,10 @@ async function checkUserExists(email) {
 
 async function validateCredentials(email, password) {
     try {
+        if (!window.firebaseService) {
+            throw new Error('Firebase 서비스가 초기화되지 않았습니다.');
+        }
+        
         // Firebase에서 사용자 정보 확인
         const signUps = await window.firebaseService.getAllSignUps();
         
@@ -1986,7 +1995,7 @@ function startPostRestoreSync(userId) {
                     if (!data.is_running) {
                         // OFF이면 로컬 스냅샷만 제거하고 체크박스는 유지 (사용자 선택 보존)
                         try {
-                            const key = getCurrentAccountKey ? getCurrentAccountKey() : null;
+                            const key = (typeof getCurrentAccountKey === 'function') ? getCurrentAccountKey() : null;
                             if (key) localStorage.removeItem(`${key}_selectedGroups`);
                             // 체크박스 자동 해제 제거 - 사용자가 선택한 그룹은 유지
                             // document.querySelectorAll('.group-checkbox').forEach(cb => (cb.checked = false));
@@ -2053,17 +2062,44 @@ function showTelegramGroupsWindow(groups, account) {
         // 계정별 저장된 UI 상태 복원
     try {
         // 선택 그룹 복원
-        const key = getCurrentAccountKey ? getCurrentAccountKey() : (account?.user_id ? `account_${account.user_id}` : null);
+        const key = (typeof getCurrentAccountKey === 'function') ? getCurrentAccountKey() : (account?.user_id ? `account_${account.user_id}` : null);
         if (key) {
-            const saved = JSON.parse(localStorage.getItem(`${key}_selectedGroups`) || '[]');
+            const saved = safeJsonParse(localStorage.getItem(`${key}_selectedGroups`) || '[]', []);
             if (Array.isArray(saved) && saved.length) {
                 saved.forEach(gid => {
                     const cb = document.querySelector(`.group-item input[type="checkbox"][data-group-id="${gid}"]`);
                     if (cb) cb.checked = true;
                 });
+                updateSelectedGroupsCount();
+            }
+            
+            // 저장된 메시지 복원
+            const savedMediaInfo = localStorage.getItem(`${key}_selectedMediaInfo`);
+            if (savedMediaInfo) {
+                try {
+                    window.selectedMediaInfo = safeJsonParse(savedMediaInfo, null);
+                    const messageInput = document.querySelector('.message-input');
+                    if (messageInput) {
+                        messageInput.value = '';
+                        messageInput.placeholder = '💾 저장된 메시지가 선택되었습니다. 해제 후 입력하세요.';
+                        messageInput.style.cursor = 'pointer';
+                    }
+                    console.log('✅ 저장된 메시지 복원 완료');
+                } catch (e) {
+                    console.warn('저장된 메시지 복원 실패:', e);
+                }
+            } else {
+                // 저장된 메시지가 없으면 입력한 텍스트 복원
+                const savedMessageText = localStorage.getItem(`${key}_messageText`);
+                if (savedMessageText) {
+                    const messageInput = document.querySelector('.message-input');
+                    if (messageInput) {
+                        messageInput.value = savedMessageText;
+                        console.log('✅ 메시지 텍스트 복원 완료');
+                    }
+                }
             }
         }
-        // 저장된 메시지/버튼 상태는 기존 로직으로 즉시 반영됨
         // 자동전송 상태 동기화는 상단에서 처리됨
     } catch (e) { console.warn('계정별 상태 복원 실패', e); }
     }
@@ -2113,7 +2149,7 @@ function renderGroupsList(groups) {
             // ON 상태에서만 변경 스냅샷 저장
             try {
                 const toggle = document.getElementById('autoSendToggle');
-                const key = getCurrentAccountKey ? getCurrentAccountKey() : null;
+                const key = (typeof getCurrentAccountKey === 'function') ? getCurrentAccountKey() : null;
                 if (toggle && toggle.checked && key) {
                     const ids = Array.from(document.querySelectorAll('.group-checkbox:checked')).map(cb => cb.dataset.groupId);
                     localStorage.setItem(`${key}_selectedGroups`, JSON.stringify(ids));
@@ -2248,6 +2284,14 @@ function closeTelegramGroupsWindow() {
     
     // 선택된 그룹 수 업데이트
     updateSelectedGroupsCount();
+    
+    // localStorage에서도 모든 상태 삭제
+    const key = (typeof getCurrentAccountKey === 'function') ? getCurrentAccountKey() : null;
+    if (key) {
+        localStorage.removeItem(`${key}_selectedGroups`);
+        localStorage.removeItem(`${key}_selectedMediaInfo`);
+        localStorage.removeItem(`${key}_messageText`);
+    }
 }
 
 // 그룹 목록 새로고침
@@ -2337,7 +2381,7 @@ async function sendMessageToGroup() {
     // ON으로 시작할 때만 현재 선택 그룹을 계정별로 저장(복원 스냅샷)
     try {
         const toggle = document.getElementById('autoSendToggle');
-        const key = getCurrentAccountKey ? getCurrentAccountKey() : null;
+        const key = (typeof getCurrentAccountKey === 'function') ? getCurrentAccountKey() : null;
         if (toggle && toggle.checked && key) {
             localStorage.setItem(`${key}_selectedGroups`, JSON.stringify(validGroupIds));
         }
@@ -2882,6 +2926,12 @@ function selectTelegramSavedMessage(messageIndex, savedMessages) {
             date: message.date || null
         };
         
+        // localStorage에도 저장 (새로고침 시 복원용)
+        const key = (typeof getCurrentAccountKey === 'function') ? getCurrentAccountKey() : null;
+        if (key) {
+            localStorage.setItem(`${key}_selectedMediaInfo`, JSON.stringify(window.selectedMediaInfo));
+        }
+        
         // 커스텀 이모지가 있는 경우 원본 객체 전체 보존
         if (message.has_custom_emoji) {
             console.log('💾 커스텀 이모지 원본 객체 전체 보존:', {
@@ -2899,7 +2949,7 @@ function selectTelegramSavedMessage(messageIndex, savedMessages) {
         // 자동전송이 ON이면 현재 그룹 선택 스냅샷을 유지 저장(체크 해제 방지)
         try {
             const toggle = document.getElementById('autoSendToggle');
-            const key = getCurrentAccountKey ? getCurrentAccountKey() : null;
+            const key = (typeof getCurrentAccountKey === 'function') ? getCurrentAccountKey() : null;
             if (toggle && toggle.checked && key) {
                 const ids = Array.from(document.querySelectorAll('.group-checkbox:checked')).map(cb => cb.dataset.groupId);
                 localStorage.setItem(`${key}_selectedGroups`, JSON.stringify(ids));
@@ -2916,6 +2966,12 @@ function clearSavedMessage() {
     
     // 전역 변수 초기화
     window.selectedMediaInfo = null;
+    
+    // localStorage에서도 삭제
+    const key = (typeof getCurrentAccountKey === 'function') ? getCurrentAccountKey() : null;
+    if (key) {
+        localStorage.removeItem(`${key}_selectedMediaInfo`);
+    }
     
     // 입력칸 초기화 및 활성화
     const messageInput = document.querySelector('.message-input');
@@ -3331,6 +3387,7 @@ function setupAutoSendEventListeners() {
                 // 잠금 해제 및 설정 저장 플래그 리셋
                 window.autoSendSyncLocked = false;
                 window.autoSendSettingsSaved = false;
+                localStorage.removeItem('autoSendSettingsSaved');
                 // 설정 표시 숨기기
                 const settingsDisplay = document.getElementById('autoSendSettingsDisplay');
                 if (settingsDisplay) {
@@ -3423,6 +3480,7 @@ function closeAutoSendSettingsModal() {
         // 상태 동기화 잠금 해제 및 설정 저장 플래그 리셋
         window.autoSendSyncLocked = false;
         window.autoSendSettingsSaved = false;
+        localStorage.removeItem('autoSendSettingsSaved');
         updateSendButtonText(false);
     }
     // 설정 표시 숨기기
@@ -3468,11 +3526,23 @@ function loadAutoSendSettings() {
 
 // 자동 전송 설정 저장
 function saveAutoSendSettings() {
-    const groupInterval = document.getElementById('groupInterval').value;
-    const repeatInterval = document.getElementById('repeatInterval').value;
-    const maxRepeats = document.getElementById('maxRepeats').value;
-    const messageThreshold = document.getElementById('messageThreshold').value;
-    const enableMessageCheck = document.getElementById('enableMessageCheck').checked;
+    const groupIntervalEl = document.getElementById('groupInterval');
+    const repeatIntervalEl = document.getElementById('repeatInterval');
+    const maxRepeatsEl = document.getElementById('maxRepeats');
+    const messageThresholdEl = document.getElementById('messageThreshold');
+    const enableMessageCheckEl = document.getElementById('enableMessageCheck');
+    
+    if (!groupIntervalEl || !repeatIntervalEl || !maxRepeatsEl || !messageThresholdEl || !enableMessageCheckEl) {
+        console.error('❌ 자동전송 설정 요소를 찾을 수 없습니다');
+        alert('자동전송 설정 요소를 찾을 수 없습니다. 페이지를 새로고침하고 다시 시도해주세요.');
+        return;
+    }
+    
+    const groupInterval = groupIntervalEl.value;
+    const repeatInterval = repeatIntervalEl.value;
+    const maxRepeats = maxRepeatsEl.value;
+    const messageThreshold = messageThresholdEl.value;
+    const enableMessageCheck = enableMessageCheckEl.checked;
     
     const settings = {
         groupInterval: parseInt(groupInterval),
@@ -3491,21 +3561,21 @@ function saveAutoSendSettings() {
     // 전역 설정도 저장 (하위 호환성)
     localStorage.setItem('autoSendSettings', JSON.stringify(settings));
     
-    // Firebase에 자동전송 설정 저장
-    console.log('🔥 자동전송 설정 저장 시작 - Firebase 호출');
-    saveAutoSendSettingsToFirebase(settings).then(() => {
-        // 설정 저장 완료 - 자동전송은 시작하지 않음
-        console.log('⏰ 자동전송 설정 저장 완료');
-        
-        // 설정 저장 완료 표시 - 토글 상태 유지
-        window.autoSendSettingsSaved = true;
-        console.log('✅ 자동전송 설정 저장 완료 - 토글 상태 유지');
-        
-        alert('자동 전송 설정이 저장되었습니다!\n\n이제 "자동전송 시작" 버튼을 눌러서 자동전송을 시작하세요.');
-    }).catch((error) => {
-        console.error('❌ 자동전송 설정 저장 실패:', error);
-        alert('자동전송 설정 저장에 실패했습니다.');
-    });
+    // 계정별 설정도 localStorage에 저장 (새로고침 시 복원용)
+    const key = (typeof getCurrentAccountKey === 'function') ? getCurrentAccountKey() : null;
+    if (key) {
+        localStorage.setItem(`${key}_autoSendSettings`, JSON.stringify(settings));
+    }
+    
+    // 설정 저장 완료 - Firebase에 저장하지 않음 (실제 자동전송 시작 시에만 저장)
+    console.log('⏰ 자동전송 설정 저장 완료 (로컬만)');
+    
+    // 설정 저장 완료 표시 - 토글 상태 유지 (localStorage에 저장)
+    window.autoSendSettingsSaved = true;
+    localStorage.setItem('autoSendSettingsSaved', 'true');
+    console.log('✅ 자동전송 설정 저장 완료 - 토글 상태 유지');
+    
+    alert('자동 전송 설정이 저장되었습니다!\n\n이제 "자동전송 시작" 버튼을 눌러서 자동전송을 시작하세요.');
     
     // 자동 전송 토글을 ON으로 설정
     const autoSendToggle = document.getElementById('autoSendToggle');
@@ -3820,6 +3890,168 @@ function clearAllData() {
     }
 }
 
+// 오류 로그 관련 함수들
+function showErrorLogsModal() {
+    const modal = document.getElementById('errorLogsModal');
+    if (modal) {
+        modal.style.display = 'flex';
+        loadErrorLogs();
+    }
+}
+
+function hideErrorLogsModal() {
+    const modal = document.getElementById('errorLogsModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+async function loadErrorLogs() {
+    try {
+        const accountName = document.getElementById('selectedAccountName')?.textContent;
+        const accountPhone = document.getElementById('selectedAccountPhone')?.textContent;
+        
+        if (!accountName || accountName === '계정을 선택하세요') {
+            console.warn('계정이 선택되지 않음');
+            return;
+        }
+        
+        const userId = `${accountName}_${accountPhone}`.replace(/[^a-zA-Z0-9_]/g, '_');
+        
+        const response = await fetch('/api/auto-send/error-logs', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                userId: userId,
+                limit: 100
+            })
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            displayErrorLogs(result.logs || []);
+        } else {
+            console.error('오류 로그 조회 실패:', response.status);
+        }
+        
+    } catch (error) {
+        console.error('오류 로그 조회 에러:', error);
+    }
+}
+
+function displayErrorLogs(logs) {
+    const logsList = document.getElementById('errorLogsList');
+    const totalCount = document.getElementById('totalErrorCount');
+    const lastErrorTime = document.getElementById('lastErrorTime');
+    const noErrorsMessage = document.getElementById('noErrorsMessage');
+    
+    if (!logsList || !totalCount || !lastErrorTime || !noErrorsMessage) return;
+    
+    // 통계 업데이트
+    totalCount.textContent = logs.length;
+    
+    if (logs.length > 0) {
+        const lastLog = logs[0];
+        const lastTime = new Date(lastLog.timestamp);
+        lastErrorTime.textContent = lastTime.toLocaleString('ko-KR');
+        noErrorsMessage.style.display = 'none';
+        
+        // 오류 로그 목록 표시
+        logsList.innerHTML = logs.map(log => `
+            <div class="error-log-item">
+                <div class="error-log-header">
+                    <span class="error-log-type">${log.error_type}</span>
+                    <span class="error-log-time">${new Date(log.timestamp).toLocaleString('ko-KR')}</span>
+                </div>
+                <div class="error-log-message">${log.error_message}</div>
+                ${log.details ? `<div class="error-log-details">${JSON.stringify(log.details, null, 2)}</div>` : ''}
+            </div>
+        `).join('');
+    } else {
+        lastErrorTime.textContent = '없음';
+        noErrorsMessage.style.display = 'block';
+        logsList.innerHTML = '';
+    }
+}
+
+async function clearErrorLogs() {
+    try {
+        const accountName = document.getElementById('selectedAccountName')?.textContent;
+        const accountPhone = document.getElementById('selectedAccountPhone')?.textContent;
+        
+        if (!accountName || accountName === '계정을 선택하세요') {
+            console.warn('계정이 선택되지 않음');
+            return;
+        }
+        
+        const userId = `${accountName}_${accountPhone}`.replace(/[^a-zA-Z0-9_]/g, '_');
+        
+        if (!confirm('정말로 오류 로그를 삭제하시겠습니까?')) {
+            return;
+        }
+        
+        const response = await fetch('/api/auto-send/error-logs/clear', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                userId: userId
+            })
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            console.log('오류 로그 삭제 완료:', result.message);
+            loadErrorLogs(); // 목록 새로고침
+        } else {
+            console.error('오류 로그 삭제 실패:', response.status);
+        }
+        
+    } catch (error) {
+        console.error('오류 로그 삭제 에러:', error);
+    }
+}
+
+// 오류 로그 이벤트 리스너 설정
+function setupErrorLogsEventListeners() {
+    // 오류 로그 버튼
+    const errorLogsBtn = document.getElementById('errorLogsBtn');
+    if (errorLogsBtn) {
+        errorLogsBtn.addEventListener('click', showErrorLogsModal);
+    }
+    
+    // 오류 로그 모달 닫기 버튼
+    const closeErrorLogsBtn = document.getElementById('closeErrorLogsBtn');
+    if (closeErrorLogsBtn) {
+        closeErrorLogsBtn.addEventListener('click', hideErrorLogsModal);
+    }
+    
+    // 새로고침 버튼
+    const refreshErrorLogsBtn = document.getElementById('refreshErrorLogsBtn');
+    if (refreshErrorLogsBtn) {
+        refreshErrorLogsBtn.addEventListener('click', loadErrorLogs);
+    }
+    
+    // 로그 삭제 버튼
+    const clearErrorLogsBtn = document.getElementById('clearErrorLogsBtn');
+    if (clearErrorLogsBtn) {
+        clearErrorLogsBtn.addEventListener('click', clearErrorLogs);
+    }
+    
+    // 모달 외부 클릭 시 닫기
+    const errorLogsModal = document.getElementById('errorLogsModal');
+    if (errorLogsModal) {
+        errorLogsModal.addEventListener('click', function(e) {
+            if (e.target === errorLogsModal) {
+                hideErrorLogsModal();
+            }
+        });
+    }
+}
+
 // 개발자 도구용 함수 (콘솔에서 사용)
 window.clearAllData = clearAllData;
 window.showStoredData = async function() {
@@ -3926,6 +4158,20 @@ function setupGroupSelectionButtons() {
     if (deselectAllBtn) {
         deselectAllBtn.addEventListener('click', function() {
             deselectAllGroups();
+        });
+    }
+    
+    // 메시지 입력 이벤트 리스너 추가 (실시간 저장)
+    const messageInput = document.querySelector('.message-input');
+    if (messageInput) {
+        messageInput.addEventListener('input', function() {
+            // 저장된 메시지가 선택되지 않은 경우에만 텍스트 저장
+            if (!window.selectedMediaInfo) {
+                const key = (typeof getCurrentAccountKey === 'function') ? getCurrentAccountKey() : null;
+                if (key) {
+                    localStorage.setItem(`${key}_messageText`, this.value);
+                }
+            }
         });
     }
 }
@@ -4035,6 +4281,38 @@ async function restoreAutoSendStatusFor(userId) {
         const toggle = document.getElementById('autoSendToggle');
         if (!(data && data.success)) return;
 
+    // localStorage에서 설정 저장 상태 복원
+    if (!window.autoSendSettingsSaved) {
+        window.autoSendSettingsSaved = localStorage.getItem('autoSendSettingsSaved') === 'true';
+    }
+    
+    // 자동전송 설정값들도 복원
+    const key = (typeof getCurrentAccountKey === 'function') ? getCurrentAccountKey() : null;
+    if (key) {
+        const savedSettings = localStorage.getItem(`${key}_autoSendSettings`);
+        if (savedSettings) {
+            try {
+                const settings = safeJsonParse(savedSettings, {});
+                // 설정 모달의 입력값들 복원
+                const groupInterval = document.getElementById('groupInterval');
+                const repeatInterval = document.getElementById('repeatInterval');
+                const maxRepeats = document.getElementById('maxRepeats');
+                const messageThreshold = document.getElementById('messageThreshold');
+                const enableMessageCheck = document.getElementById('enableMessageCheck');
+                
+                if (groupInterval) groupInterval.value = settings.groupInterval || 30;
+                if (repeatInterval) repeatInterval.value = settings.repeatInterval || 30;
+                if (maxRepeats) maxRepeats.value = settings.maxRepeats || 10;
+                if (messageThreshold) messageThreshold.value = settings.messageThreshold || 5;
+                if (enableMessageCheck) enableMessageCheck.checked = settings.enableMessageCheck !== false;
+                
+                console.log('✅ 자동전송 설정값 복원 완료');
+            } catch (e) {
+                console.warn('자동전송 설정값 복원 실패:', e);
+            }
+        }
+    }
+        
         // 1) 토글을 서버 상태로 강제 일치(단, 설정이 저장된 상태이거나 사용자가 설정 중인 동안은 보류)
         if (!window.autoSendSyncLocked && !window.autoSendSettingsSaved && toggle) {
             toggle.checked = !!data.is_running;
@@ -4083,7 +4361,7 @@ async function restoreAutoSendStatusFor(userId) {
         // 4) 서버가 is_running:false면 로컬 스냅샷 제거 및 UI 초기화(이전 로직 유지)
         if (!data.is_running) {
             try {
-                const key = getCurrentAccountKey ? getCurrentAccountKey() : null;
+                const key = (typeof getCurrentAccountKey === 'function') ? getCurrentAccountKey() : null;
                 if (key) localStorage.removeItem(`${key}_selectedGroups`);
             } catch (_) {}
         }
@@ -4213,6 +4491,16 @@ async function saveAutoSendSettingsToFirebase(settings) {
     }
 }
 
+// 안전한 JSON 파싱 함수
+function safeJsonParse(jsonString, defaultValue = null) {
+    try {
+        return JSON.parse(jsonString);
+    } catch (error) {
+        console.warn('JSON 파싱 실패:', error, '원본:', jsonString);
+        return defaultValue;
+    }
+}
+
 // 계정별 설정 관리 함수들
 function getCurrentAccountKey() {
     const accountName = document.getElementById('selectedAccountName')?.textContent;
@@ -4297,8 +4585,15 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo) {
         console.log('🚀 자동전송 시작:', { selectedGroups, message, mediaInfo });
         
         // 현재 계정 정보 가져오기
-        const accountName = document.getElementById('selectedAccountName').textContent;
-        const accountPhone = document.getElementById('selectedAccountPhone').textContent;
+        const accountNameEl = document.getElementById('selectedAccountName');
+        const accountPhoneEl = document.getElementById('selectedAccountPhone');
+        
+        if (!accountNameEl || !accountPhoneEl) {
+            throw new Error('계정 정보 요소를 찾을 수 없습니다.');
+        }
+        
+        const accountName = accountNameEl.textContent;
+        const accountPhone = accountPhoneEl.textContent;
         
         if (!accountName || accountName === '계정을 선택하세요') {
             throw new Error('계정이 선택되지 않았습니다.');
@@ -4348,6 +4643,7 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo) {
             // 시작 확정 → 잠금 해제, 설정 저장 플래그 리셋, 바로 서버 상태 다시 받아 UI와 1:1 동기화
             window.autoSendSyncLocked = false;
             window.autoSendSettingsSaved = false; // 자동전송이 시작되면 설정 저장 플래그 리셋
+            localStorage.removeItem('autoSendSettingsSaved');
             try { await restoreAutoSendStatusFor(String(account.user_id)); } catch(_){}
             return true;
         } else {

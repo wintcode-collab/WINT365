@@ -41,6 +41,68 @@ CORS(
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# 자동전송 오류 로그 저장소
+AUTO_SEND_ERROR_LOGS = []
+MAX_ERROR_LOGS = 1000  # 최대 1000개 오류 로그 유지
+
+def add_auto_send_error_log(user_id, error_type, error_message, details=None):
+    """자동전송 오류 로그 추가"""
+    try:
+        error_log = {
+            'timestamp': datetime.now().isoformat(),
+            'user_id': user_id,
+            'error_type': error_type,
+            'error_message': error_message,
+            'details': details or {},
+            'id': len(AUTO_SEND_ERROR_LOGS) + 1
+        }
+        
+        AUTO_SEND_ERROR_LOGS.append(error_log)
+        
+        # 최대 개수 초과 시 오래된 로그 삭제
+        if len(AUTO_SEND_ERROR_LOGS) > MAX_ERROR_LOGS:
+            AUTO_SEND_ERROR_LOGS.pop(0)
+        
+        logger.error(f'🚨 자동전송 오류 로그 추가: {error_type} - {error_message} (사용자: {user_id})')
+        
+    except Exception as e:
+        logger.error(f'❌ 오류 로그 추가 실패: {e}')
+
+def get_auto_send_error_logs(user_id=None, limit=100):
+    """자동전송 오류 로그 조회"""
+    try:
+        logs = AUTO_SEND_ERROR_LOGS.copy()
+        
+        # 특정 사용자 필터링
+        if user_id:
+            logs = [log for log in logs if log.get('user_id') == user_id]
+        
+        # 최신 순으로 정렬
+        logs.sort(key=lambda x: x['timestamp'], reverse=True)
+        
+        # 개수 제한
+        return logs[:limit]
+        
+    except Exception as e:
+        logger.error(f'❌ 오류 로그 조회 실패: {e}')
+        return []
+
+def clear_auto_send_error_logs(user_id=None):
+    """자동전송 오류 로그 삭제"""
+    try:
+        if user_id:
+            # 특정 사용자 로그만 삭제
+            global AUTO_SEND_ERROR_LOGS
+            AUTO_SEND_ERROR_LOGS = [log for log in AUTO_SEND_ERROR_LOGS if log.get('user_id') != user_id]
+            logger.info(f'🧹 사용자 {user_id} 오류 로그 삭제 완료')
+        else:
+            # 모든 로그 삭제
+            AUTO_SEND_ERROR_LOGS.clear()
+            logger.info('🧹 모든 오류 로그 삭제 완료')
+            
+    except Exception as e:
+        logger.error(f'❌ 오류 로그 삭제 실패: {e}')
+
 # CORS 헤더 추가 미들웨어
 @app.after_request
 def after_request(response):
@@ -2469,13 +2531,23 @@ def execute_auto_send_job(user_id, group_ids, message, media_info=None):
         # 계정 정보 조회
         account_info = get_account_from_firebase(user_id)
         if not account_info:
-            logger.error(f'❌ 자동전송 실패: 계정 정보 없음 - {user_id}')
+            error_msg = f'자동전송 실패: 계정 정보 없음 - {user_id}'
+            logger.error(f'❌ {error_msg}')
+            add_auto_send_error_log(user_id, 'ACCOUNT_NOT_FOUND', error_msg, {
+                'user_id': user_id,
+                'timestamp': datetime.now().isoformat()
+            })
             return False
         
         # 설정 조회
         settings = get_auto_send_settings_from_firebase(user_id)
         if not settings:
-            logger.error(f'❌ 자동전송 실패: 설정 없음 - {user_id}')
+            error_msg = f'자동전송 실패: 설정 없음 - {user_id}'
+            logger.error(f'❌ {error_msg}')
+            add_auto_send_error_log(user_id, 'SETTINGS_NOT_FOUND', error_msg, {
+                'user_id': user_id,
+                'timestamp': datetime.now().isoformat()
+            })
             return False
         
         group_interval = settings.get('groupInterval', 30)  # 초 단위
@@ -2559,7 +2631,16 @@ def execute_auto_send_job(user_id, group_ids, message, media_info=None):
                     # 마지막 전송 시간 업데이트
                     update_last_send_time(user_id, group_id)
                 else:
-                    logger.error(f'❌ 자동전송 실패: 그룹 {group_id}')
+                    error_msg = f'자동전송 실패: 그룹 {group_id}'
+                    logger.error(f'❌ {error_msg}')
+                    
+                    # 오류 로그 추가
+                    add_auto_send_error_log(user_id, 'SEND_FAILED', error_msg, {
+                        'group_id': group_id,
+                        'user_id': user_id,
+                        'result': str(result),
+                        'timestamp': datetime.now().isoformat()
+                    })
                     
                     # 슬로우 모드 감지 및 재시도 스케줄링
                     if isinstance(result, dict) and result.get('error') == 'flood_control':
@@ -2575,7 +2656,16 @@ def execute_auto_send_job(user_id, group_ids, message, media_info=None):
                     logger.info(f'⏰ 그룹 간 대기 완료: {group_interval}초')
                 
             except Exception as e:
-                logger.error(f'❌ 자동전송 그룹 {group_id} 에러: {e}')
+                error_msg = f'자동전송 그룹 {group_id} 에러: {e}'
+                logger.error(f'❌ {error_msg}')
+                
+                # 오류 로그 추가
+                add_auto_send_error_log(user_id, 'GROUP_SEND_ERROR', error_msg, {
+                    'group_id': group_id,
+                    'user_id': user_id,
+                    'error': str(e),
+                    'timestamp': datetime.now().isoformat()
+                })
                 continue
         
         # 반복 횟수 증가
@@ -2585,7 +2675,15 @@ def execute_auto_send_job(user_id, group_ids, message, media_info=None):
         return True
         
     except Exception as e:
-        logger.error(f'❌ 자동전송 작업 에러: {e}')
+        error_msg = f'자동전송 작업 전체 에러: {e}'
+        logger.error(f'❌ {error_msg}')
+        
+        # 오류 로그 추가
+        add_auto_send_error_log(user_id, 'AUTO_SEND_JOB_ERROR', error_msg, {
+            'user_id': user_id,
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        })
         return False
 
 def start_auto_send_job(user_id, group_ids, message, media_info=None):
@@ -3088,6 +3186,57 @@ def ping():
         'status': 'alive',
         'timestamp': datetime.now().isoformat()
     })
+
+# 자동전송 오류 로그 조회 API
+@app.route('/api/auto-send/error-logs', methods=['POST'])
+@cross_origin(origins=ALLOWED_ORIGINS, methods=['POST','OPTIONS'], allow_headers=['Content-Type','Authorization'], max_age=86400)
+def get_auto_send_error_logs_api():
+    """자동전송 오류 로그 조회"""
+    try:
+        data = request.get_json() or {}
+        user_id = data.get('userId', '').strip()
+        limit = data.get('limit', 100)
+        
+        # 오류 로그 조회
+        logs = get_auto_send_error_logs(user_id, limit)
+        
+        return jsonify({
+            'success': True,
+            'logs': logs,
+            'total_count': len(logs),
+            'user_id': user_id
+        })
+        
+    except Exception as e:
+        logger.error(f'❌ 자동전송 오류 로그 조회 실패: {e}')
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+# 자동전송 오류 로그 삭제 API
+@app.route('/api/auto-send/error-logs/clear', methods=['POST'])
+@cross_origin(origins=ALLOWED_ORIGINS, methods=['POST','OPTIONS'], allow_headers=['Content-Type','Authorization'], max_age=86400)
+def clear_auto_send_error_logs_api():
+    """자동전송 오류 로그 삭제"""
+    try:
+        data = request.get_json() or {}
+        user_id = data.get('userId', '').strip()
+        
+        # 오류 로그 삭제
+        clear_auto_send_error_logs(user_id if user_id else None)
+        
+        return jsonify({
+            'success': True,
+            'message': f'오류 로그가 삭제되었습니다. (사용자: {user_id or "전체"})'
+        })
+        
+    except Exception as e:
+        logger.error(f'❌ 자동전송 오류 로그 삭제 실패: {e}')
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 def restore_auto_send_jobs_from_firebase():
     """서버 시작 시 Firebase에서 자동전송 작업 복원"""
