@@ -4,6 +4,7 @@ let isCodeMode = false;
 let isCodeRegistrationMode = false;
 let isAnimationRunning = false;
 let currentAnimationTimer = null;
+let autoSendSyncLocked = false; // 자동전송 동기화 잠금 상태
 
 // 텔레그램 인증 관련 변수
 let telegramClient = null;
