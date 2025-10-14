@@ -3220,7 +3220,7 @@ function setupAutoSendEventListeners() {
                 updateSendButtonText(true); // 자동전송 ON
             } else {
                 // 자동전송 중지
-                stopAutoSend();
+                    stopAutoSend();
                 hideAutoSendSettingsModal();
                 // 설정 표시 숨기기
                 const settingsDisplay = document.getElementById('autoSendSettingsDisplay');
@@ -3851,6 +3851,29 @@ function updateSendButtonText(isAutoSend = null) {
 function getApiBaseUrl() {
     return '';
 }
+
+// 자동전송 중지 API 호출
+async function stopAutoSend() {
+    try {
+        const accountName = document.getElementById('selectedAccountName')?.textContent?.trim();
+        if (!accountName) {
+            console.warn('⚠️ 계정명이 없어 자동전송 중지 요청을 건너뜀');
+            return;
+        }
+        console.log('🛑 자동전송 중지 요청:', { account_name: accountName });
+        const resp = await fetch(`${getApiBaseUrl()}/api/auto-send/stop`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ account_name: accountName })
+        });
+        const result = await resp.json().catch(() => ({}));
+        console.log('🛑 자동전송 중지 응답:', resp.status, result);
+    } catch (e) {
+        console.error('❌ 자동전송 중지 에러:', e);
+    }
+}
+// 전역에서 접근 가능하도록 등록
+window.stopAutoSend = stopAutoSend;
 
 // Firebase 자동전송 설정 저장 함수
 async function saveAutoSendSettingsToFirebase(settings) {
