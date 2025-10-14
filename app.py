@@ -27,9 +27,15 @@ except ImportError as e:
     TelegramClient = None
 
 app = Flask(__name__)
-CORS(app, origins=['https://xn--h89a770c.shop', 'http://localhost:3000', 'http://127.0.0.1:3000'], 
-     allow_headers=['Content-Type', 'Authorization'], 
-     methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
+# CORS: 단일 허용 오리진으로 고정하고 /api/* 경로만 허용
+ALLOWED_ORIGINS = ['https://xn--h89a770c.shop']
+CORS(
+    app,
+    resources={r"/api/*": {"origins": ALLOWED_ORIGINS}},
+    supports_credentials=False,
+    allow_headers=['Content-Type', 'Authorization'],
+    methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+)
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)
@@ -39,15 +45,18 @@ logger = logging.getLogger(__name__)
 @app.after_request
 def after_request(response):
     origin = request.headers.get('Origin')
-    if origin in ['https://xn--h89a770c.shop', 'http://localhost:3000', 'http://127.0.0.1:3000', 'http://192.168.55.248:3000']:
-        response.headers.add('Access-Control-Allow-Origin', origin)
-    else:
-        response.headers.add('Access-Control-Allow-Origin', '*')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,Access-Control-Allow-Origin')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
-    response.headers.add('Access-Control-Allow-Credentials', 'true')
-    response.headers.add('Access-Control-Max-Age', '86400')
+    if origin in ALLOWED_ORIGINS:
+        response.headers['Access-Control-Allow-Origin'] = origin
+        response.headers['Vary'] = 'Origin'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+    response.headers['Access-Control-Max-Age'] = '86400'
     return response
+
+# 프리플라이트(OPTIONS) 처리: /api/* 전부 200 반환
+@app.route('/api/<path:path>', methods=['OPTIONS'])
+def handle_options(path):
+    return '', 200
 
 # 마크다운을 HTML로 변환하는 함수
 def convert_markdown_to_html(text):
@@ -2832,9 +2841,9 @@ def start_auto_send():
         logger.info(f'🔥 요청 데이터: {request.get_json()}')
         
         data = request.get_json()
-        account_name = data.get('account_name')
+        account_name = (data.get('account_name') or '').strip()
         group_ids = data.get('group_ids', [])
-        message = data.get('message', '')
+        message = (data.get('message', '') or '').strip()
         media_info = data.get('media_info')
         
         logger.info(f'🚀 자동전송 시작 요청: account_name={account_name}, group_ids={group_ids}')
@@ -2968,7 +2977,7 @@ def get_auto_send_status():
     """자동전송 상태 조회"""
     try:
         data = request.get_json()
-        user_id = data.get('userId') or data.get('account_name')
+        user_id = (data.get('userId') or data.get('account_name') or '').strip()
         
         if not user_id:
             return jsonify({
