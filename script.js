@@ -2894,6 +2894,13 @@ function selectTelegramSavedMessage(messageIndex, savedMessages) {
             messageInput.style.cursor = 'not-allowed';
         }
         
+        // 자동전송 상태 유지 확인
+        const autoSendToggle = document.getElementById('autoSendToggle');
+        if (autoSendToggle && autoSendToggle.checked) {
+            console.log('✅ 자동전송 상태 유지 - 저장된 메시지 선택 중');
+            // 자동전송이 ON 상태면 그대로 유지
+        }
+        
         // 저장된 메시지 버튼을 해제 버튼으로 변경
         const savedMessagesBtn = document.getElementById('savedMessagesBtn');
         console.log('💾 저장된 메시지 버튼 요소 찾기:', savedMessagesBtn);
@@ -2930,6 +2937,18 @@ function selectTelegramSavedMessage(messageIndex, savedMessages) {
         const key = (typeof getCurrentAccountKey === 'function') ? getCurrentAccountKey() : null;
         if (key) {
             localStorage.setItem(`${key}_selectedMediaInfo`, JSON.stringify(window.selectedMediaInfo));
+            
+            // 자동전송이 ON이면 현재 그룹 선택 스냅샷을 유지 저장(체크 해제 방지)
+            try {
+                const toggle = document.getElementById('autoSendToggle');
+                if (toggle && toggle.checked) {
+                    const ids = Array.from(document.querySelectorAll('.group-checkbox:checked')).map(cb => cb.dataset.groupId);
+                    localStorage.setItem(`${key}_selectedGroups`, JSON.stringify(ids));
+                    console.log('✅ 자동전송 ON 상태에서 그룹 선택 유지 저장');
+                }
+            } catch (e) {
+                console.warn('그룹 선택 유지 저장 실패:', e);
+            }
         }
         
         // 커스텀 이모지가 있는 경우 원본 객체 전체 보존
@@ -3026,6 +3045,13 @@ function closeSavedMessages() {
     const modal = document.getElementById('savedMessagesModal');
     if (modal) {
         modal.style.display = 'none';
+    }
+    
+    // 자동전송 상태 유지 확인
+    const autoSendToggle = document.getElementById('autoSendToggle');
+    if (autoSendToggle && autoSendToggle.checked) {
+        console.log('✅ 자동전송 상태 유지 - 저장된 메시지 모달 닫기 중');
+        // 자동전송이 ON 상태면 그대로 유지
     }
 }
 
@@ -3371,11 +3397,18 @@ function setupAutoSendEventListeners() {
                 console.log('🔄 자동전송 토글 ON - 설정 모달 열기');
                 // 상태 동기화 잠금 설정 (토글이 OFF로 돌아가는 것 방지)
                 window.autoSendSyncLocked = true;
+                
+                // localStorage에 자동전송 토글 상태 저장 (Firebase 아님)
+                localStorage.setItem('autoSendToggleOn', 'true');
+                
                 showAutoSendSettingsModal();
                 updateSendButtonText(true); // 자동전송 ON
             } else {
                 // 사용자가 명시적으로 자동전송을 OFF로 변경한 경우에만 중지
                 console.log('🛑 사용자가 자동전송을 OFF로 변경');
+                
+                // localStorage에서 자동전송 토글 상태 삭제
+                localStorage.removeItem('autoSendToggleOn');
                 
                 // 자동전송 중지
                 if (window.stopAutoSend) {
@@ -3890,6 +3923,7 @@ function clearAllData() {
     }
 }
 
+
 // 오류 로그 관련 함수들
 function showErrorLogsModal() {
     const modal = document.getElementById('errorLogsModal');
@@ -4313,12 +4347,23 @@ async function restoreAutoSendStatusFor(userId) {
         }
     }
         
+        // localStorage에서 토글 상태 복원
+        const toggleOnFromStorage = localStorage.getItem('autoSendToggleOn') === 'true';
+        
         // 1) 토글을 서버 상태로 강제 일치(단, 설정이 저장된 상태이거나 사용자가 설정 중인 동안은 보류)
-        if (!window.autoSendSyncLocked && !window.autoSendSettingsSaved && toggle) {
+        if (!window.autoSendSyncLocked && !window.autoSendSettingsSaved && !toggleOnFromStorage && toggle) {
             toggle.checked = !!data.is_running;
             updateSendButtonText(!!data.is_running);
-        } else if (window.autoSendSettingsSaved && toggle) {
-            // 설정이 저장된 상태에서는 토글을 ON으로 유지
+        } else if ((window.autoSendSettingsSaved || toggleOnFromStorage) && toggle) {
+            // 설정이 저장된 상태이거나 localStorage에 토글 ON 상태가 있으면 토글을 ON으로 유지
+            toggle.checked = true;
+            updateSendButtonText(true);
+            console.log('✅ localStorage 토글 상태로 복원:', toggleOnFromStorage);
+        }
+        
+        // 저장된 메시지가 선택된 상태에서 자동전송이 ON이면 상태 유지
+        if (window.selectedMediaInfo && toggle && toggle.checked) {
+            console.log('✅ 저장된 메시지 선택 상태에서 자동전송 상태 유지');
             toggle.checked = true;
             updateSendButtonText(true);
         }
@@ -4644,6 +4689,7 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo) {
             window.autoSendSyncLocked = false;
             window.autoSendSettingsSaved = false; // 자동전송이 시작되면 설정 저장 플래그 리셋
             localStorage.removeItem('autoSendSettingsSaved');
+            localStorage.removeItem('autoSendToggleOn'); // 자동전송 시작되면 토글 상태 삭제
             try { await restoreAutoSendStatusFor(String(account.user_id)); } catch(_){}
             return true;
         } else {

@@ -3238,6 +3238,7 @@ def clear_auto_send_error_logs_api():
             'error': str(e)
         }), 500
 
+
 def restore_auto_send_jobs_from_firebase():
     """서버 시작 시 Firebase에서 자동전송 작업 복원"""
     try:
