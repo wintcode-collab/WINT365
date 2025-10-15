@@ -1919,33 +1919,18 @@ function showAccountList(accounts) {
             }
         });
         
-        item.addEventListener('click', () => {
-            // 이전 선택 해제
-            accountItems.forEach(otherItem => {
-                otherItem.classList.remove('selected');
-                otherItem.style.borderColor = '#444';
-                otherItem.style.background = 'linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%)';
-                otherItem.style.transform = 'translateY(0)';
-                otherItem.style.boxShadow = 'none';
-            });
+        item.addEventListener('click', (e) => {
+            // 체크박스 자체를 클릭한 경우는 이미 처리됨
+            if (e.target.classList.contains('multi-account-checkbox')) {
+                return;
+            }
             
-            // 현재 항목 선택
-            item.classList.add('selected');
-            item.style.borderColor = '#6B7280';
-            item.style.background = 'linear-gradient(135deg, #6B7280 0%, #4B5563 100%)';
-            item.style.transform = 'translateY(-2px)';
-            item.style.boxShadow = '0 5px 15px rgba(107, 114, 128, 0.5)';
-            
-            // 선택된 계정 저장
-            const userId = item.dataset.userId;
-            selectedAccount = accounts.find(acc => acc.user_id === userId);
-            
-            console.log('📱 선택된 계정:', selectedAccount);
-            
-            // 확인 버튼 활성화
-            const confirmBtn = modal.querySelector('#confirmAccountSelection');
-            confirmBtn.style.opacity = '1';
-            confirmBtn.style.pointerEvents = 'auto';
+            // 계정 아이템 클릭 시 체크박스 토글
+            const checkbox = item.querySelector('.multi-account-checkbox');
+            if (checkbox) {
+                checkbox.checked = !checkbox.checked;
+                checkbox.dispatchEvent(new Event('change'));
+            }
         });
     });
     
