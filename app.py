@@ -2823,19 +2823,27 @@ def check_telegram_group_message_count(account_info, group_id):
                 
                 if my_last_message_index == -1:
                     logger.info('📊 내가 보낸 메시지를 찾을 수 없음 - 전체 메시지 개수 반환')
-                    # 내가 보낸 메시지가 없으면 전체 메시지 개수 반환
+                    # 내가 보낸 메시지가 없으면 전체 메시지 개수 반환 (자동전송 전 상태)
                     total_messages = len(messages)
                     logger.info(f'📊 전체 메시지 개수: {total_messages}')
                     return total_messages
                 
                 # 내가 보낸 메시지 이후의 다른 사람들의 메시지 개수 계산
                 other_people_messages = 0
+                logger.info(f'📊 메시지 검사 범위: {my_last_message_index + 1} ~ {len(messages) - 1}')
+                
                 for i in range(my_last_message_index + 1, len(messages)):
                     message = messages[i]
-                    if hasattr(message, 'from_id') and message.from_id and message.from_id.user_id != my_user_id:
-                        other_people_messages += 1
+                    if hasattr(message, 'from_id') and message.from_id:
+                        sender_id = message.from_id.user_id if hasattr(message.from_id, 'user_id') else None
+                        logger.info(f'📊 메시지 {i}: 발신자 ID {sender_id}, 내 ID {my_user_id}')
+                        if sender_id != my_user_id:
+                            other_people_messages += 1
+                            logger.info(f'📊 다른 사람 메시지 발견! 총 {other_people_messages}개')
+                    else:
+                        logger.info(f'📊 메시지 {i}: from_id 정보 없음')
                 
-                logger.info(f'📊 내가 보낸 메시지 이후 다른 사람들의 메시지 개수: {other_people_messages}')
+                logger.info(f'📊 최종 결과 - 내가 보낸 메시지 이후 다른 사람들의 메시지 개수: {other_people_messages}')
                 return other_people_messages
                 
             except Exception as e:
