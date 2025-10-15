@@ -2591,10 +2591,22 @@ function showMessageSelectionModal(account, savedMessages) {
 function setupMessageModalEvents(accountId) {
     let selectedMessageIndex = null;
     
-    // 메시지 아이템 클릭 이벤트 (바로 체크만, 새 창 없음)
+    // 기존 이벤트 리스너 정리 (중복 방지)
+    const messageModal = document.getElementById('messageSelectionModal');
+    if (messageModal) {
+        // 기존 클릭 이벤트 제거
+        messageModal.replaceWith(messageModal.cloneNode(true));
+    }
+    
+    // 메시지 아이템 클릭 이벤트 (바로 체크만, 새 모달 방지)
     document.querySelectorAll('.message-item').forEach((item, index) => {
-        item.addEventListener('click', function(e) {
-            // 이벤트 전파 완전 중지
+        // 기존 이벤트 리스너 제거
+        item.replaceWith(item.cloneNode(true));
+        
+        // 새 이벤트 리스너 등록
+        const newItem = document.querySelectorAll('.message-item')[index];
+        newItem.addEventListener('click', function(e) {
+            // 이벤트 완전 차단
             e.stopPropagation();
             e.preventDefault();
             e.stopImmediatePropagation();
@@ -2612,9 +2624,8 @@ function setupMessageModalEvents(accountId) {
             this.querySelector('div:last-child').textContent = '●';
             selectedMessageIndex = index;
             
-            console.log(`📝 메시지 ${index} 선택됨 (체크만, 새 창 없음)`);
+            console.log(`📝 메시지 ${index} 선택됨 (체크만, 새 모달 없음)`);
             
-            // 다른 이벤트 실행 방지를 위해 false 반환
             return false;
         });
     });
@@ -2642,12 +2653,18 @@ function setupMessageModalEvents(accountId) {
         document.getElementById('messageSelectionModal').remove();
     });
     
-    // 배경 클릭으로 닫기
-    document.getElementById('messageSelectionModal').addEventListener('click', function(e) {
-        if (e.target === this) {
-            this.remove();
-        }
-    });
+    // 배경 클릭으로 닫기 (새 모달 방지)
+    const messageModal = document.getElementById('messageSelectionModal');
+    if (messageModal) {
+        messageModal.addEventListener('click', function(e) {
+            // 배경 클릭 시에만 닫기 (메시지 아이템 클릭은 제외)
+            if (e.target === this) {
+                e.stopPropagation();
+                e.preventDefault();
+                this.remove();
+            }
+        });
+    }
 }
 
 // 선택된 메시지 정보 업데이트 (간략 버전)
