@@ -2026,13 +2026,18 @@ async function loadMultipleAccountsGroups(accounts) {
         const groupMap = new Map();
         const groupAccountMapping = {}; // 각 그룹에 어떤 계정들이 속해있는지
         
+        console.log('🔍 그룹 통합 시작:');
         allGroupsData.forEach(({account, groups}) => {
+            console.log(`  📋 계정 ${account.first_name}: ${groups.length}개 그룹`);
             groups.forEach(group => {
                 const groupId = group.id;
                 
                 // 그룹 추가 (중복 시 첫 번째 것 유지)
                 if (!groupMap.has(groupId)) {
                     groupMap.set(groupId, group);
+                    console.log(`    ➕ 새 그룹 추가: ${group.title} (${groupId})`);
+                } else {
+                    console.log(`    ⏭️ 중복 그룹 건너뜀: ${group.title} (${groupId})`);
                 }
                 
                 // 그룹-계정 매핑 저장
@@ -2047,6 +2052,7 @@ async function loadMultipleAccountsGroups(accounts) {
         
         const mergedGroups = Array.from(groupMap.values());
         console.log(`✅ 통합 완료: ${mergedGroups.length}개 그룹 (중복 제거)`);
+        console.log('📊 통합된 그룹 목록:', mergedGroups.map(g => g.title));
         
         // 계정-그룹 매핑 Firebase에 저장
         for (const accountData of allGroupsData) {
@@ -4887,12 +4893,29 @@ async function initAccountRotation() {
     
     // 로테이션 활성화 토글 이벤트
     enableRotationCheckbox.addEventListener('change', function() {
+        // 기본 설정 섹션들
+        const basicSections = document.querySelectorAll('.setting-section:not(:has(#enableAccountRotation))');
+        
         if (this.checked) {
             rotationSettings.style.display = 'block';
             console.log('✅ 계정 로테이션 활성화');
+            
+            // 기본 설정들 숨기기
+            basicSections.forEach(section => {
+                section.style.display = 'none';
+            });
+            
+            console.log('🎨 기본 설정 숨김, 로테이션 설정만 표시');
         } else {
             rotationSettings.style.display = 'none';
             console.log('❌ 계정 로테이션 비활성화');
+            
+            // 기본 설정들 다시 표시
+            basicSections.forEach(section => {
+                section.style.display = 'block';
+            });
+            
+            console.log('🎨 기본 설정 복원');
         }
     });
     
@@ -5100,6 +5123,12 @@ function loadSavedRotationSettings() {
         if (enableRotationCheckbox && rotationSettings.enabled) {
             enableRotationCheckbox.checked = true;
             document.getElementById('accountRotationSettings').style.display = 'block';
+            
+            // 기본 설정 섹션들 숨기기
+            const basicSections = document.querySelectorAll('.setting-section:not(:has(#enableAccountRotation))');
+            basicSections.forEach(section => {
+                section.style.display = 'none';
+            });
         }
         
         // 그룹 발송 주기
