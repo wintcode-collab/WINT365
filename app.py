@@ -2458,8 +2458,90 @@ def save_auto_send_status_to_firebase(user_id, status_data):
         return False
 
 # ============================================================
+# 계정-그룹 매핑 저장 API
+# ============================================================
+
+@app.route('/api/account-group-mapping/save', methods=['POST'])
+@cross_origin(origins=ALLOWED_ORIGINS, methods=['POST','OPTIONS'], allow_headers=['Content-Type','Authorization'], max_age=86400)
+def save_account_group_mapping():
+    """계정별로 체크된 그룹 정보 저장"""
+    try:
+        data = request.get_json()
+        user_id = data.get('userId')
+        group_ids = data.get('groupIds', [])
+        
+        if not user_id:
+            return jsonify({'success': False, 'error': 'userId 필요'}), 400
+        
+        logger.info(f'💾 계정 {user_id}의 그룹 매핑 저장: {len(group_ids)}개')
+        
+        # Firebase에 저장
+        url = f"{FIREBASE_URL}/account_group_mapping/{user_id}.json"
+        mapping_data = {
+            'user_id': user_id,
+            'group_ids': group_ids,
+            'updated_at': datetime.now().isoformat()
+        }
+        
+        response = requests.put(url, json=mapping_data, timeout=10)
+        
+        if response.status_code == 200:
+            logger.info(f'✅ 계정-그룹 매핑 저장 성공: {user_id}')
+            return jsonify({'success': True})
+        else:
+            logger.error(f'❌ Firebase 저장 실패: {response.status_code}')
+            return jsonify({'success': False, 'error': 'Firebase 저장 실패'}), 500
+            
+    except Exception as e:
+        logger.error(f'❌ 계정-그룹 매핑 저장 에러: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# ============================================================
 # 계정 로테이션 시스템
 # ============================================================
+
+def get_accounts_for_group(group_id, rotation_accounts):
+    """
+    특정 그룹을 체크한 계정들 조회 (로테이션 풀 내에서)
+    
+    Args:
+        group_id: 그룹 ID
+        rotation_accounts: 로테이션 풀에 있는 계정 ID 리스트
+    
+    Returns:
+        list: 해당 그룹을 체크한 계정 ID 리스트
+    """
+    try:
+        group_id_str = str(group_id)
+        accounts_with_group = []
+        
+        # Firebase에서 모든 계정의 그룹 매핑 조회
+        url = f"{FIREBASE_URL}/account_group_mapping.json"
+        response = requests.get(url, timeout=10)
+        
+        if response.status_code == 200:
+            all_mappings = response.json()
+            if all_mappings:
+                for user_id, mapping_data in all_mappings.items():
+                    # 로테이션 풀에 있는 계정만 확인
+                    if user_id not in rotation_accounts:
+                        continue
+                    
+                    group_ids = mapping_data.get('group_ids', [])
+                    # 그룹 ID 비교 (문자열로 통일)
+                    if group_id_str in [str(gid) for gid in group_ids]:
+                        accounts_with_group.append(user_id)
+                
+                logger.info(f'📋 그룹 {group_id}를 체크한 계정: {accounts_with_group}')
+                return accounts_with_group
+        
+        # 매핑 정보가 없으면 전체 로테이션 풀 반환 (하위 호환)
+        logger.warning(f'⚠️ 그룹 {group_id}의 매핑 정보 없음, 전체 로테이션 풀 사용')
+        return rotation_accounts
+        
+    except Exception as e:
+        logger.error(f'❌ 그룹 계정 조회 에러: {e}')
+        return rotation_accounts  # 에러 시 전체 풀 반환
 
 def get_next_rotation_account(group_id, rotation_accounts, rotation_interval_minutes):
     """
@@ -2467,7 +2549,7 @@ def get_next_rotation_account(group_id, rotation_accounts, rotation_interval_min
     
     Args:
         group_id: 그룹 ID
-        rotation_accounts: 로테이션에 사용할 계정 ID 리스트
+        rotation_accounts: 로테이션에 사용할 계정 ID 리스트 (전체 풀)
         rotation_interval_minutes: 계정 순환 간격 (분)
     
     Returns:
@@ -2478,9 +2560,19 @@ def get_next_rotation_account(group_id, rotation_accounts, rotation_interval_min
             logger.error('❌ 로테이션 계정이 없습니다')
             return None
         
+        # 1. 이 그룹을 체크한 계정들만 필터링
+        group_specific_accounts = get_accounts_for_group(group_id, rotation_accounts)
+        
+        if not group_specific_accounts or len(group_specific_accounts) == 0:
+            logger.warning(f'⚠️ 그룹 {group_id}를 체크한 계정이 없음')
+            return None
+        
+        logger.info(f'🔍 그룹 {group_id}: 전체 풀 {len(rotation_accounts)}개 → 필터링 후 {len(group_specific_accounts)}개')
+        
         current_time = time.time()
         
-        # 계정 전역 쿨다운 시간 = 계정 수 × 순환 간격
+        # 계정 전역 쿨다운 시간 = 전체 로테이션 풀 크기 × 순환 간격
+        # (그룹별 계정 수가 아니라 전체 계정 수 기준!)
         account_global_cooldown = len(rotation_accounts) * rotation_interval_minutes
         
         # 그룹별 로테이션 상태 초기화
@@ -2499,12 +2591,17 @@ def get_next_rotation_account(group_id, rotation_accounts, rotation_interval_min
                 logger.info(f'⏳ 그룹 {group_id}: 그룹 쿨다운 중 ({time_since_last_send:.1f}분/{rotation_interval_minutes}분)')
                 return None
         
-        # 다음 계정 선택 (순환)
-        max_attempts = len(rotation_accounts)
+        # 다음 계정 선택 (그룹별 필터링된 계정들로 순환)
+        max_attempts = len(group_specific_accounts)
         account_index = rotation_state['current_account_index']
         
+        # 인덱스가 필터링된 계정 수를 초과하면 초기화
+        if account_index >= len(group_specific_accounts):
+            account_index = 0
+            rotation_state['current_account_index'] = 0
+        
         for attempt in range(max_attempts):
-            candidate_account_id = rotation_accounts[account_index]
+            candidate_account_id = group_specific_accounts[account_index]
             
             # 계정 전역 쿨다운 확인
             if candidate_account_id in account_last_send_time:
@@ -2513,18 +2610,19 @@ def get_next_rotation_account(group_id, rotation_accounts, rotation_interval_min
                 
                 if time_since_account_send < account_global_cooldown:
                     logger.info(f'⏳ 계정 {candidate_account_id}: 전역 쿨다운 중 ({time_since_account_send:.1f}분/{account_global_cooldown}분) - 다음 계정 시도')
-                    # 다음 계정으로 넘어감
-                    account_index = (account_index + 1) % len(rotation_accounts)
+                    # 다음 계정으로 넘어감 (그룹별 필터링된 계정들 내에서)
+                    account_index = (account_index + 1) % len(group_specific_accounts)
                     continue
             
             # 쿨다운 끝난 계정 발견!
             next_account_id = candidate_account_id
             
-            logger.info(f'🔄 그룹 {group_id}: 계정 로테이션 - 인덱스 {account_index + 1}/{len(rotation_accounts)} → 계정 {next_account_id}')
+            logger.info(f'🔄 그룹 {group_id}: 계정 로테이션 - 인덱스 {account_index + 1}/{len(group_specific_accounts)} → 계정 {next_account_id}')
+            logger.info(f'   (이 그룹을 체크한 계정: {len(group_specific_accounts)}개 / 전체 풀: {len(rotation_accounts)}개)')
             logger.info(f'   계정 전역 쿨다운: {account_global_cooldown}분 (안전 보장)')
             
-            # 다음 인덱스로 이동 (순환)
-            rotation_state['current_account_index'] = (account_index + 1) % len(rotation_accounts)
+            # 다음 인덱스로 이동 (그룹별 필터링된 계정들 내에서 순환)
+            rotation_state['current_account_index'] = (account_index + 1) % len(group_specific_accounts)
             rotation_state['last_send_time'] = current_time
             
             # 계정별 마지막 발송 시간 업데이트

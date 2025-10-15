@@ -1763,6 +1763,9 @@ function showAccountList(accounts) {
             <p style="color: #888; margin: 0; font-size: 14px;">
                 ${accounts.length}개의 계정이 연동되어 있습니다
             </p>
+            <p style="color: #FFC107; margin: 10px 0 0 0; font-size: 13px; font-weight: 600;">
+                💡 여러 계정을 선택하면 로테이션으로 발송됩니다
+            </p>
         </div>
         
         <div id="accountList" style="margin-bottom: 25px;">
@@ -1832,9 +1835,73 @@ function showAccountList(accounts) {
     
     // 선택된 계정을 저장할 변수
     let selectedAccount = null;
+    let selectedAccounts = []; // 다중 선택용
     
-    // 계정 클릭 이벤트
+    // 체크박스 먼저 추가
     const accountItems = modal.querySelectorAll('.account-item');
+    accountItems.forEach(item => {
+        // 체크박스 삽입
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'multi-account-checkbox';
+        checkbox.style.cssText = 'width: 20px; height: 20px; cursor: pointer; accent-color: #10B981; margin-right: 15px;';
+        checkbox.dataset.userId = item.dataset.userId;
+        
+        const contentDiv = item.querySelector('div');
+        contentDiv.style.display = 'flex';
+        contentDiv.style.alignItems = 'center';
+        contentDiv.insertBefore(checkbox, contentDiv.firstChild);
+        
+        // 체크박스 이벤트
+        checkbox.addEventListener('change', function(e) {
+            e.stopPropagation(); // 클릭 이벤트 전파 방지
+            
+            const userId = this.dataset.userId;
+            const account = accounts.find(acc => acc.user_id === userId);
+            
+            if (this.checked) {
+                if (!selectedAccounts.find(acc => acc.user_id === userId)) {
+                    selectedAccounts.push(account);
+                }
+                item.classList.add('multi-selected');
+                item.style.borderColor = '#10B981';
+                item.style.background = 'linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(16, 185, 129, 0.1) 100%)';
+            } else {
+                selectedAccounts = selectedAccounts.filter(acc => acc.user_id !== userId);
+                item.classList.remove('multi-selected');
+                item.style.borderColor = '#444';
+                item.style.background = 'linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%)';
+            }
+            
+            // 선택 개수 업데이트
+            const countText = modal.querySelector('#selectedAccountsCountText');
+            if (countText) {
+                countText.textContent = selectedAccounts.length;
+            }
+            
+            // 확인 버튼 활성화
+            const confirmBtn = modal.querySelector('#confirmAccountSelection');
+            if (selectedAccounts.length > 0) {
+                confirmBtn.style.opacity = '1';
+                confirmBtn.style.pointerEvents = 'auto';
+            } else {
+                confirmBtn.style.opacity = '0.5';
+                confirmBtn.style.pointerEvents = 'none';
+            }
+            
+            console.log('✅ 선택된 계정들:', selectedAccounts.length, '개');
+        });
+    });
+    
+    // 선택 개수 표시 요소 추가
+    const selectedCountDiv = document.createElement('div');
+    selectedCountDiv.style.cssText = 'margin-bottom: 15px; padding: 12px; background: rgba(16, 185, 129, 0.1); border-radius: 8px; border-left: 3px solid #10B981; text-align: center;';
+    selectedCountDiv.innerHTML = '<p style="margin: 0; color: #10B981; font-size: 13px; font-weight: 600;">선택된 계정: <span id="selectedAccountsCountText">0</span>개</p>';
+    
+    const accountList = modal.querySelector('#accountList');
+    accountList.parentNode.insertBefore(selectedCountDiv, accountList.nextSibling);
+    
+    // 기존 계정 클릭 이벤트 (단일 선택용 - 유지)
     accountItems.forEach(item => {
         item.addEventListener('mouseenter', () => {
             if (!item.classList.contains('selected')) {
@@ -1884,19 +1951,28 @@ function showAccountList(accounts) {
     
     // 확인 버튼 이벤트
     modal.querySelector('#confirmAccountSelection').addEventListener('click', async () => {
-        if (selectedAccount) {
-            console.log('📱 확인된 계정:', selectedAccount);
+        // 모달 닫기
+        document.body.removeChild(modal);
+        
+        // 다중 선택 모드 (2개 이상)
+        if (selectedAccounts.length >= 2) {
+            console.log('🔄 다중 계정 모드:', selectedAccounts.length, '개');
             
-            // 모달 닫기
-            document.body.removeChild(modal);
+            // 다중 계정의 통합 그룹 로드
+            await loadMultipleAccountsGroups(selectedAccounts);
+            
+        // 단일 선택 모드 (1개) - 기존 방식
+        } else if (selectedAccounts.length === 1 || selectedAccount) {
+            const account = selectedAccounts[0] || selectedAccount;
+            console.log('📱 단일 계정 모드:', account);
             
             // 마지막 선택 계정 저장 (자동 복원용)
             try {
-                localStorage.setItem('lastSelectedAccount', String(selectedAccount.user_id));
+                localStorage.setItem('lastSelectedAccount', String(account.user_id));
             } catch (e) { console.warn('lastSelectedAccount 저장 실패', e); }
             
             // 선택된 계정으로 그룹 로드(완료까지 대기)
-            await loadGroupsForAccount(selectedAccount);
+            await loadGroupsForAccount(account);
 
             // 계정 변경 시 설정 복원(그룹 렌더 완료 후 순차 복원)
             loadTelegramSettings();
@@ -1904,8 +1980,8 @@ function showAccountList(accounts) {
             updateAutoSendSettingsDisplay();
             updateSendButtonText();
             // 서버 자동전송 상태로 토글/버튼 동기화 + 단기 재동기화 폴링
-            restoreAutoSendStatusFor(selectedAccount.user_id);
-            startPostRestoreSync(selectedAccount.user_id);
+            restoreAutoSendStatusFor(account.user_id);
+            startPostRestoreSync(account.user_id);
         }
     });
     
@@ -1920,6 +1996,122 @@ function showAccountList(accounts) {
             document.body.removeChild(modal);
         }
     });
+}
+
+// 다중 계정의 통합 그룹 로드 (로테이션 모드)
+async function loadMultipleAccountsGroups(accounts) {
+    try {
+        console.log('🔄 다중 계정 그룹 로딩 시작:', accounts.length, '개');
+        
+        // 모든 계정의 그룹 로드
+        const allGroupsData = [];
+        
+        for (const account of accounts) {
+            try {
+                const response = await fetch('/api/telegram/load-groups', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        userId: account.user_id
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok && result.success && result.groups) {
+                    allGroupsData.push({
+                        account: account,
+                        groups: result.groups
+                    });
+                    console.log(`✅ 계정 ${account.first_name}의 그룹 ${result.groups.length}개 로드`);
+                }
+            } catch (error) {
+                console.error(`❌ 계정 ${account.first_name} 그룹 로드 실패:`, error);
+            }
+        }
+        
+        if (allGroupsData.length === 0) {
+            alert('❌ 그룹을 로드할 수 없습니다.');
+            return;
+        }
+        
+        // 그룹 통합 (중복 제거)
+        const groupMap = new Map();
+        const groupAccountMapping = {}; // 각 그룹에 어떤 계정들이 속해있는지
+        
+        allGroupsData.forEach(({account, groups}) => {
+            groups.forEach(group => {
+                const groupId = group.id;
+                
+                // 그룹 추가 (중복 시 첫 번째 것 유지)
+                if (!groupMap.has(groupId)) {
+                    groupMap.set(groupId, group);
+                }
+                
+                // 그룹-계정 매핑 저장
+                if (!groupAccountMapping[groupId]) {
+                    groupAccountMapping[groupId] = [];
+                }
+                if (!groupAccountMapping[groupId].includes(account.user_id)) {
+                    groupAccountMapping[groupId].push(account.user_id);
+                }
+            });
+        });
+        
+        const mergedGroups = Array.from(groupMap.values());
+        console.log(`✅ 통합 완료: ${mergedGroups.length}개 그룹 (중복 제거)`);
+        
+        // 계정-그룹 매핑 Firebase에 저장
+        for (const accountData of allGroupsData) {
+            const userId = accountData.account.user_id;
+            const groupIds = accountData.groups.map(g => g.id);
+            
+            try {
+                await fetch(`${getApiBaseUrl()}/api/account-group-mapping/save`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({userId, groupIds})
+                });
+                console.log(`💾 계정 ${userId}의 그룹 매핑 저장 완료`);
+            } catch (error) {
+                console.error(`❌ 계정 ${userId} 매핑 저장 실패:`, error);
+            }
+        }
+        
+        // 그룹 관리 창 표시
+        const firstAccount = accounts[0];
+        const groupsWindow = document.getElementById('telegramGroupsWindow');
+        
+        if (groupsWindow) {
+            // 계정 정보 표시 (다중 계정)
+            const accountNames = accounts.map(a => a.first_name).join(', ');
+            document.getElementById('selectedAccountName').textContent = `🔄 ${accountNames} 외 ${accounts.length - 1}개`;
+            document.getElementById('selectedAccountPhone').textContent = `📱 다중 계정 모드 (${accounts.length}개)`;
+            document.getElementById('groupsCount').textContent = `${mergedGroups.length}개의 통합 그룹`;
+            
+            // 그룹 목록 렌더링
+            renderGroupsList(mergedGroups);
+            
+            // 창 표시
+            groupsWindow.style.display = 'flex';
+            setTimeout(() => {
+                groupsWindow.classList.add('show');
+            }, 100);
+            
+            // 자동으로 로테이션 모드 활성화
+            window.multiAccountMode = true;
+            window.selectedMultiAccounts = accounts;
+            
+            console.log('✅ 다중 계정 모드 활성화:', accounts.length, '개');
+            console.log('📋 통합 그룹:', mergedGroups.length, '개');
+        }
+        
+    } catch (error) {
+        console.error('❌ 다중 계정 그룹 로딩 실패:', error);
+        alert(`❌ 다중 계정 그룹 로딩 실패:\n\n${error.message}`);
+    }
 }
 
 // 선택된 계정으로 그룹 로드
@@ -2130,6 +2322,9 @@ function renderGroupsList(groups) {
                     localStorage.setItem(`${key}_selectedGroups`, JSON.stringify(ids));
                 }
             } catch (e) { console.warn('선택 그룹 자동 저장 실패', e); }
+            
+            // 계정별 체크된 그룹 정보 Firebase에 저장 (로테이션용)
+            saveAccountGroupMapping();
         });
     });
     
@@ -4949,11 +5144,61 @@ function loadSavedRotationSettings() {
     }
 }
 
+// 계정별 체크된 그룹 정보 Firebase에 저장
+async function saveAccountGroupMapping() {
+    try {
+        const accountName = document.getElementById('selectedAccountName')?.textContent;
+        let userId = localStorage.getItem('lastSelectedAccount')?.trim();
+        
+        if (!userId) {
+            console.warn('⚠️ userId가 없어 그룹 매핑 저장 불가');
+            return;
+        }
+        
+        // 현재 체크된 그룹 ID 목록
+        const checkedGroups = Array.from(document.querySelectorAll('.group-checkbox:checked'))
+            .map(cb => cb.dataset.groupId);
+        
+        console.log(`💾 계정 ${userId}의 체크된 그룹 저장:`, checkedGroups);
+        
+        // Firebase에 저장
+        const response = await fetch(`${getApiBaseUrl()}/api/account-group-mapping/save`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                userId: userId,
+                groupIds: checkedGroups
+            })
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            console.log('✅ 계정-그룹 매핑 저장 성공');
+        }
+        
+    } catch (error) {
+        console.error('❌ 계정-그룹 매핑 저장 에러:', error);
+    }
+}
+
 // 로테이션 설정을 자동전송 설정에 포함
 function getRotationSettingsForSave() {
     const enableRotationCheckbox = document.getElementById('enableAccountRotation');
     const groupSendInterval = document.getElementById('groupSendInterval');
     
+    // 다중 계정 모드면 자동으로 로테이션 활성화
+    if (window.multiAccountMode && window.selectedMultiAccounts) {
+        console.log('🔄 다중 계정 모드 감지 - 자동 로테이션 활성화');
+        return {
+            enabled: true,
+            selectedAccounts: window.selectedMultiAccounts.map(acc => acc.user_id),
+            groupSendInterval: parseInt(groupSendInterval?.value || 15)
+        };
+    }
+    
+    // 수동 로테이션 설정
     if (!enableRotationCheckbox?.checked) {
         return null; // 로테이션 비활성화 시 null 반환
     }
