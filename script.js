@@ -2270,7 +2270,7 @@ function showAccountSelectionModal(accounts) {
                                         ${account.phone_number || ''}
                                     </div>
                                 </div>
-                                <div style="color: #10B981; font-size: 12px;">클릭</div>
+                                <div style="color: #10B981; font-size: 12px;">→</div>
                             </div>
                         </div>
                     `).join('')}
@@ -2318,19 +2318,17 @@ function setupAccountSelectionModalEvents() {
             document.querySelectorAll('.account-item').forEach(el => {
                 el.style.borderColor = '#444';
                 el.style.background = 'linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%)';
-                el.querySelector('div:last-child').textContent = '더블클릭';
             });
             
-            // 새 선택 표시
+            // 새 선택 표시 (텍스트 변경 없이 시각적 효과만)
             this.style.borderColor = '#10B981';
             this.style.background = 'linear-gradient(135deg, #374151 0%, #1F2937 100%)';
-            this.querySelector('div:last-child').textContent = '선택됨';
             selectedAccountId = accountId;
             
             console.log(`📱 계정 ${accountId} 포커스됨 (한 번 더 클릭하면 메시지 선택)`);
         });
         
-        // 호버 효과
+        // 호버 효과 (선택되지 않은 계정만)
         item.addEventListener('mouseenter', function() {
             if (selectedAccountId !== this.dataset.accountId) {
                 this.style.borderColor = '#10B981';
@@ -2593,7 +2591,7 @@ function showMessageSelectionModal(account, savedMessages) {
 function setupMessageModalEvents(accountId) {
     let selectedMessageIndex = null;
     
-    // 메시지 아이템 클릭 이벤트 (선택만, 바로 적용 안됨)
+    // 메시지 아이템 클릭 이벤트 (바로 체크, 추가 모달 없음)
     document.querySelectorAll('.message-item').forEach((item, index) => {
         item.addEventListener('click', function() {
             // 기존 선택 해제
@@ -2603,17 +2601,17 @@ function setupMessageModalEvents(accountId) {
                 el.querySelector('div:last-child').textContent = '○';
             });
             
-            // 새 선택 표시
+            // 새 선택 표시 (바로 체크)
             this.style.borderColor = '#10B981';
             this.style.background = 'linear-gradient(135deg, #374151 0%, #1F2937 100%)';
             this.querySelector('div:last-child').textContent = '●';
             selectedMessageIndex = index;
             
-            console.log(`📝 메시지 ${index} 선택됨 (아직 적용 안됨)`);
+            console.log(`📝 메시지 ${index} 선택됨 (바로 체크)`);
         });
     });
     
-    // 선택 버튼 클릭 이벤트 (실제 적용)
+    // 선택 버튼 클릭 이벤트 (바로 적용)
     document.getElementById('selectMessageBtn').addEventListener('click', function() {
         if (selectedMessageIndex === null) {
             alert('메시지를 선택해주세요.');
@@ -2622,7 +2620,7 @@ function setupMessageModalEvents(accountId) {
         
         console.log(`✅ 메시지 ${selectedMessageIndex} 최종 선택 및 적용`);
         
-        // 선택된 메시지 정보를 계정별 정보 영역에 표시
+        // 선택된 메시지 정보를 계정별 정보 영역에 바로 적용
         updateSelectedMessageInfo(accountId, selectedMessageIndex);
         
         // 모달창 닫기
