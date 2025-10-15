@@ -2591,12 +2591,13 @@ function showMessageSelectionModal(account, savedMessages) {
 function setupMessageModalEvents(accountId) {
     let selectedMessageIndex = null;
     
-    // 메시지 아이템 클릭 이벤트 (바로 체크, 추가 모달 없음)
+    // 메시지 아이템 클릭 이벤트 (바로 체크만, 새 창 없음)
     document.querySelectorAll('.message-item').forEach((item, index) => {
         item.addEventListener('click', function(e) {
-            // 이벤트 전파 중지 (다른 이벤트 리스너 실행 방지)
+            // 이벤트 전파 완전 중지
             e.stopPropagation();
             e.preventDefault();
+            e.stopImmediatePropagation();
             
             // 기존 선택 해제
             document.querySelectorAll('.message-item').forEach(el => {
@@ -2605,13 +2606,16 @@ function setupMessageModalEvents(accountId) {
                 el.querySelector('div:last-child').textContent = '○';
             });
             
-            // 새 선택 표시 (바로 체크)
+            // 새 선택 표시 (바로 체크만)
             this.style.borderColor = '#10B981';
             this.style.background = 'linear-gradient(135deg, #374151 0%, #1F2937 100%)';
             this.querySelector('div:last-child').textContent = '●';
             selectedMessageIndex = index;
             
-            console.log(`📝 메시지 ${index} 선택됨 (바로 체크)`);
+            console.log(`📝 메시지 ${index} 선택됨 (체크만, 새 창 없음)`);
+            
+            // 다른 이벤트 실행 방지를 위해 false 반환
+            return false;
         });
     });
     
