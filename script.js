@@ -2354,6 +2354,15 @@ async function openAccountMessageModal(accountId) {
             throw new Error('계정 정보를 찾을 수 없습니다.');
         }
         
+        // 계정 선택 모달 닫기
+        const accountModal = document.getElementById('accountSelectionModal');
+        if (accountModal) {
+            accountModal.remove();
+        }
+        
+        // 로딩 모달 표시
+        showLoadingModal(account);
+        
         // 저장된 메시지 불러오기
         const response = await fetch(`${getApiBaseUrl()}/api/telegram/saved-messages`, {
             method: 'POST',
@@ -2367,6 +2376,12 @@ async function openAccountMessageModal(accountId) {
         
         const result = await response.json();
         
+        // 로딩 모달 제거
+        const loadingModal = document.getElementById('loadingModal');
+        if (loadingModal) {
+            loadingModal.remove();
+        }
+        
         if (!response.ok || !result.success || !result.saved_messages || result.saved_messages.length === 0) {
             alert('저장된 메시지가 없습니다.');
             return;
@@ -2377,8 +2392,54 @@ async function openAccountMessageModal(accountId) {
         
     } catch (error) {
         console.error(`❌ 계정 ${accountId} 메시지 모달 열기 실패:`, error);
+        
+        // 로딩 모달 제거
+        const loadingModal = document.getElementById('loadingModal');
+        if (loadingModal) {
+            loadingModal.remove();
+        }
+        
         alert(`메시지 모달 열기에 실패했습니다: ${error.message}`);
     }
+}
+
+// 로딩 모달 표시
+function showLoadingModal(account) {
+    const loadingHTML = `
+        <div id="loadingModal" style="
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 10001;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        ">
+            <div style="
+                background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
+                border: 2px solid #10B981;
+                border-radius: 12px;
+                padding: 30px;
+                text-align: center;
+                box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+            ">
+                <div style="margin-bottom: 20px;">
+                    <div style="display: inline-block; animation: spin 1s linear infinite; font-size: 30px; color: #10B981;">⏳</div>
+                </div>
+                <h3 style="margin: 0 0 10px 0; color: #10B981;">
+                    📱 ${account.first_name || ''} ${account.last_name || ''}
+                </h3>
+                <p style="margin: 0; color: #888; font-size: 14px;">
+                    저장된 메시지를 불러오는 중...
+                </p>
+            </div>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', loadingHTML);
 }
 
 // 메시지 선택 모달창 표시
@@ -2506,7 +2567,7 @@ function showMessageSelectionModal(account, savedMessages) {
 function setupMessageModalEvents(accountId) {
     let selectedMessageIndex = null;
     
-    // 메시지 아이템 클릭 이벤트
+    // 메시지 아이템 클릭 이벤트 (선택만, 바로 적용 안됨)
     document.querySelectorAll('.message-item').forEach((item, index) => {
         item.addEventListener('click', function() {
             // 기존 선택 해제
@@ -2521,15 +2582,19 @@ function setupMessageModalEvents(accountId) {
             this.style.background = 'linear-gradient(135deg, #374151 0%, #1F2937 100%)';
             this.querySelector('div:last-child').textContent = '●';
             selectedMessageIndex = index;
+            
+            console.log(`📝 메시지 ${index} 선택됨 (아직 적용 안됨)`);
         });
     });
     
-    // 선택 버튼 클릭 이벤트
+    // 선택 버튼 클릭 이벤트 (실제 적용)
     document.getElementById('selectMessageBtn').addEventListener('click', function() {
         if (selectedMessageIndex === null) {
             alert('메시지를 선택해주세요.');
             return;
         }
+        
+        console.log(`✅ 메시지 ${selectedMessageIndex} 최종 선택 및 적용`);
         
         // 선택된 메시지 정보를 계정별 정보 영역에 표시
         updateSelectedMessageInfo(accountId, selectedMessageIndex);
@@ -3502,6 +3567,14 @@ function clearMessage() {
 async function showSavedMessages() {
     console.log('💾 텔레그램 저장된 메시지 표시');
     
+    // 다중 계정 모드인지 확인
+    if (window.multiAccountMode && window.selectedMultiAccounts && window.selectedMultiAccounts.length > 1) {
+        console.log('🔄 다중 계정 모드 - 계정 선택 모달 열기');
+        showAccountSelectionModal(window.selectedMultiAccounts);
+        return;
+    }
+    
+    // 단일 계정 모드 - 기존 모달 열기
     const modal = document.getElementById('savedMessagesModal');
     if (!modal) return;
     
@@ -3533,14 +3606,6 @@ async function showSavedMessages() {
 async function loadTelegramSavedMessages() {
     console.log('💾 텔레그램 저장된 메시지 로드');
     
-    // 다중 계정 모드인지 확인
-    if (window.multiAccountMode && window.selectedMultiAccounts && window.selectedMultiAccounts.length > 1) {
-        console.log('🔄 다중 계정 모드 - 계정 선택 모달 열기');
-        showAccountSelectionModal(window.selectedMultiAccounts);
-        return;
-    }
-    
-    // 단일 계정 모드 - 기존 로직 실행
     try {
         // 현재 계정 정보 가져오기
         const accountName = document.getElementById('selectedAccountName').textContent;
@@ -5086,6 +5151,7 @@ function updateSelectedGroupsCount() {
     const selectedGroupsInfo = document.getElementById('selectedGroupsInfo');
     if (selectedGroupsInfo) {
         selectedGroupsInfo.textContent = `${selectedCount}개 그룹 선택됨`;
+        selectedGroupsInfo.style.color = '#fff'; // 텍스트 색상을 흰색으로 설정
     }
     
     // 전송 버튼 상태 업데이트
