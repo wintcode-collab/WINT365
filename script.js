@@ -2127,26 +2127,6 @@ function showMultiAccountMessageSettings(accounts) {
         if (accountMessageList) {
             accountMessageList.innerHTML = '';
             
-            // 저장된 메시지 선택 버튼 추가
-            const selectButtonDiv = document.createElement('div');
-            selectButtonDiv.style.cssText = `
-                margin-bottom: 20px;
-                text-align: center;
-            `;
-            selectButtonDiv.innerHTML = `
-                <button id="selectAllAccountsMessages" style="
-                    background: linear-gradient(135deg, #10B981 0%, #059669 100%);
-                    color: white;
-                    border: none;
-                    padding: 12px 24px;
-                    border-radius: 8px;
-                    font-size: 14px;
-                    cursor: pointer;
-                    font-weight: 600;
-                    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
-                ">💾 저장된 메시지 선택</button>
-            `;
-            accountMessageList.appendChild(selectButtonDiv);
             
             accounts.forEach((account, index) => {
                 const accountDiv = document.createElement('div');
@@ -2171,8 +2151,6 @@ function showMultiAccountMessageSettings(accounts) {
                 accountMessageList.appendChild(accountDiv);
             });
             
-            // 저장된 메시지 선택 버튼 이벤트 추가
-            setupSelectAllMessagesButton(accounts);
         }
         
     } catch (error) {
@@ -2228,15 +2206,6 @@ function showBasicSettingsForSingleAccount() {
     }
 }
 
-// 저장된 메시지 선택 버튼 이벤트 설정
-function setupSelectAllMessagesButton(accounts) {
-    const selectButton = document.getElementById('selectAllAccountsMessages');
-    if (selectButton) {
-        selectButton.addEventListener('click', () => {
-            showAccountSelectionModal(accounts);
-        });
-    }
-}
 
 // 계정 선택 모달창 표시
 function showAccountSelectionModal(accounts) {
@@ -3564,6 +3533,14 @@ async function showSavedMessages() {
 async function loadTelegramSavedMessages() {
     console.log('💾 텔레그램 저장된 메시지 로드');
     
+    // 다중 계정 모드인지 확인
+    if (window.multiAccountMode && window.selectedMultiAccounts && window.selectedMultiAccounts.length > 1) {
+        console.log('🔄 다중 계정 모드 - 계정 선택 모달 열기');
+        showAccountSelectionModal(window.selectedMultiAccounts);
+        return;
+    }
+    
+    // 단일 계정 모드 - 기존 로직 실행
     try {
         // 현재 계정 정보 가져오기
         const accountName = document.getElementById('selectedAccountName').textContent;
