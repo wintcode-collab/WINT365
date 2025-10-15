@@ -2144,37 +2144,42 @@ function showMultiAccountMessageSettings(accounts) {
                             📱 ${account.first_name || ''} ${account.last_name || ''} (${account.phone_number || ''})
                         </h5>
                     </div>
-                    <div class="message-preview" data-account-id="${account.user_id}" style="
-                        padding: 12px;
+                    <div class="selected-message-info" data-account-id="${account.user_id}" style="
+                        padding: 10px;
                         background: #1a1a1a;
                         border: 1px solid #555;
                         border-radius: 6px;
-                        min-height: 80px;
+                        min-height: 50px;
                         color: #888;
                         font-style: italic;
                         margin-bottom: 8px;
-                        overflow: auto;
-                        max-height: 300px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        font-size: 12px;
                     ">
-                        💾 저장된 메시지를 불러오세요
+                        ⏳ 저장된 메시지 불러오는 중...
                     </div>
-                    <button class="load-account-message" data-account-id="${account.user_id}" style="
+                    <button class="open-message-modal" data-account-id="${account.user_id}" style="
                         background: linear-gradient(135deg, #10B981 0%, #059669 100%);
                         color: white;
                         border: none;
-                        padding: 8px 16px;
+                        padding: 6px 12px;
                         border-radius: 6px;
-                        font-size: 13px;
+                        font-size: 12px;
                         cursor: pointer;
                         width: 100%;
-                    ">💾 저장된 메시지 불러오기</button>
+                    ">🔄 메시지 변경</button>
                 `;
                 
                 accountMessageList.appendChild(accountDiv);
             });
             
-            // 계정별 메시지 불러오기/저장 이벤트 추가
-            setupAccountMessageEvents();
+            // 계정별 메시지 모달 열기 이벤트 추가
+            setupAccountMessageModalEvents();
+            
+            // 각 계정의 저장된 메시지 자동 불러오기
+            loadAllAccountsSavedMessages(accounts);
         }
         
     } catch (error) {
@@ -2230,21 +2235,385 @@ function showBasicSettingsForSingleAccount() {
     }
 }
 
-// 계정별 메시지 이벤트 설정
-function setupAccountMessageEvents() {
-    // 불러오기 버튼 이벤트만 추가
-    document.querySelectorAll('.load-account-message').forEach(button => {
+// 모든 계정의 저장된 메시지 자동 불러오기
+async function loadAllAccountsSavedMessages(accounts) {
+    console.log('💾 모든 계정의 저장된 메시지 자동 불러오기 시작:', accounts.length, '개');
+    
+    for (const account of accounts) {
+        try {
+            await loadAccountSavedMessageAuto(account.user_id);
+            // 각 계정 간에 약간의 딜레이 (API 부하 방지)
+            await new Promise(resolve => setTimeout(resolve, 200));
+        } catch (error) {
+            console.error(`❌ 계정 ${account.user_id} 메시지 자동 불러오기 실패:`, error);
+        }
+    }
+    
+    console.log('✅ 모든 계정의 저장된 메시지 자동 불러오기 완료');
+}
+
+// 계정의 저장된 메시지 자동 불러오기 (심플 버전)
+async function loadAccountSavedMessageAuto(accountId) {
+    const infoEl = document.querySelector(`.selected-message-info[data-account-id="${accountId}"]`);
+    if (!infoEl) return;
+    
+    try {
+        // 저장된 메시지 불러오기
+        const response = await fetch(`${getApiBaseUrl()}/api/telegram/saved-messages`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                userId: accountId
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok && result.success && result.saved_messages && result.saved_messages.length > 0) {
+            // 첫 번째 저장된 메시지 사용
+            const firstMessage = result.saved_messages[0];
+            let content = '';
+            
+            // 텍스트 메시지 (간단하게)
+            if (firstMessage.text && firstMessage.text.trim()) {
+                const shortText = firstMessage.text.length > 30 ? 
+                    firstMessage.text.substring(0, 30) + '...' : 
+                    firstMessage.text;
+                content += `<div style="color: #fff; margin-bottom: 4px;">${shortText}</div>`;
+            }
+            
+            // 미디어 타입 표시
+            if (firstMessage.media_url) {
+                const mediaType = firstMessage.media_type === 'photo' ? '📷' : 
+                                firstMessage.media_type === 'video' ? '🎥' : 
+                                firstMessage.media_type === 'document' ? '📄' : 
+                                firstMessage.media_type === 'voice' ? '🎤' : '📎';
+                content += `<div style="color: #10B981; font-size: 11px;">${mediaType} 미디어 포함</div>`;
+            }
+            
+            // 성공 상태 표시
+            content += `<div style="color: #10B981; font-size: 10px; margin-top: 2px;">✅ 준비완료</div>`;
+            
+            infoEl.innerHTML = content;
+            infoEl.style.color = '#fff';
+            infoEl.style.fontStyle = 'normal';
+            
+            console.log(`✅ 계정 ${accountId} 메시지 자동 불러오기 성공`);
+        } else {
+            // 저장된 메시지가 없는 경우
+            infoEl.innerHTML = `
+                <div style="color: #ff6b6b; text-align: center;">
+                    <div style="font-size: 12px;">❌ 저장된 메시지 없음</div>
+                    <div style="font-size: 10px; margin-top: 2px;">메시지를 먼저 저장하세요</div>
+                </div>
+            `;
+            infoEl.style.color = '#ff6b6b';
+            console.log(`⚠️ 계정 ${accountId} 저장된 메시지 없음`);
+        }
+        
+    } catch (error) {
+        console.error(`❌ 계정 ${accountId} 메시지 자동 불러오기 실패:`, error);
+        infoEl.innerHTML = `
+            <div style="color: #ff6b6b; text-align: center;">
+                <div style="font-size: 12px;">❌ 불러오기 실패</div>
+                <div style="font-size: 10px; margin-top: 2px;">다시 시도해주세요</div>
+            </div>
+        `;
+        infoEl.style.color = '#ff6b6b';
+    }
+}
+
+// 계정별 메시지 모달 열기 이벤트 설정
+function setupAccountMessageModalEvents() {
+    document.querySelectorAll('.open-message-modal').forEach(button => {
         button.addEventListener('click', async function() {
             const accountId = this.dataset.accountId;
-            await loadAccountSavedMessage(accountId);
+            await openAccountMessageModal(accountId);
         });
+    });
+}
+
+// 계정별 메시지 모달 열기
+async function openAccountMessageModal(accountId) {
+    try {
+        console.log(`💾 계정 ${accountId}의 메시지 모달 열기`);
+        
+        // 계정 정보 찾기
+        const account = window.selectedMultiAccounts?.find(acc => acc.user_id === accountId);
+        if (!account) {
+            throw new Error('계정 정보를 찾을 수 없습니다.');
+        }
+        
+        // 저장된 메시지 불러오기
+        const response = await fetch(`${getApiBaseUrl()}/api/telegram/saved-messages`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                userId: accountId
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (!response.ok || !result.success || !result.saved_messages || result.saved_messages.length === 0) {
+            alert('저장된 메시지가 없습니다.');
+            return;
+        }
+        
+        // 모달창 생성 및 표시
+        showMessageSelectionModal(account, result.saved_messages);
+        
+    } catch (error) {
+        console.error(`❌ 계정 ${accountId} 메시지 모달 열기 실패:`, error);
+        alert(`메시지 모달 열기에 실패했습니다: ${error.message}`);
+    }
+}
+
+// 메시지 선택 모달창 표시
+function showMessageSelectionModal(account, savedMessages) {
+    // 기존 모달이 있으면 제거
+    const existingModal = document.getElementById('messageSelectionModal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    // 모달창 HTML 생성
+    const modalHTML = `
+        <div id="messageSelectionModal" style="
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        ">
+            <div style="
+                background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
+                border: 2px solid #10B981;
+                border-radius: 12px;
+                padding: 20px;
+                max-width: 600px;
+                width: 90%;
+                max-height: 80vh;
+                overflow-y: auto;
+                box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+            ">
+                <div style="margin-bottom: 20px;">
+                    <h3 style="margin: 0 0 10px 0; color: #10B981; text-align: center;">
+                        📱 ${account.first_name || ''} ${account.last_name || ''} - 저장된 메시지 선택
+                    </h3>
+                    <p style="margin: 0; color: #888; text-align: center; font-size: 14px;">
+                        사용할 메시지를 선택하세요
+                    </p>
+                </div>
+                
+                <div id="savedMessagesList" style="margin-bottom: 20px;">
+                    ${savedMessages.map((message, index) => `
+                        <div class="message-item" data-message-index="${index}" style="
+                            padding: 15px;
+                            margin-bottom: 10px;
+                            background: linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%);
+                            border: 1px solid #444;
+                            border-radius: 8px;
+                            cursor: pointer;
+                            transition: all 0.2s ease;
+                        ">
+                            <div style="display: flex; align-items: flex-start; gap: 12px;">
+                                <div style="flex: 1;">
+                                    ${message.text ? `
+                                        <div style="color: #fff; margin-bottom: 8px; line-height: 1.4;">
+                                            ${message.text.replace(/\n/g, '<br>')}
+                                        </div>
+                                    ` : ''}
+                                    ${message.media_url ? `
+                                        <div style="margin-top: 8px;">
+                                            ${message.media_type === 'photo' ? `
+                                                <img src="${message.media_url}" style="max-width: 100%; max-height: 120px; border-radius: 6px; border: 1px solid #555;" alt="사진">
+                                                <div style="color: #10B981; font-size: 12px; margin-top: 4px;">📷 사진</div>
+                                            ` : message.media_type === 'video' ? `
+                                                <video controls style="max-width: 100%; max-height: 120px; border-radius: 6px; border: 1px solid #555;">
+                                                    <source src="${message.media_url}" type="video/mp4">
+                                                </video>
+                                                <div style="color: #10B981; font-size: 12px; margin-top: 4px;">🎥 동영상</div>
+                                            ` : message.media_type === 'document' ? `
+                                                <div style="padding: 8px; background: #1a1a1a; border-radius: 6px; border: 1px solid #555;">
+                                                    <div style="color: #10B981; font-size: 14px;">📄 파일: ${message.filename || '파일'}</div>
+                                                </div>
+                                            ` : message.media_type === 'voice' ? `
+                                                <div style="padding: 8px; background: #1a1a1a; border-radius: 6px; border: 1px solid #555;">
+                                                    <div style="color: #10B981; font-size: 14px;">🎤 음성 메시지</div>
+                                                </div>
+                                            ` : ''}
+                                        </div>
+                                    ` : ''}
+                                </div>
+                                <div style="color: #10B981; font-size: 20px;">○</div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+                
+                <div style="display: flex; gap: 10px; justify-content: center;">
+                    <button id="selectMessageBtn" style="
+                        background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+                        color: white;
+                        border: none;
+                        padding: 10px 20px;
+                        border-radius: 6px;
+                        font-size: 14px;
+                        cursor: pointer;
+                        font-weight: 600;
+                    ">✅ 선택</button>
+                    <button id="closeMessageModalBtn" style="
+                        background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);
+                        color: white;
+                        border: none;
+                        padding: 10px 20px;
+                        border-radius: 6px;
+                        font-size: 14px;
+                        cursor: pointer;
+                        font-weight: 600;
+                    ">❌ 닫기</button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // 모달창 추가
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    
+    // 이벤트 리스너 추가
+    setupMessageModalEvents(account.user_id);
+}
+
+// 메시지 모달 이벤트 설정
+function setupMessageModalEvents(accountId) {
+    let selectedMessageIndex = null;
+    
+    // 메시지 아이템 클릭 이벤트
+    document.querySelectorAll('.message-item').forEach((item, index) => {
+        item.addEventListener('click', function() {
+            // 기존 선택 해제
+            document.querySelectorAll('.message-item').forEach(el => {
+                el.style.borderColor = '#444';
+                el.style.background = 'linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%)';
+                el.querySelector('div:last-child').textContent = '○';
+            });
+            
+            // 새 선택 표시
+            this.style.borderColor = '#10B981';
+            this.style.background = 'linear-gradient(135deg, #374151 0%, #1F2937 100%)';
+            this.querySelector('div:last-child').textContent = '●';
+            selectedMessageIndex = index;
+        });
+    });
+    
+    // 선택 버튼 클릭 이벤트
+    document.getElementById('selectMessageBtn').addEventListener('click', function() {
+        if (selectedMessageIndex === null) {
+            alert('메시지를 선택해주세요.');
+            return;
+        }
+        
+        // 선택된 메시지 정보를 계정별 정보 영역에 표시
+        updateSelectedMessageInfo(accountId, selectedMessageIndex);
+        
+        // 모달창 닫기
+        document.getElementById('messageSelectionModal').remove();
+    });
+    
+    // 닫기 버튼 클릭 이벤트
+    document.getElementById('closeMessageModalBtn').addEventListener('click', function() {
+        document.getElementById('messageSelectionModal').remove();
+    });
+    
+    // 배경 클릭으로 닫기
+    document.getElementById('messageSelectionModal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            this.remove();
+        }
+    });
+}
+
+// 선택된 메시지 정보 업데이트
+function updateSelectedMessageInfo(accountId, messageIndex) {
+    const infoEl = document.querySelector(`.selected-message-info[data-account-id="${accountId}"]`);
+    if (!infoEl) return;
+    
+    // 저장된 메시지 정보를 다시 가져와서 선택된 메시지 표시
+    fetch(`${getApiBaseUrl()}/api/telegram/saved-messages`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            userId: accountId
+        })
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success && result.saved_messages && result.saved_messages[messageIndex]) {
+            const message = result.saved_messages[messageIndex];
+            let content = '';
+            
+            if (message.text) {
+                content += `<div style="color: #fff; margin-bottom: 4px; font-size: 13px;">${message.text.substring(0, 50)}${message.text.length > 50 ? '...' : ''}</div>`;
+            }
+            
+            if (message.media_url) {
+                const mediaType = message.media_type === 'photo' ? '📷 사진' : 
+                                message.media_type === 'video' ? '🎥 동영상' : 
+                                message.media_type === 'document' ? '📄 파일' : 
+                                message.media_type === 'voice' ? '🎤 음성' : '📎 미디어';
+                content += `<div style="color: #10B981; font-size: 12px;">${mediaType}</div>`;
+            }
+            
+            content += `<div style="color: #10B981; font-size: 11px; margin-top: 4px;">✅ 선택됨</div>`;
+            
+            infoEl.innerHTML = content;
+            infoEl.style.color = '#fff';
+            infoEl.style.fontStyle = 'normal';
+        }
+    })
+    .catch(error => {
+        console.error('메시지 정보 업데이트 실패:', error);
     });
 }
 
 // 특정 계정의 저장된 메시지 불러오기
 async function loadAccountSavedMessage(accountId) {
+    const buttonEl = document.querySelector(`.load-account-message[data-account-id="${accountId}"]`);
+    const previewEl = document.querySelector(`.message-preview[data-account-id="${accountId}"]`);
+    
     try {
         console.log(`💾 계정 ${accountId}의 저장된 메시지 불러오기`);
+        
+        // 버튼 클릭 피드백 및 로딩 상태
+        if (buttonEl) {
+            buttonEl.innerHTML = '⏳ 불러오는 중...';
+            buttonEl.style.background = 'linear-gradient(135deg, #6c757d 0%, #5a6268 100%)';
+            buttonEl.disabled = true;
+        }
+        
+        // 미리보기 영역에 로딩 애니메이션 표시
+        if (previewEl) {
+            previewEl.innerHTML = `
+                <div style="text-align: center; color: #10B981; padding: 20px;">
+                    <div style="display: inline-block; animation: spin 1s linear infinite; font-size: 20px;">⏳</div>
+                    <div style="margin-top: 8px; font-size: 14px;">저장된 메시지를 불러오는 중...</div>
+                </div>
+            `;
+            previewEl.style.color = '#10B981';
+            previewEl.style.fontStyle = 'normal';
+        }
         
         // 단일 계정 모드와 동일한 API 사용
         const response = await fetch(`${getApiBaseUrl()}/api/telegram/saved-messages`, {
@@ -2263,8 +2632,7 @@ async function loadAccountSavedMessage(accountId) {
         if (response.ok && result.success && result.saved_messages && result.saved_messages.length > 0) {
             // 첫 번째 저장된 메시지 사용
             const firstMessage = result.saved_messages[0];
-            // 해당 계정의 미리보기 영역에 메시지 표시
-            const previewEl = document.querySelector(`.message-preview[data-account-id="${accountId}"]`);
+            
             if (previewEl) {
                 let messageContent = '';
                 
@@ -2313,23 +2681,79 @@ async function loadAccountSavedMessage(accountId) {
                     }
                 }
                 
+                // 성공 메시지 추가
+                messageContent += `
+                    <div style="margin-top: 12px; padding: 8px; background: rgba(16, 185, 129, 0.1); border-radius: 6px; border-left: 3px solid #10B981;">
+                        <div style="color: #10B981; font-size: 12px; font-weight: 600;">✅ 저장된 메시지 불러오기 성공</div>
+                    </div>
+                `;
+                
                 previewEl.innerHTML = messageContent;
                 previewEl.style.color = '#fff';
                 previewEl.style.fontStyle = 'normal';
                 console.log(`✅ 계정 ${accountId}의 메시지 불러오기 성공 (텍스트: ${!!firstMessage.text}, 미디어: ${!!firstMessage.media_url})`);
             }
+            
+            // 버튼 상태 복원
+            if (buttonEl) {
+                buttonEl.innerHTML = '✅ 불러오기 완료';
+                buttonEl.style.background = 'linear-gradient(135deg, #10B981 0%, #059669 100%)';
+                setTimeout(() => {
+                    buttonEl.innerHTML = '💾 저장된 메시지 불러오기';
+                    buttonEl.style.background = 'linear-gradient(135deg, #10B981 0%, #059669 100%)';
+                    buttonEl.disabled = false;
+                }, 2000);
+            }
+            
         } else {
             console.log(`⚠️ 계정 ${accountId}의 저장된 메시지 없음`);
-            const previewEl = document.querySelector(`.message-preview[data-account-id="${accountId}"]`);
             if (previewEl) {
-                previewEl.innerHTML = '❌ 저장된 메시지가 없습니다';
+                previewEl.innerHTML = `
+                    <div style="text-align: center; color: #ff6b6b; padding: 20px;">
+                        <div style="font-size: 20px; margin-bottom: 8px;">❌</div>
+                        <div style="font-size: 14px; font-weight: 600;">저장된 메시지 불러오기 실패</div>
+                        <div style="font-size: 12px; margin-top: 4px; color: #888;">저장된 메시지가 없습니다</div>
+                    </div>
+                `;
                 previewEl.style.color = '#ff6b6b';
+            }
+            
+            // 버튼 상태 복원
+            if (buttonEl) {
+                buttonEl.innerHTML = '❌ 불러오기 실패';
+                buttonEl.style.background = 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)';
+                setTimeout(() => {
+                    buttonEl.innerHTML = '💾 저장된 메시지 불러오기';
+                    buttonEl.style.background = 'linear-gradient(135deg, #10B981 0%, #059669 100%)';
+                    buttonEl.disabled = false;
+                }, 2000);
             }
         }
         
     } catch (error) {
         console.error(`❌ 계정 ${accountId} 메시지 불러오기 실패:`, error);
-        alert(`메시지 불러오기에 실패했습니다: ${error.message}`);
+        
+        if (previewEl) {
+            previewEl.innerHTML = `
+                <div style="text-align: center; color: #ff6b6b; padding: 20px;">
+                    <div style="font-size: 20px; margin-bottom: 8px;">❌</div>
+                    <div style="font-size: 14px; font-weight: 600;">저장된 메시지 불러오기 실패</div>
+                    <div style="font-size: 12px; margin-top: 4px; color: #888;">${error.message}</div>
+                </div>
+            `;
+            previewEl.style.color = '#ff6b6b';
+        }
+        
+        // 버튼 상태 복원
+        if (buttonEl) {
+            buttonEl.innerHTML = '❌ 불러오기 실패';
+            buttonEl.style.background = 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)';
+            setTimeout(() => {
+                buttonEl.innerHTML = '💾 저장된 메시지 불러오기';
+                buttonEl.style.background = 'linear-gradient(135deg, #10B981 0%, #059669 100%)';
+                buttonEl.disabled = false;
+            }, 2000);
+        }
     }
 }
 
