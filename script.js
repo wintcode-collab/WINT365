@@ -4869,6 +4869,16 @@ async function initAccountRotation() {
     // 계정 목록 로드 (현재 선택된 계정들 자동 사용)
     setCurrentAccountsAsRotationAccounts();
     
+    // 단일 계정 모드에서는 로테이션 설정 숨기기
+    if (rotationAccounts.length <= 1) {
+        const rotationSection = document.querySelector('.setting-section:has(#enableAccountRotation)');
+        if (rotationSection) {
+            rotationSection.style.display = 'none';
+        }
+        console.log('📱 단일 계정 모드 - 로테이션 설정 숨김');
+        return;
+    }
+    
     // 로테이션 활성화 토글 이벤트
     enableRotationCheckbox.addEventListener('change', function() {
         // 기본 설정 섹션들
@@ -4896,6 +4906,17 @@ async function initAccountRotation() {
             console.log('🎨 기본 설정 복원');
         }
     });
+    
+    // 뒤로 가기 버튼 이벤트
+    const backToBasicBtn = document.getElementById('backToBasicSettings');
+    if (backToBasicBtn) {
+        backToBasicBtn.addEventListener('click', function() {
+            // 로테이션 비활성화
+            enableRotationCheckbox.checked = false;
+            enableRotationCheckbox.dispatchEvent(new Event('change'));
+            console.log('🔙 기본 설정으로 돌아가기');
+        });
+    }
     
     // 그룹 발송 주기 변경 시 안전성 계산
     if (groupSendInterval) {
