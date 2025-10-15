@@ -16,6 +16,7 @@ import re
 import schedule
 import time
 from datetime import datetime, timedelta
+import psutil  # 리소스 모니터링용
 
 # Telegram 라이브러리
 try:
@@ -117,6 +118,10 @@ clients = {}
 auto_send_settings = {}
 auto_send_jobs = {}
 session_cache = {}  # 세션 캐시 (Render.com 최적화)
+
+# 계정 로테이션 관련 저장소
+account_rotation_state = {}  # {group_id: {'current_account_index': 0, 'last_send_time': timestamp}}
+account_last_send_time = {}  # {user_id: timestamp} - 각 계정의 마지막 발송 시간
 
 # Firebase 설정
 FIREBASE_URL = "https://wint365-date-default-rtdb.asia-southeast1.firebasedatabase.app"
@@ -1125,14 +1130,62 @@ def verify_password():
             'error': f'2단계 인증 실패: {str(error)}'
         }), 500
 
-# 헬스체크 엔드포인트
+# 헬스체크 엔드포인트 (24시간 운영 모니터링용)
 @app.route('/health')
 def health():
-    return jsonify({
-        'status': 'healthy',
-        'timestamp': datetime.now().isoformat(),
-        'telethon_loaded': TelegramClient is not None
-    })
+    try:
+        # 프로세스 정보
+        process = psutil.Process()
+        
+        # 메모리 사용량
+        memory_info = process.memory_info()
+        memory_mb = memory_info.rss / 1024 / 1024  # MB 단위
+        
+        # CPU 사용률
+        cpu_percent = process.cpu_percent(interval=0.1)
+        
+        # 스레드 정보
+        thread_count = threading.active_count()
+        thread_names = [t.name for t in threading.enumerate()]
+        
+        # 자동전송 작업 상태
+        active_jobs = len(auto_send_jobs)
+        
+        # 클라이언트 연결 상태
+        active_clients = len(clients)
+        
+        # 시스템 메모리 정보
+        system_memory = psutil.virtual_memory()
+        system_memory_percent = system_memory.percent
+        
+        return jsonify({
+            'status': 'healthy',
+            'timestamp': datetime.now().isoformat(),
+            'telethon_loaded': TelegramClient is not None,
+            'process': {
+                'memory_mb': round(memory_mb, 2),
+                'cpu_percent': round(cpu_percent, 2),
+                'threads': {
+                    'count': thread_count,
+                    'names': thread_names
+                }
+            },
+            'system': {
+                'memory_percent': system_memory_percent
+            },
+            'application': {
+                'active_clients': active_clients,
+                'active_jobs': active_jobs,
+                'scheduler_running': True  # 스케줄러는 항상 백그라운드 실행
+            }
+        })
+    except Exception as e:
+        logger.error(f'⚠️ 헬스체크 에러: {e}')
+        return jsonify({
+            'status': 'error',
+            'timestamp': datetime.now().isoformat(),
+            'error': str(e)
+        }), 500
 
 # OPTIONS 요청 처리 (중복 피하기 위해 다른 함수명 사용)
 @app.route('/api/<path:path>', methods=['OPTIONS'])
@@ -2404,6 +2457,152 @@ def save_auto_send_status_to_firebase(user_id, status_data):
         logger.error(f'🔥 Firebase 자동전송 상태 저장 에러: {e}')
         return False
 
+# ============================================================
+# 계정 로테이션 시스템
+# ============================================================
+
+def get_next_rotation_account(group_id, rotation_accounts, rotation_interval_minutes):
+    """
+    다음 발송에 사용할 계정 결정 (그룹별 독립 로테이션 + 계정 전역 쿨다운)
+    
+    Args:
+        group_id: 그룹 ID
+        rotation_accounts: 로테이션에 사용할 계정 ID 리스트
+        rotation_interval_minutes: 계정 순환 간격 (분)
+    
+    Returns:
+        user_id: 다음 발송에 사용할 계정 ID, 또는 None (쿨다운 중)
+    """
+    try:
+        if not rotation_accounts or len(rotation_accounts) == 0:
+            logger.error('❌ 로테이션 계정이 없습니다')
+            return None
+        
+        current_time = time.time()
+        
+        # 계정 전역 쿨다운 시간 = 계정 수 × 순환 간격
+        account_global_cooldown = len(rotation_accounts) * rotation_interval_minutes
+        
+        # 그룹별 로테이션 상태 초기화
+        if group_id not in account_rotation_state:
+            account_rotation_state[group_id] = {
+                'current_account_index': 0,
+                'last_send_time': None
+            }
+        
+        rotation_state = account_rotation_state[group_id]
+        
+        # 마지막 발송 이후 충분한 시간이 지났는지 확인 (그룹 쿨다운)
+        if rotation_state['last_send_time'] is not None:
+            time_since_last_send = (current_time - rotation_state['last_send_time']) / 60  # 분 단위
+            if time_since_last_send < rotation_interval_minutes:
+                logger.info(f'⏳ 그룹 {group_id}: 그룹 쿨다운 중 ({time_since_last_send:.1f}분/{rotation_interval_minutes}분)')
+                return None
+        
+        # 다음 계정 선택 (순환)
+        max_attempts = len(rotation_accounts)
+        account_index = rotation_state['current_account_index']
+        
+        for attempt in range(max_attempts):
+            candidate_account_id = rotation_accounts[account_index]
+            
+            # 계정 전역 쿨다운 확인
+            if candidate_account_id in account_last_send_time:
+                last_send = account_last_send_time[candidate_account_id]
+                time_since_account_send = (current_time - last_send) / 60
+                
+                if time_since_account_send < account_global_cooldown:
+                    logger.info(f'⏳ 계정 {candidate_account_id}: 전역 쿨다운 중 ({time_since_account_send:.1f}분/{account_global_cooldown}분) - 다음 계정 시도')
+                    # 다음 계정으로 넘어감
+                    account_index = (account_index + 1) % len(rotation_accounts)
+                    continue
+            
+            # 쿨다운 끝난 계정 발견!
+            next_account_id = candidate_account_id
+            
+            logger.info(f'🔄 그룹 {group_id}: 계정 로테이션 - 인덱스 {account_index + 1}/{len(rotation_accounts)} → 계정 {next_account_id}')
+            logger.info(f'   계정 전역 쿨다운: {account_global_cooldown}분 (안전 보장)')
+            
+            # 다음 인덱스로 이동 (순환)
+            rotation_state['current_account_index'] = (account_index + 1) % len(rotation_accounts)
+            rotation_state['last_send_time'] = current_time
+            
+            # 계정별 마지막 발송 시간 업데이트
+            account_last_send_time[next_account_id] = current_time
+            
+            return next_account_id
+        
+        # 모든 계정이 쿨다운 중
+        logger.warning(f'⏳ 그룹 {group_id}: 모든 로테이션 계정이 쿨다운 중입니다')
+        return None
+        
+    except Exception as e:
+        logger.error(f'❌ 로테이션 계정 선택 에러: {e}')
+        return None
+
+def check_account_cooldown(user_id, min_cooldown_minutes=30):
+    """
+    계정의 쿨다운 시간 확인
+    
+    Args:
+        user_id: 계정 ID
+        min_cooldown_minutes: 최소 쿨다운 시간 (분)
+    
+    Returns:
+        bool: 발송 가능 여부
+    """
+    try:
+        if user_id not in account_last_send_time:
+            return True  # 한 번도 발송한 적 없음
+        
+        last_send_time = account_last_send_time[user_id]
+        current_time = time.time()
+        time_since_last_send = (current_time - last_send_time) / 60  # 분 단위
+        
+        if time_since_last_send >= min_cooldown_minutes:
+            logger.info(f'✅ 계정 {user_id}: 쿨다운 완료 ({time_since_last_send:.1f}분)')
+            return True
+        else:
+            logger.info(f'⏳ 계정 {user_id}: 쿨다운 중 ({time_since_last_send:.1f}분/{min_cooldown_minutes}분)')
+            return False
+            
+    except Exception as e:
+        logger.error(f'❌ 계정 쿨다운 확인 에러: {e}')
+        return True  # 에러 시 발송 허용
+
+def get_account_saved_message(user_id):
+    """
+    계정의 저장된 메시지 가져오기 (Saved Messages에서)
+    
+    Args:
+        user_id: 계정 ID
+    
+    Returns:
+        dict: {'message': str, 'media_info': dict} 또는 None
+    """
+    try:
+        # Firebase에서 계정의 저장된 메시지 조회
+        url = f"{FIREBASE_URL}/account_saved_messages/{user_id}.json"
+        response = requests.get(url, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data:
+                logger.info(f'✅ 계정 {user_id}의 저장된 메시지 조회 성공')
+                return {
+                    'message': data.get('message', ''),
+                    'media_info': data.get('media_info')
+                }
+        
+        logger.warning(f'⚠️ 계정 {user_id}의 저장된 메시지가 없습니다')
+        return None
+        
+    except Exception as e:
+        logger.error(f'❌ 저장된 메시지 조회 에러: {e}')
+        return None
+
+# ============================================================
+
 def get_auto_send_status_from_firebase(user_id):
     """Firebase에서 자동전송 상태 조회"""
     try:
@@ -2546,9 +2745,20 @@ def execute_auto_send_job(user_id, group_ids, message, media_info=None):
         group_interval = settings.get('groupInterval', 30)  # 초 단위
         max_repeats = settings.get('maxRepeats', 10)
         
+        # 계정 로테이션 설정 확인
+        account_rotation = settings.get('accountRotation')
+        rotation_enabled = account_rotation and account_rotation.get('enabled', False) if account_rotation else False
+        rotation_accounts = account_rotation.get('selectedAccounts', []) if account_rotation else []
+        rotation_interval = account_rotation.get('groupSendInterval', 15) if account_rotation else 15  # 계정 순환 간격 (분)
+        
         logger.info(f'⏰ 자동전송 설정 확인:')
         logger.info(f'   - 그룹 간격: {group_interval}초 (타입: {type(group_interval)})')
         logger.info(f'   - 최대 반복: {max_repeats}회')
+        logger.info(f'   - 계정 로테이션: {"활성화" if rotation_enabled else "비활성화"}')
+        if rotation_enabled:
+            logger.info(f'   - 로테이션 계정 수: {len(rotation_accounts)}개')
+            logger.info(f'   - 계정 순환 간격: {rotation_interval}분')
+            logger.info(f'   - 계정당 전역 쿨다운: {rotation_interval * len(rotation_accounts)}분')
         logger.info(f'   - 전체 설정: {settings}')
         
         # 그룹 간격이 숫자인지 확인
@@ -2569,6 +2779,44 @@ def execute_auto_send_job(user_id, group_ids, message, media_info=None):
         success_count = 0
         for i, group_id in enumerate(group_ids):
             try:
+                # 계정 로테이션이 활성화되어 있으면 로테이션 계정 사용
+                if rotation_enabled:
+                    # 다음 발송 계정 결정 (그룹별 독립 로테이션 + 계정 전역 쿨다운)
+                    rotation_user_id = get_next_rotation_account(group_id, rotation_accounts, rotation_interval)
+                    
+                    if not rotation_user_id:
+                        logger.info(f'⏭️ 그룹 {group_id}: 로테이션 쿨다운 중, 건너뜀 (다음 기회에 발송)')
+                        continue
+                    
+                    # 로테이션 계정 정보 조회
+                    rotation_account_info = get_account_from_firebase(rotation_user_id)
+                    if not rotation_account_info:
+                        logger.error(f'❌ 로테이션 계정 정보 없음: {rotation_user_id}')
+                        continue
+                    
+                    # 로테이션 계정의 저장된 메시지 조회
+                    saved_message_data = get_account_saved_message(rotation_user_id)
+                    rotation_message = saved_message_data.get('message', message) if saved_message_data else message
+                    rotation_media_info = saved_message_data.get('media_info', media_info) if saved_message_data else media_info
+                    
+                    logger.info(f'🔄 그룹 {group_id}: 로테이션 계정 {rotation_user_id} 사용')
+                    
+                    # 로테이션 계정으로 전송
+                    result = send_message_to_telegram_group(rotation_account_info, group_id, rotation_message, rotation_media_info)
+                    
+                    if result:
+                        success_count += 1
+                        logger.info(f'✅ 로테이션 자동전송 성공: 그룹 {group_id} (계정: {rotation_user_id})')
+                    else:
+                        logger.error(f'❌ 로테이션 자동전송 실패: 그룹 {group_id} (계정: {rotation_user_id})')
+                    
+                    # 그룹 간 대기
+                    if i < len(group_ids) - 1:
+                        time.sleep(group_interval)
+                    
+                    continue  # 로테이션 모드에서는 아래 일반 모드 로직을 건너뜀
+                
+                # 일반 모드 (로테이션 비활성화)
                 # 두 가지 조건 확인: 메시지 개수 + 재전송 텀 (평탄화된 설정 사용)
                 enable_message_check = settings.get('enableMessageCheck', False)
                 message_threshold = settings.get('messageThreshold', 5)
@@ -2980,6 +3228,23 @@ def refresh_user_session(user_id, account_info):
         logger.error(f'❌ 사용자 세션 갱신 에러: {user_id} - {e}')
         return False
 
+def log_system_resources():
+    """시스템 리소스 상태 로깅 (24시간 운영 모니터링용)"""
+    try:
+        process = psutil.Process()
+        memory_mb = process.memory_info().rss / 1024 / 1024
+        cpu_percent = process.cpu_percent(interval=0.1)
+        thread_count = threading.active_count()
+        
+        logger.info(f'📊 [시스템 상태] 메모리: {memory_mb:.2f}MB | CPU: {cpu_percent:.2f}% | 스레드: {thread_count}개 | 활성 작업: {len(auto_send_jobs)}개 | 클라이언트: {len(clients)}개')
+        
+        # 메모리 경고 (400MB 초과 시)
+        if memory_mb > 400:
+            logger.warning(f'⚠️ 메모리 사용량 높음: {memory_mb:.2f}MB')
+        
+    except Exception as e:
+        logger.error(f'❌ 시스템 리소스 로깅 에러: {e}')
+
 def backup_sessions_hourly():
     """1시간마다 세션 데이터 백업"""
     try:
@@ -3041,6 +3306,10 @@ def run_scheduler():
     # 세션 백업 스케줄 등록 (1시간마다)
     schedule.every(1).hours.do(backup_sessions_hourly)
     logger.info('💾 세션 백업 스케줄 등록 (1시간마다)')
+    
+    # 시스템 리소스 모니터링 스케줄 등록 (30분마다)
+    schedule.every(30).minutes.do(log_system_resources)
+    logger.info('📊 시스템 리소스 모니터링 스케줄 등록 (30분마다)')
     
     while True:
         try:

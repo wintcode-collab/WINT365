@@ -3405,11 +3405,14 @@ function setupAutoSendEventListeners() {
 }
 
 // 자동 전송 설정 모달 표시
-function showAutoSendSettingsModal() {
+async function showAutoSendSettingsModal() {
     const modal = document.getElementById('autoSendSettingsModal');
     if (modal) {
         modal.style.display = 'flex';
         loadAutoSendSettings();
+        
+        // 계정 로테이션 기능 초기화
+        await initAccountRotation();
     }
 }
 
@@ -3490,7 +3493,8 @@ function saveAutoSendSettings() {
         repeatInterval: parseInt(repeatInterval),
         maxRepeats: parseInt(maxRepeats),
         messageThreshold: parseInt(messageThreshold),
-        enableMessageCheck: enableMessageCheck
+        enableMessageCheck: enableMessageCheck,
+        accountRotation: getRotationSettingsForSave() // 계정 로테이션 설정 추가
     };
     
     console.log('🔧 자동전송 설정 저장:', settings);
@@ -4677,3 +4681,286 @@ document.addEventListener('DOMContentLoaded', function() {
         resetSendButtonState();
     }, 1000);
 });
+
+// ============================================================
+// 계정 로테이션 시스템
+// ============================================================
+
+let rotationAccounts = []; // 로테이션에 사용할 계정 목록
+let selectedRotationAccounts = []; // 사용자가 선택한 로테이션 계정들
+
+// 계정 로테이션 초기화
+async function initAccountRotation() {
+    console.log('🔄 계정 로테이션 초기화');
+    
+    const enableRotationCheckbox = document.getElementById('enableAccountRotation');
+    const rotationSettings = document.getElementById('accountRotationSettings');
+    const groupSendInterval = document.getElementById('groupSendInterval');
+    
+    if (!enableRotationCheckbox || !rotationSettings) {
+        console.error('❌ 계정 로테이션 UI 요소를 찾을 수 없습니다');
+        return;
+    }
+    
+    // 계정 목록 로드
+    await loadRotationAccounts();
+    
+    // 로테이션 활성화 토글 이벤트
+    enableRotationCheckbox.addEventListener('change', function() {
+        if (this.checked) {
+            rotationSettings.style.display = 'block';
+            console.log('✅ 계정 로테이션 활성화');
+        } else {
+            rotationSettings.style.display = 'none';
+            console.log('❌ 계정 로테이션 비활성화');
+        }
+    });
+    
+    // 그룹 발송 주기 변경 시 안전성 계산
+    if (groupSendInterval) {
+        groupSendInterval.addEventListener('input', calculateRotationSafety);
+    }
+    
+    // 이전에 저장된 설정 불러오기
+    loadSavedRotationSettings();
+}
+
+// 로테이션에 사용할 계정 목록 로드
+async function loadRotationAccounts() {
+    try {
+        console.log('📋 계정 목록 로드 중...');
+        
+        const response = await fetch(`${getApiBaseUrl()}/api/accounts/load`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`계정 목록 로드 실패: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log('✅ 계정 목록 로드 성공:', data);
+        
+        if (data.success && data.accounts) {
+            rotationAccounts = data.accounts;
+            renderRotationAccountsList();
+        } else {
+            console.error('❌ 계정 목록이 비어있습니다');
+        }
+        
+    } catch (error) {
+        console.error('❌ 계정 목록 로드 에러:', error);
+    }
+}
+
+// 로테이션 계정 목록 렌더링
+function renderRotationAccountsList() {
+    const accountsList = document.getElementById('rotationAccountsList');
+    if (!accountsList) return;
+    
+    accountsList.innerHTML = '';
+    
+    if (rotationAccounts.length === 0) {
+        accountsList.innerHTML = '<p style="color: #888; text-align: center; padding: 20px;">인증된 계정이 없습니다</p>';
+        return;
+    }
+    
+    rotationAccounts.forEach(account => {
+        const accountItem = document.createElement('div');
+        accountItem.className = 'rotation-account-item';
+        accountItem.dataset.userId = account.user_id;
+        
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'rotation-account-checkbox';
+        checkbox.id = `rotation-account-${account.user_id}`;
+        checkbox.value = account.user_id;
+        
+        const accountInfo = document.createElement('div');
+        accountInfo.className = 'rotation-account-info';
+        
+        const accountName = document.createElement('div');
+        accountName.className = 'rotation-account-name';
+        accountName.textContent = `${account.first_name || ''} ${account.last_name || ''}`.trim() || account.username || '이름 없음';
+        
+        const accountPhone = document.createElement('div');
+        accountPhone.className = 'rotation-account-phone';
+        accountPhone.textContent = account.phone_number || '';
+        
+        accountInfo.appendChild(accountName);
+        accountInfo.appendChild(accountPhone);
+        
+        accountItem.appendChild(checkbox);
+        accountItem.appendChild(accountInfo);
+        
+        // 체크박스 변경 이벤트
+        checkbox.addEventListener('change', function() {
+            if (this.checked) {
+                accountItem.classList.add('selected');
+                if (!selectedRotationAccounts.includes(account.user_id)) {
+                    selectedRotationAccounts.push(account.user_id);
+                }
+            } else {
+                accountItem.classList.remove('selected');
+                selectedRotationAccounts = selectedRotationAccounts.filter(id => id !== account.user_id);
+            }
+            
+            calculateRotationSafety();
+        });
+        
+        // 아이템 클릭 시 체크박스 토글
+        accountItem.addEventListener('click', function(e) {
+            if (e.target !== checkbox) {
+                checkbox.checked = !checkbox.checked;
+                checkbox.dispatchEvent(new Event('change'));
+            }
+        });
+        
+        accountsList.appendChild(accountItem);
+    });
+}
+
+// 로테이션 안전성 계산 및 표시
+function calculateRotationSafety() {
+    const selectedCount = selectedRotationAccounts.length;
+    const rotationInterval = parseInt(document.getElementById('groupSendInterval')?.value || 15);
+    
+    const selectedCountEl = document.getElementById('selectedAccountsCount');
+    const accountCooldownEl = document.getElementById('accountCooldown');
+    const safetyWarningEl = document.getElementById('safetyWarning');
+    
+    // 그룹별 실제 주기 표시 요소들
+    const cycle6El = document.getElementById('cycle6');
+    const cycle3El = document.getElementById('cycle3');
+    const cycle2El = document.getElementById('cycle2');
+    const cycle1El = document.getElementById('cycle1');
+    
+    if (!selectedCountEl || !accountCooldownEl || !safetyWarningEl) return;
+    
+    selectedCountEl.textContent = selectedCount;
+    
+    if (selectedCount < 2) {
+        accountCooldownEl.textContent = '-';
+        safetyWarningEl.innerHTML = '<span style="color: #ff6b6b;">⚠️ 최소 2개 이상의 계정을 선택하세요</span>';
+        
+        // 그룹별 주기 초기화
+        if (cycle6El) cycle6El.textContent = '-';
+        if (cycle3El) cycle3El.textContent = '-';
+        if (cycle2El) cycle2El.textContent = '-';
+        if (cycle1El) cycle1El.textContent = '-';
+        return;
+    }
+    
+    // 계정당 쿨다운 시간 = 계정 순환 간격 × 계정 수
+    const accountCooldown = rotationInterval * selectedCount;
+    
+    accountCooldownEl.textContent = `${accountCooldown}분`;
+    
+    // 그룹별 실제 발송 주기 계산
+    // 그룹에 체크된 계정이 N개면, 그 그룹은 (N × rotationInterval)분마다 받거나
+    // 계정 쿨다운 시간마다 받음 (둘 중 긴 시간)
+    
+    function calculateGroupCycle(accountsInGroup) {
+        if (accountsInGroup === 0) return accountCooldown; // 최소 쿨다운
+        const cycleBySingleRotation = accountsInGroup * rotationInterval;
+        return Math.max(cycleBySingleRotation, accountCooldown);
+    }
+    
+    // 실제 계산 (최소값은 계정 쿨다운)
+    const cycle6 = selectedCount >= 6 ? rotationInterval : accountCooldown;
+    const cycle3 = selectedCount >= 3 ? rotationInterval * Math.ceil(selectedCount / 3) : accountCooldown;
+    const cycle2 = selectedCount >= 2 ? rotationInterval * Math.ceil(selectedCount / 2) : accountCooldown;
+    const cycle1 = accountCooldown; // 1개만 체크하면 무조건 쿨다운 시간
+    
+    // 더 정확한 계산: 그룹에 N개 계정이 있으면, 각 계정이 한 바퀴 도는 시간
+    const actualCycle6 = selectedCount >= 6 ? (6 * rotationInterval) : accountCooldown;
+    const actualCycle3 = selectedCount >= 3 ? (3 * rotationInterval) : accountCooldown;
+    const actualCycle2 = selectedCount >= 2 ? (2 * rotationInterval) : accountCooldown;
+    const actualCycle1 = accountCooldown;
+    
+    if (cycle6El) cycle6El.innerHTML = `<strong style="color: #10B981;">${actualCycle6}분마다</strong>`;
+    if (cycle3El) cycle3El.innerHTML = `<strong style="color: #10B981;">${actualCycle3}분마다</strong>`;
+    if (cycle2El) cycle2El.innerHTML = `<strong style="color: ${actualCycle2 > 60 ? '#ffa500' : '#10B981'};">${actualCycle2}분마다</strong>`;
+    if (cycle1El) cycle1El.innerHTML = `<strong style="color: #ff6b6b;">${actualCycle1}분마다</strong> (느림!)`;
+    
+    // 안전성 평가
+    let safetyMessage = '';
+    let safetyColor = '';
+    
+    if (accountCooldown >= 60) {
+        safetyMessage = '✅ 매우 안전한 설정입니다!';
+        safetyColor = '#10B981';
+    } else if (accountCooldown >= 30) {
+        safetyMessage = '✅ 안전한 설정입니다';
+        safetyColor = '#10B981';
+    } else if (accountCooldown >= 20) {
+        safetyMessage = '⚠️ 주의: 계정 쿨다운이 짧습니다';
+        safetyColor = '#ffa500';
+    } else {
+        safetyMessage = '❌ 위험: 계정 정지 위험이 높습니다. 계정을 더 추가하거나 순환 간격을 늘리세요';
+        safetyColor = '#ff6b6b';
+    }
+    
+    safetyWarningEl.innerHTML = `<span style="color: ${safetyColor}; font-weight: 600;">${safetyMessage}</span>`;
+}
+
+// 저장된 로테이션 설정 불러오기
+function loadSavedRotationSettings() {
+    try {
+        const settings = loadAccountSettings('autoSend');
+        if (!settings || !settings.accountRotation) return;
+        
+        const rotationSettings = settings.accountRotation;
+        
+        // 로테이션 활성화 상태
+        const enableRotationCheckbox = document.getElementById('enableAccountRotation');
+        if (enableRotationCheckbox && rotationSettings.enabled) {
+            enableRotationCheckbox.checked = true;
+            document.getElementById('accountRotationSettings').style.display = 'block';
+        }
+        
+        // 그룹 발송 주기
+        const groupSendInterval = document.getElementById('groupSendInterval');
+        if (groupSendInterval && rotationSettings.groupSendInterval) {
+            groupSendInterval.value = rotationSettings.groupSendInterval;
+        }
+        
+        // 선택된 계정들
+        if (rotationSettings.selectedAccounts && Array.isArray(rotationSettings.selectedAccounts)) {
+            selectedRotationAccounts = rotationSettings.selectedAccounts;
+            
+            // 체크박스 복원
+            rotationSettings.selectedAccounts.forEach(userId => {
+                const checkbox = document.getElementById(`rotation-account-${userId}`);
+                if (checkbox) {
+                    checkbox.checked = true;
+                    checkbox.closest('.rotation-account-item')?.classList.add('selected');
+                }
+            });
+            
+            calculateRotationSafety();
+        }
+        
+    } catch (error) {
+        console.error('❌ 로테이션 설정 불러오기 에러:', error);
+    }
+}
+
+// 로테이션 설정을 자동전송 설정에 포함
+function getRotationSettingsForSave() {
+    const enableRotationCheckbox = document.getElementById('enableAccountRotation');
+    const groupSendInterval = document.getElementById('groupSendInterval');
+    
+    if (!enableRotationCheckbox?.checked) {
+        return null; // 로테이션 비활성화 시 null 반환
+    }
+    
+    return {
+        enabled: true,
+        selectedAccounts: selectedRotationAccounts,
+        groupSendInterval: parseInt(groupSendInterval?.value || 15)
+    };
+}

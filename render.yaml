@@ -5,7 +5,7 @@ services:
     env: python
     buildCommand: pip install -r requirements.txt
     startCommand: python app.py
-    plan: free
+    plan: starter  # 24시간 운영을 위한 유료 플랜
     region: oregon
     branch: main
     rootDir: .

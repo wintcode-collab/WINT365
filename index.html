@@ -432,6 +432,66 @@
                     </div>
                 </div>
 
+                <!-- 계정 로테이션 설정 -->
+                <div class="setting-section">
+                    <h4>🔄 계정 로테이션 (계정 안전 모드)</h4>
+                    <div class="setting-item">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="enableAccountRotation">
+                            <span class="checkmark"></span>
+                            계정 로테이션 활성화
+                        </label>
+                        <span class="setting-description">여러 계정을 순환하며 발송하여 계정 정지 위험을 최소화합니다</span>
+                    </div>
+                    <div style="margin-top: 10px; padding: 12px; background: rgba(255, 193, 7, 0.1); border-left: 3px solid #FFC107; border-radius: 4px;">
+                        <p style="margin: 0; font-size: 13px; color: #856404; line-height: 1.6;">
+                            <strong>💡 작동 방식:</strong><br>
+                            • 각 그룹마다 선택된 계정들이 순환하며 발송합니다<br>
+                            • 그룹에 체크된 계정이 많을수록 빠른 주기로 받습니다<br>
+                            • 모든 계정은 전역 쿨다운으로 안전성이 보장됩니다
+                        </p>
+                    </div>
+                    
+                    <div id="accountRotationSettings" style="display: none; margin-top: 15px;">
+                        <!-- 계정 선택 -->
+                        <div class="setting-item">
+                            <label>사용할 계정 선택:</label>
+                            <div id="rotationAccountsList" class="rotation-accounts-list">
+                                <!-- 계정 목록이 여기에 동적으로 추가됩니다 -->
+                            </div>
+                            <span class="setting-description">최소 2개 이상의 계정을 선택하세요</span>
+                        </div>
+
+                        <!-- 계정 순환 간격 -->
+                        <div class="setting-item">
+                            <label for="groupSendInterval">계정 순환 간격 (분):</label>
+                            <input type="number" id="groupSendInterval" min="10" max="1440" value="15" class="setting-input">
+                            <span class="setting-description">다음 계정으로 넘어가는 대기 시간 (예: 15분)</span>
+                        </div>
+
+                        <!-- 안전성 정보 표시 -->
+                        <div class="rotation-safety-info" id="rotationSafetyInfo" style="margin-top: 15px; padding: 15px; background: #f0f8ff; border-radius: 8px; border-left: 4px solid #4CAF50;">
+                            <h5 style="margin: 0 0 10px 0; color: #2196F3;">📊 안전성 분석</h5>
+                            <div id="rotationCalculations">
+                                <p style="margin: 5px 0; font-size: 14px;">✅ 선택된 계정: <strong id="selectedAccountsCount">0</strong>개</p>
+                                <p style="margin: 5px 0; font-size: 14px;">⏱️ 계정당 쿨다운 시간: <strong id="accountCooldown">-</strong></p>
+                                <p style="margin: 5px 0; font-size: 14px;" id="safetyWarning"></p>
+                                <hr style="margin: 15px 0; border: none; border-top: 1px solid #ddd;">
+                                <h6 style="margin: 10px 0 5px 0; color: #666; font-size: 13px;">⚠️ 그룹별 실제 발송 주기:</h6>
+                                <div id="groupCycleInfo" style="margin-top: 10px; font-size: 13px; color: #555;">
+                                    <p style="margin: 3px 0;">• <strong>6개</strong> 계정 체크한 그룹: <span id="cycle6">-</span></p>
+                                    <p style="margin: 3px 0;">• <strong>3개</strong> 계정 체크한 그룹: <span id="cycle3">-</span></p>
+                                    <p style="margin: 3px 0;">• <strong>2개</strong> 계정 체크한 그룹: <span id="cycle2">-</span></p>
+                                    <p style="margin: 3px 0;">• <strong>1개</strong> 계정만 체크한 그룹: <span id="cycle1">-</span></p>
+                                </div>
+                                <p style="margin-top: 10px; font-size: 12px; color: #888; font-style: italic;">
+                                    💡 팁: 모든 그룹이 빠르게 받으려면 각 그룹에 더 많은 계정을 체크하세요!
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
             </div>
 
             <div class="auto-send-settings-footer">
