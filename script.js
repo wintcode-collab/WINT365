@@ -2604,10 +2604,13 @@ function setupMessageModalEvents(accountId) {
             document.querySelectorAll('.message-item').forEach(el => {
                 el.style.borderColor = '#444';
                 el.style.background = 'linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%)';
-                // 체크 아이콘 찾기 (오른쪽 끝의 div)
-                const checkIcon = el.querySelector('div:last-child');
-                if (checkIcon) {
-                    checkIcon.textContent = '○';
+                // 체크 아이콘 찾기 (flex 컨테이너의 두 번째 div)
+                const flexContainer = el.querySelector('div[style*="display: flex"]');
+                if (flexContainer) {
+                    const checkIcon = flexContainer.children[1]; // 두 번째 자식이 체크 아이콘
+                    if (checkIcon) {
+                        checkIcon.textContent = '○';
+                    }
                 }
             });
             
@@ -2615,10 +2618,13 @@ function setupMessageModalEvents(accountId) {
             this.style.borderColor = '#10B981';
             this.style.background = 'linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%)'; // 더 밝은 배경으로 변경
             
-            // 체크 아이콘 찾기 (오른쪽 끝의 div)
-            const checkIcon = this.querySelector('div:last-child');
-            if (checkIcon) {
-                checkIcon.textContent = '●';
+            // 체크 아이콘 찾기 (flex 컨테이너의 두 번째 div)
+            const flexContainer = this.querySelector('div[style*="display: flex"]');
+            if (flexContainer) {
+                const checkIcon = flexContainer.children[1]; // 두 번째 자식이 체크 아이콘
+                if (checkIcon) {
+                    checkIcon.textContent = '●';
+                }
             }
             
             selectedMessageIndex = index;
@@ -2640,6 +2646,17 @@ function setupMessageModalEvents(accountId) {
             }, true);
         });
     });
+    
+    // 메시지 모달 자체에도 이벤트 전파 차단
+    const messageModal = document.getElementById('messageSelectionModal');
+    if (messageModal) {
+        messageModal.addEventListener('click', function(e) {
+            e.stopPropagation();
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            return false;
+        }, true);
+    }
     
     // 선택 버튼 클릭 이벤트 (바로 적용)
     document.getElementById('selectMessageBtn').addEventListener('click', function() {
