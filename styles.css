@@ -1584,9 +1584,12 @@ input:focus, button:focus, textarea:focus, select:focus {
     max-width: 700px;
     width: 90%;
     max-height: 90vh;
-    overflow: visible;
+    overflow-y: auto;
+    overflow-x: hidden;
     border: 2px solid #10B981;
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+    display: flex;
+    flex-direction: column;
 }
 
 .auto-send-settings-header {
@@ -1825,6 +1828,8 @@ input:focus, button:focus, textarea:focus, select:focus {
     justify-content: center;
     padding-top: 15px;
     border-top: 1px solid #333;
+    margin-top: auto;
+    flex-shrink: 0;
 }
 
 .auto-send-save-btn {

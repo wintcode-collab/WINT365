@@ -1768,6 +1768,15 @@ function showAccountList(accounts) {
             </p>
         </div>
         
+        <div style="margin-bottom: 20px; padding: 12px; background: #f8f9fa; border-radius: 8px; border-left: 3px solid #10B981;">
+            <label style="display: flex; align-items: center; cursor: pointer;">
+                <input type="checkbox" id="multiSelectMode" style="margin-right: 10px; width: 18px; height: 18px; accent-color: #10B981;">
+                <span style="font-size: 14px; color: #333; font-weight: 500;">
+                    🔄 다중 계정 선택 모드 (계정 로테이션용)
+                </span>
+            </label>
+        </div>
+        
         <div id="accountList" style="margin-bottom: 25px;">
             ${accounts.map((account, index) => `
                 <div class="account-item" style="
@@ -1837,14 +1846,37 @@ function showAccountList(accounts) {
     let selectedAccount = null;
     let selectedAccounts = []; // 다중 선택용
     
+    // 다중 선택 모드 토글 이벤트
+    const multiSelectMode = modal.querySelector('#multiSelectMode');
+    multiSelectMode.addEventListener('change', function() {
+        const checkboxes = modal.querySelectorAll('.multi-account-checkbox');
+        
+        if (this.checked) {
+            // 다중 선택 모드 활성화 - 체크박스 표시
+            checkboxes.forEach(checkbox => {
+                checkbox.style.display = 'block';
+            });
+            console.log('✅ 다중 선택 모드 활성화');
+        } else {
+            // 다중 선택 모드 비활성화 - 체크박스 숨김
+            checkboxes.forEach(checkbox => {
+                checkbox.style.display = 'none';
+                checkbox.checked = false; // 체크 해제
+            });
+            selectedAccounts = []; // 선택된 계정 초기화
+            updateConfirmButton();
+            console.log('❌ 다중 선택 모드 비활성화');
+        }
+    });
+    
     // 체크박스 먼저 추가
     const accountItems = modal.querySelectorAll('.account-item');
     accountItems.forEach(item => {
-        // 체크박스 삽입
+        // 체크박스 삽입 (기본적으로 숨김)
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
         checkbox.className = 'multi-account-checkbox';
-        checkbox.style.cssText = 'width: 20px; height: 20px; cursor: pointer; accent-color: #10B981; margin-right: 15px;';
+        checkbox.style.cssText = 'width: 20px; height: 20px; cursor: pointer; accent-color: #10B981; margin-right: 15px; display: none;';
         checkbox.dataset.userId = item.dataset.userId;
         
         const contentDiv = item.querySelector('div');
@@ -4933,6 +4965,23 @@ async function loadRotationAccounts() {
     try {
         console.log('📋 계정 목록 로드 중...');
         
+        // 먼저 로컬 스토리지에서 계정 목록 확인
+        const savedAccounts = localStorage.getItem('telegramAccounts');
+        if (savedAccounts) {
+            try {
+                const accounts = JSON.parse(savedAccounts);
+                if (accounts && accounts.length > 0) {
+                    rotationAccounts = accounts;
+                    renderRotationAccountsList();
+                    console.log('✅ 로컬 스토리지에서 계정 목록 로드:', accounts.length, '개');
+                    return;
+                }
+            } catch (e) {
+                console.warn('⚠️ 로컬 스토리지 계정 파싱 실패:', e);
+            }
+        }
+        
+        // 로컬 스토리지에 없으면 서버에서 로드
         const response = await fetch(`${getApiBaseUrl()}/api/accounts/load`, {
             method: 'GET',
             headers: {
@@ -4945,17 +4994,21 @@ async function loadRotationAccounts() {
         }
         
         const data = await response.json();
-        console.log('✅ 계정 목록 로드 성공:', data);
+        console.log('✅ 서버에서 계정 목록 로드 성공:', data);
         
         if (data.success && data.accounts) {
             rotationAccounts = data.accounts;
             renderRotationAccountsList();
         } else {
             console.error('❌ 계정 목록이 비어있습니다');
+            // 빈 목록이라도 렌더링
+            renderRotationAccountsList();
         }
         
     } catch (error) {
         console.error('❌ 계정 목록 로드 에러:', error);
+        // 에러가 발생해도 빈 목록으로 렌더링
+        renderRotationAccountsList();
     }
 }
 
