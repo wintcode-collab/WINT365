@@ -2593,7 +2593,11 @@ function setupMessageModalEvents(accountId) {
     
     // 메시지 아이템 클릭 이벤트 (바로 체크, 추가 모달 없음)
     document.querySelectorAll('.message-item').forEach((item, index) => {
-        item.addEventListener('click', function() {
+        item.addEventListener('click', function(e) {
+            // 이벤트 전파 중지 (다른 이벤트 리스너 실행 방지)
+            e.stopPropagation();
+            e.preventDefault();
+            
             // 기존 선택 해제
             document.querySelectorAll('.message-item').forEach(el => {
                 el.style.borderColor = '#444';
