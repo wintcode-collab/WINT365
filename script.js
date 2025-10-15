@@ -2616,7 +2616,7 @@ function setupMessageModalEvents(accountId) {
             
             // 추가 보안: false 반환으로 이벤트 완전 차단
             return false;
-        });
+        }, true); // capture phase에서 실행하여 다른 이벤트보다 먼저 실행
     });
     
     // 선택 버튼 클릭 이벤트 (바로 적용)
@@ -2642,9 +2642,11 @@ function setupMessageModalEvents(accountId) {
         document.getElementById('messageSelectionModal').remove();
     });
     
-    // 배경 클릭으로 닫기
+    // 배경 클릭으로 닫기 (이벤트 전파 차단)
     document.getElementById('messageSelectionModal').addEventListener('click', function(e) {
         if (e.target === this) {
+            e.stopPropagation();
+            e.preventDefault();
             this.remove();
         }
     });
