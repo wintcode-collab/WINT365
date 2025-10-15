@@ -2246,7 +2246,8 @@ async function loadAccountSavedMessage(accountId) {
     try {
         console.log(`💾 계정 ${accountId}의 저장된 메시지 불러오기`);
         
-        const response = await fetch(`${getApiBaseUrl()}/api/telegram/load-saved-message`, {
+        // 단일 계정 모드와 동일한 API 사용
+        const response = await fetch(`${getApiBaseUrl()}/api/telegram/saved-messages`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -2257,53 +2258,56 @@ async function loadAccountSavedMessage(accountId) {
         });
         
         const result = await response.json();
+        console.log('💾 저장된 메시지 응답:', result);
         
-        if (response.ok && result.success && result.message) {
+        if (response.ok && result.success && result.saved_messages && result.saved_messages.length > 0) {
+            // 첫 번째 저장된 메시지 사용
+            const firstMessage = result.saved_messages[0];
             // 해당 계정의 미리보기 영역에 메시지 표시
             const previewEl = document.querySelector(`.message-preview[data-account-id="${accountId}"]`);
             if (previewEl) {
                 let messageContent = '';
                 
                 // 텍스트 메시지가 있는 경우
-                if (result.message && result.message.trim()) {
+                if (firstMessage.text && firstMessage.text.trim()) {
                     messageContent += `
                         <div style="color: #fff; font-style: normal; line-height: 1.4; margin-bottom: 8px;">
-                            ${result.message.replace(/\n/g, '<br>')}
+                            ${firstMessage.text.replace(/\n/g, '<br>')}
                         </div>
                     `;
                 }
                 
-                // 미디어 파일이 있는 경우
-                if (result.media) {
-                    if (result.media.type === 'photo') {
+                // 미디어 파일이 있는 경우 (단일 계정 모드와 동일한 방식)
+                if (firstMessage.media_url) {
+                    if (firstMessage.media_type === 'photo') {
                         messageContent += `
                             <div style="margin-top: 8px;">
-                                <img src="${result.media.url}" style="max-width: 100%; max-height: 150px; border-radius: 6px; border: 1px solid #555;" alt="사진">
+                                <img src="${firstMessage.media_url}" style="max-width: 100%; max-height: 150px; border-radius: 6px; border: 1px solid #555;" alt="사진">
                                 <div style="color: #10B981; font-size: 12px; margin-top: 4px;">📷 사진</div>
                             </div>
                         `;
-                    } else if (result.media.type === 'gif') {
-                        messageContent += `
-                            <div style="margin-top: 8px;">
-                                <img src="${result.media.url}" style="max-width: 100%; max-height: 150px; border-radius: 6px; border: 1px solid #555;" alt="GIF">
-                                <div style="color: #10B981; font-size: 12px; margin-top: 4px;">🎬 GIF</div>
-                            </div>
-                        `;
-                    } else if (result.media.type === 'video') {
+                    } else if (firstMessage.media_type === 'video') {
                         messageContent += `
                             <div style="margin-top: 8px;">
                                 <video controls style="max-width: 100%; max-height: 150px; border-radius: 6px; border: 1px solid #555;">
-                                    <source src="${result.media.url}" type="video/mp4">
+                                    <source src="${firstMessage.media_url}" type="video/mp4">
                                     동영상을 재생할 수 없습니다.
                                 </video>
                                 <div style="color: #10B981; font-size: 12px; margin-top: 4px;">🎥 동영상</div>
                             </div>
                         `;
-                    } else if (result.media.type === 'document') {
+                    } else if (firstMessage.media_type === 'document') {
                         messageContent += `
                             <div style="margin-top: 8px; padding: 8px; background: #2a2a2a; border-radius: 6px; border: 1px solid #555;">
-                                <div style="color: #10B981; font-size: 14px;">📄 파일: ${result.media.filename || '파일'}</div>
-                                <div style="color: #888; font-size: 12px;">크기: ${result.media.size || '알 수 없음'}</div>
+                                <div style="color: #10B981; font-size: 14px;">📄 파일: ${firstMessage.filename || '파일'}</div>
+                                <div style="color: #888; font-size: 12px;">크기: ${firstMessage.file_size || '알 수 없음'}</div>
+                            </div>
+                        `;
+                    } else if (firstMessage.media_type === 'voice') {
+                        messageContent += `
+                            <div style="margin-top: 8px; padding: 8px; background: #2a2a2a; border-radius: 6px; border: 1px solid #555;">
+                                <div style="color: #10B981; font-size: 14px;">🎤 음성 메시지</div>
+                                <div style="color: #888; font-size: 12px;">길이: ${firstMessage.duration || '알 수 없음'}초</div>
                             </div>
                         `;
                     }
@@ -2312,7 +2316,7 @@ async function loadAccountSavedMessage(accountId) {
                 previewEl.innerHTML = messageContent;
                 previewEl.style.color = '#fff';
                 previewEl.style.fontStyle = 'normal';
-                console.log(`✅ 계정 ${accountId}의 메시지 불러오기 성공 (텍스트: ${!!result.message}, 미디어: ${!!result.media})`);
+                console.log(`✅ 계정 ${accountId}의 메시지 불러오기 성공 (텍스트: ${!!firstMessage.text}, 미디어: ${!!firstMessage.media_url})`);
             }
         } else {
             console.log(`⚠️ 계정 ${accountId}의 저장된 메시지 없음`);
