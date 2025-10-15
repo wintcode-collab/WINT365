@@ -1369,6 +1369,61 @@ def load_telegram_groups():
             'error': f'그룹 로딩 실패: {str(error)}'
         }), 500
 
+# 텔레그램 저장된 메시지 불러오기 엔드포인트 (단일 메시지)
+@app.route('/api/telegram/load-saved-message', methods=['POST'])
+@cross_origin(origins=ALLOWED_ORIGINS, methods=['POST','OPTIONS'], allow_headers=['Content-Type','Authorization'], max_age=86400)
+def load_telegram_saved_message():
+    """특정 계정의 저장된 메시지 불러오기"""
+    try:
+        data = request.get_json()
+        user_id = data.get('userId')
+
+        if not user_id:
+            return jsonify({
+                'success': False,
+                'error': '사용자 ID가 필요합니다.'
+            }), 400
+
+        logger.info(f'💾 저장된 메시지 불러오기 요청: {user_id}')
+
+        # Firebase에서 계정 정보 조회
+        account_info = get_account_from_firebase(user_id)
+        if not account_info:
+            logger.error(f'❌ Firebase에서 계정 정보를 찾을 수 없음: {user_id}')
+            return jsonify({
+                'success': False,
+                'error': '인증된 계정 정보를 찾을 수 없습니다. 다시 인증해주세요.'
+            }), 404
+
+        # 저장된 메시지 조회
+        saved_messages = get_telegram_saved_messages_with_session(account_info)
+        
+        if saved_messages and len(saved_messages) > 0:
+            # 첫 번째 저장된 메시지 반환
+            first_message = saved_messages[0]
+            
+            response_data = {
+                'success': True,
+                'message': first_message.get('text', ''),
+                'media': first_message.get('media') if first_message.get('media') else None
+            }
+            
+            logger.info(f'✅ 저장된 메시지 불러오기 성공: {user_id}')
+            return jsonify(response_data)
+        else:
+            logger.info(f'⚠️ 저장된 메시지 없음: {user_id}')
+            return jsonify({
+                'success': False,
+                'error': '저장된 메시지가 없습니다.'
+            }), 404
+
+    except Exception as e:
+        logger.error(f'❌ 저장된 메시지 불러오기 실패: {e}')
+        return jsonify({
+            'success': False,
+            'error': f'저장된 메시지 불러오기 실패: {str(e)}'
+        }), 500
+
 # 텔레그램 메시지 전송 엔드포인트
 @app.route('/api/telegram/saved-messages', methods=['POST'])
 def get_telegram_saved_messages():

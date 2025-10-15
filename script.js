@@ -1885,11 +1885,11 @@ function showAccountList(accounts) {
             } else {
                 // 새로운 계정 선택
                 selectedAccounts.push(account);
-                item.style.background = 'linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)'; // 파란색 배경
-                item.style.borderColor = '#3B82F6';
+                item.style.background = 'linear-gradient(135deg, #374151 0%, #1F2937 100%)'; // 어두운 회색 배경
+                item.style.borderColor = '#4B5563';
                 item.classList.add('selected');
                 
-                // 텍스트 색상을 흰색으로 변경 (파란 배경에 잘 보이도록)
+                // 텍스트 색상을 흰색으로 변경 (어두운 배경에 잘 보이도록)
                 const nameEl = item.querySelector('div > div:first-child');
                 const phoneEl = item.querySelector('div > div:nth-child(2)');
                 const arrowEl = item.querySelector('div > div:last-child');
@@ -1898,7 +1898,7 @@ function showAccountList(accounts) {
                     nameEl.style.fontWeight = 'bold'; // 굵게
                 }
                 if (phoneEl) {
-                    phoneEl.style.color = '#E5E7EB'; // 연한 회색
+                    phoneEl.style.color = '#D1D5DB'; // 연한 회색
                 }
                 if (arrowEl) {
                     arrowEl.style.color = '#FFFFFF'; // 흰색
