@@ -1886,13 +1886,13 @@ function showAccountList(accounts) {
                 item.style.borderColor = '#10B981';
                 item.classList.add('selected');
                 
-                // 텍스트 색상을 흰색으로 변경 (초록 배경에 잘 보이도록)
+                // 텍스트 색상을 더 진한 색으로 변경 (초록 배경에 잘 보이도록)
                 const nameEl = item.querySelector('div > div:first-child');
                 const phoneEl = item.querySelector('div > div:nth-child(2)');
                 const arrowEl = item.querySelector('div > div:last-child');
-                if (nameEl) nameEl.style.color = '#ffffff';
-                if (phoneEl) phoneEl.style.color = '#e0e0e0';
-                if (arrowEl) arrowEl.style.color = '#ffffff';
+                if (nameEl) nameEl.style.color = '#1a1a1a'; // 진한 검은색
+                if (phoneEl) phoneEl.style.color = '#333333'; // 진한 회색
+                if (arrowEl) arrowEl.style.color = '#1a1a1a'; // 진한 검은색
             }
             
             updateConfirmButton();
@@ -1936,6 +1936,9 @@ function showAccountList(accounts) {
             
             // 선택된 계정으로 그룹 로드(완료까지 대기)
             await loadGroupsForAccount(account);
+
+            // 단일 계정 모드로 메시지 설정 복원
+            restoreSingleAccountMessageSettings();
 
             // 계정 변경 시 설정 복원(그룹 렌더 완료 후 순차 복원)
             loadTelegramSettings();
@@ -2073,6 +2076,9 @@ async function loadMultipleAccountsGroups(accounts) {
             window.multiAccountMode = true;
             window.selectedMultiAccounts = accounts;
             
+            // 다중 계정 모드에서 계정별 메시지 설정 표시
+            showMultiAccountMessageSettings(accounts);
+            
             console.log('✅ 다중 계정 모드 활성화:', accounts.length, '개');
             console.log('📋 통합 그룹:', mergedGroups.length, '개');
         }
@@ -2080,6 +2086,195 @@ async function loadMultipleAccountsGroups(accounts) {
     } catch (error) {
         console.error('❌ 다중 계정 그룹 로딩 실패:', error);
         alert(`❌ 다중 계정 그룹 로딩 실패:\n\n${error.message}`);
+    }
+}
+
+// 다중 계정 모드에서 계정별 메시지 설정 표시
+function showMultiAccountMessageSettings(accounts) {
+    try {
+        console.log('📝 다중 계정 메시지 설정 표시:', accounts.length, '개');
+        
+        // 단일 계정 메시지 입력 숨기기
+        const singleAccountInput = document.getElementById('singleAccountMessageInput');
+        if (singleAccountInput) {
+            singleAccountInput.style.display = 'none';
+        }
+        
+        // 다중 계정 메시지 입력 표시
+        const multiAccountInput = document.getElementById('multiAccountMessageInput');
+        if (multiAccountInput) {
+            multiAccountInput.style.display = 'block';
+        }
+        
+        // 계정별 메시지 설정 생성
+        const accountMessageList = document.getElementById('accountMessageList');
+        if (accountMessageList) {
+            accountMessageList.innerHTML = '';
+            
+            accounts.forEach((account, index) => {
+                const accountDiv = document.createElement('div');
+                accountDiv.className = 'account-message-setting';
+                accountDiv.style.cssText = `
+                    margin-bottom: 15px;
+                    padding: 15px;
+                    background: linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%);
+                    border: 1px solid #444;
+                    border-radius: 8px;
+                `;
+                
+                accountDiv.innerHTML = `
+                    <div style="margin-bottom: 10px;">
+                        <h5 style="margin: 0 0 5px 0; color: #10B981; font-size: 14px;">
+                            📱 ${account.first_name || ''} ${account.last_name || ''} (${account.phone_number || ''})
+                        </h5>
+                    </div>
+                    <textarea 
+                        class="account-message-textarea" 
+                        data-account-id="${account.user_id}"
+                        placeholder="${account.first_name || '계정'}님의 메시지를 입력하세요..."
+                        rows="3"
+                        style="width: 100%; padding: 8px; border: 1px solid #555; border-radius: 4px; background: #1a1a1a; color: #fff; resize: vertical;"
+                    ></textarea>
+                    <div style="margin-top: 8px; display: flex; gap: 8px;">
+                        <button class="load-account-message" data-account-id="${account.user_id}" style="
+                            background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);
+                            color: white;
+                            border: none;
+                            padding: 6px 12px;
+                            border-radius: 4px;
+                            font-size: 12px;
+                            cursor: pointer;
+                        ">💾 불러오기</button>
+                        <button class="save-account-message" data-account-id="${account.user_id}" style="
+                            background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+                            color: white;
+                            border: none;
+                            padding: 6px 12px;
+                            border-radius: 4px;
+                            font-size: 12px;
+                            cursor: pointer;
+                        ">💾 저장</button>
+                    </div>
+                `;
+                
+                accountMessageList.appendChild(accountDiv);
+            });
+            
+            // 계정별 메시지 불러오기/저장 이벤트 추가
+            setupAccountMessageEvents();
+        }
+        
+    } catch (error) {
+        console.error('❌ 다중 계정 메시지 설정 표시 실패:', error);
+    }
+}
+
+// 계정별 메시지 이벤트 설정
+function setupAccountMessageEvents() {
+    // 불러오기 버튼 이벤트
+    document.querySelectorAll('.load-account-message').forEach(button => {
+        button.addEventListener('click', async function() {
+            const accountId = this.dataset.accountId;
+            await loadAccountSavedMessage(accountId);
+        });
+    });
+    
+    // 저장 버튼 이벤트
+    document.querySelectorAll('.save-account-message').forEach(button => {
+        button.addEventListener('click', async function() {
+            const accountId = this.dataset.accountId;
+            await saveAccountMessage(accountId);
+        });
+    });
+}
+
+// 특정 계정의 저장된 메시지 불러오기
+async function loadAccountSavedMessage(accountId) {
+    try {
+        console.log(`💾 계정 ${accountId}의 저장된 메시지 불러오기`);
+        
+        const response = await fetch(`${getApiBaseUrl()}/api/telegram/load-saved-message`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                userId: accountId
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok && result.success && result.message) {
+            // 해당 계정의 텍스트 영역에 메시지 설정
+            const textarea = document.querySelector(`textarea[data-account-id="${accountId}"]`);
+            if (textarea) {
+                textarea.value = result.message;
+                console.log(`✅ 계정 ${accountId}의 메시지 불러오기 성공`);
+            }
+        } else {
+            console.log(`⚠️ 계정 ${accountId}의 저장된 메시지 없음`);
+            alert(`계정 ${accountId}의 저장된 메시지가 없습니다.`);
+        }
+        
+    } catch (error) {
+        console.error(`❌ 계정 ${accountId} 메시지 불러오기 실패:`, error);
+        alert(`메시지 불러오기에 실패했습니다: ${error.message}`);
+    }
+}
+
+// 특정 계정의 메시지 저장
+async function saveAccountMessage(accountId) {
+    try {
+        const textarea = document.querySelector(`textarea[data-account-id="${accountId}"]`);
+        if (!textarea) {
+            throw new Error('메시지 입력 영역을 찾을 수 없습니다.');
+        }
+        
+        const message = textarea.value.trim();
+        if (!message) {
+            alert('메시지를 입력해주세요.');
+            return;
+        }
+        
+        console.log(`💾 계정 ${accountId}의 메시지 저장:`, message);
+        
+        const response = await fetch(`${getApiBaseUrl()}/api/telegram/save-message`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                userId: accountId,
+                message: message
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok && result.success) {
+            console.log(`✅ 계정 ${accountId}의 메시지 저장 성공`);
+            alert(`계정 ${accountId}의 메시지가 저장되었습니다.`);
+        } else {
+            throw new Error(result.error || '메시지 저장 실패');
+        }
+        
+    } catch (error) {
+        console.error(`❌ 계정 ${accountId} 메시지 저장 실패:`, error);
+        alert(`메시지 저장에 실패했습니다: ${error.message}`);
+    }
+}
+
+// 단일 계정 모드로 복원
+function restoreSingleAccountMessageSettings() {
+    const singleAccountInput = document.getElementById('singleAccountMessageInput');
+    const multiAccountInput = document.getElementById('multiAccountMessageInput');
+    
+    if (singleAccountInput) {
+        singleAccountInput.style.display = 'block';
+    }
+    if (multiAccountInput) {
+        multiAccountInput.style.display = 'none';
     }
 }
 
@@ -4881,29 +5076,39 @@ async function initAccountRotation() {
     
     // 로테이션 활성화 토글 이벤트
     enableRotationCheckbox.addEventListener('change', function() {
-        // 기본 설정 섹션들
+        // 기본 설정 섹션들 (그룹별 전송 텀, 반복 전송, 메시지 개수 확인)
         const basicSections = document.querySelectorAll('.setting-section:not(:has(#enableAccountRotation))');
         
         if (this.checked) {
             rotationSettings.style.display = 'block';
             console.log('✅ 계정 로테이션 활성화');
             
-            // 기본 설정들 숨기기
+            // 기본 설정들 비활성화 (설정 오류 방지)
             basicSections.forEach(section => {
                 section.style.display = 'none';
+                // 입력 필드들도 비활성화
+                const inputs = section.querySelectorAll('input, select');
+                inputs.forEach(input => {
+                    input.disabled = true;
+                });
             });
             
-            console.log('🎨 기본 설정 숨김, 로테이션 설정만 표시');
+            console.log('🎨 기본 설정 비활성화, 로테이션 설정만 표시');
         } else {
             rotationSettings.style.display = 'none';
             console.log('❌ 계정 로테이션 비활성화');
             
-            // 기본 설정들 다시 표시
+            // 기본 설정들 다시 활성화
             basicSections.forEach(section => {
                 section.style.display = 'block';
+                // 입력 필드들 다시 활성화
+                const inputs = section.querySelectorAll('input, select');
+                inputs.forEach(input => {
+                    input.disabled = false;
+                });
             });
             
-            console.log('🎨 기본 설정 복원');
+            console.log('🎨 기본 설정 활성화 복원');
         }
     });
     
