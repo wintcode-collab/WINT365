@@ -2245,7 +2245,7 @@ function showAccountSelectionModal(accounts) {
                         💾 저장된 메시지 선택
                     </h3>
                     <p style="margin: 0; color: #888; text-align: center; font-size: 14px;">
-                        계정을 더블클릭하여 저장된 메시지를 선택하세요
+                        계정을 클릭하여 선택하고, 한 번 더 클릭하여 메시지를 선택하세요
                     </p>
                 </div>
                 
@@ -2270,7 +2270,7 @@ function showAccountSelectionModal(accounts) {
                                         ${account.phone_number || ''}
                                     </div>
                                 </div>
-                                <div style="color: #10B981; font-size: 12px;">더블클릭</div>
+                                <div style="color: #10B981; font-size: 12px;">클릭</div>
                             </div>
                         </div>
                     `).join('')}
@@ -2301,22 +2301,48 @@ function showAccountSelectionModal(accounts) {
 
 // 계정 선택 모달 이벤트 설정
 function setupAccountSelectionModalEvents() {
-    // 계정 아이템 더블클릭 이벤트
+    let selectedAccountId = null;
+    
+    // 계정 아이템 클릭 이벤트 (포커스 표시)
     document.querySelectorAll('.account-item').forEach(item => {
-        item.addEventListener('dblclick', async function() {
+        item.addEventListener('click', function() {
             const accountId = this.dataset.accountId;
-            await openAccountMessageModal(accountId);
+            
+            // 이미 선택된 계정을 다시 클릭하면 메시지 선택창 열기
+            if (selectedAccountId === accountId) {
+                openAccountMessageModal(accountId);
+                return;
+            }
+            
+            // 기존 선택 해제
+            document.querySelectorAll('.account-item').forEach(el => {
+                el.style.borderColor = '#444';
+                el.style.background = 'linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%)';
+                el.querySelector('div:last-child').textContent = '더블클릭';
+            });
+            
+            // 새 선택 표시
+            this.style.borderColor = '#10B981';
+            this.style.background = 'linear-gradient(135deg, #374151 0%, #1F2937 100%)';
+            this.querySelector('div:last-child').textContent = '선택됨';
+            selectedAccountId = accountId;
+            
+            console.log(`📱 계정 ${accountId} 포커스됨 (한 번 더 클릭하면 메시지 선택)`);
         });
         
         // 호버 효과
         item.addEventListener('mouseenter', function() {
-            this.style.borderColor = '#10B981';
-            this.style.background = 'linear-gradient(135deg, #374151 0%, #1F2937 100%)';
+            if (selectedAccountId !== this.dataset.accountId) {
+                this.style.borderColor = '#10B981';
+                this.style.background = 'linear-gradient(135deg, #374151 0%, #1F2937 100%)';
+            }
         });
         
         item.addEventListener('mouseleave', function() {
-            this.style.borderColor = '#444';
-            this.style.background = 'linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%)';
+            if (selectedAccountId !== this.dataset.accountId) {
+                this.style.borderColor = '#444';
+                this.style.background = 'linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%)';
+            }
         });
     });
     
@@ -2601,6 +2627,8 @@ function setupMessageModalEvents(accountId) {
         
         // 모달창 닫기
         document.getElementById('messageSelectionModal').remove();
+        
+        console.log('✅ 메시지 선택 완료, 모달창 닫힘');
     });
     
     // 닫기 버튼 클릭 이벤트
@@ -2618,9 +2646,14 @@ function setupMessageModalEvents(accountId) {
 
 // 선택된 메시지 정보 업데이트 (간략 버전)
 function updateSelectedMessageInfo(accountId, messageIndex) {
+    console.log(`🔄 계정 ${accountId}의 메시지 정보 업데이트 시작`);
+    
     // 계정 상태 span 요소 찾기
     const statusSpan = document.querySelector(`span[data-account-id="${accountId}"]`);
-    if (!statusSpan) return;
+    if (!statusSpan) {
+        console.log('❌ 상태 span 요소를 찾을 수 없음');
+        return;
+    }
     
     // 저장된 메시지 정보를 다시 가져와서 선택된 메시지 표시
     fetch(`${getApiBaseUrl()}/api/telegram/saved-messages`, {
@@ -2663,6 +2696,8 @@ function updateSelectedMessageInfo(accountId, messageIndex) {
             // 계정 이름 옆에 간략하게 표시
             statusSpan.innerHTML = `- ${content}`;
             statusSpan.style.color = '#10B981';
+            
+            console.log(`✅ 계정 ${accountId}의 메시지 정보 업데이트 완료`);
         }
     })
     .catch(error => {
