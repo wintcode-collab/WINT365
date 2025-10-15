@@ -1876,23 +1876,33 @@ function showAccountList(accounts) {
                 const nameEl = item.querySelector('div > div:first-child');
                 const phoneEl = item.querySelector('div > div:nth-child(2)');
                 const arrowEl = item.querySelector('div > div:last-child');
-                if (nameEl) nameEl.style.color = '#10B981';
+                if (nameEl) {
+                    nameEl.style.color = '#10B981';
+                    nameEl.style.fontWeight = 'normal'; // 굵기 복원
+                }
                 if (phoneEl) phoneEl.style.color = '#888';
                 if (arrowEl) arrowEl.style.color = '#10B981';
             } else {
                 // 새로운 계정 선택
                 selectedAccounts.push(account);
-                item.style.background = 'linear-gradient(135deg, #10B981 0%, #059669 100%)';
-                item.style.borderColor = '#10B981';
+                item.style.background = 'linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)'; // 파란색 배경
+                item.style.borderColor = '#3B82F6';
                 item.classList.add('selected');
                 
-                // 텍스트 색상을 더 진한 색으로 변경 (초록 배경에 잘 보이도록)
+                // 텍스트 색상을 흰색으로 변경 (파란 배경에 잘 보이도록)
                 const nameEl = item.querySelector('div > div:first-child');
                 const phoneEl = item.querySelector('div > div:nth-child(2)');
                 const arrowEl = item.querySelector('div > div:last-child');
-                if (nameEl) nameEl.style.color = '#1a1a1a'; // 진한 검은색
-                if (phoneEl) phoneEl.style.color = '#333333'; // 진한 회색
-                if (arrowEl) arrowEl.style.color = '#1a1a1a'; // 진한 검은색
+                if (nameEl) {
+                    nameEl.style.color = '#FFFFFF'; // 흰색
+                    nameEl.style.fontWeight = 'bold'; // 굵게
+                }
+                if (phoneEl) {
+                    phoneEl.style.color = '#E5E7EB'; // 연한 회색
+                }
+                if (arrowEl) {
+                    arrowEl.style.color = '#FFFFFF'; // 흰색
+                }
             }
             
             updateConfirmButton();
@@ -1939,6 +1949,9 @@ function showAccountList(accounts) {
 
             // 단일 계정 모드로 메시지 설정 복원
             restoreSingleAccountMessageSettings();
+            
+            // 단일 계정 모드로 기존 설정들 복원
+            showBasicSettingsForSingleAccount();
 
             // 계정 변경 시 설정 복원(그룹 렌더 완료 후 순차 복원)
             loadTelegramSettings();
@@ -2079,6 +2092,9 @@ async function loadMultipleAccountsGroups(accounts) {
             // 다중 계정 모드에서 계정별 메시지 설정 표시
             showMultiAccountMessageSettings(accounts);
             
+            // 다중 계정 모드에서 기존 설정들 완전히 숨기기
+            hideBasicSettingsForMultiAccount();
+            
             console.log('✅ 다중 계정 모드 활성화:', accounts.length, '개');
             console.log('📋 통합 그룹:', mergedGroups.length, '개');
         }
@@ -2128,33 +2144,30 @@ function showMultiAccountMessageSettings(accounts) {
                             📱 ${account.first_name || ''} ${account.last_name || ''} (${account.phone_number || ''})
                         </h5>
                     </div>
-                    <textarea 
-                        class="account-message-textarea" 
-                        data-account-id="${account.user_id}"
-                        placeholder="${account.first_name || '계정'}님의 메시지를 입력하세요..."
-                        rows="3"
-                        style="width: 100%; padding: 8px; border: 1px solid #555; border-radius: 4px; background: #1a1a1a; color: #fff; resize: vertical;"
-                    ></textarea>
-                    <div style="margin-top: 8px; display: flex; gap: 8px;">
-                        <button class="load-account-message" data-account-id="${account.user_id}" style="
-                            background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);
-                            color: white;
-                            border: none;
-                            padding: 6px 12px;
-                            border-radius: 4px;
-                            font-size: 12px;
-                            cursor: pointer;
-                        ">💾 불러오기</button>
-                        <button class="save-account-message" data-account-id="${account.user_id}" style="
-                            background: linear-gradient(135deg, #10B981 0%, #059669 100%);
-                            color: white;
-                            border: none;
-                            padding: 6px 12px;
-                            border-radius: 4px;
-                            font-size: 12px;
-                            cursor: pointer;
-                        ">💾 저장</button>
+                    <div class="message-preview" data-account-id="${account.user_id}" style="
+                        padding: 12px;
+                        background: #1a1a1a;
+                        border: 1px solid #555;
+                        border-radius: 6px;
+                        min-height: 80px;
+                        color: #888;
+                        font-style: italic;
+                        margin-bottom: 8px;
+                        overflow: auto;
+                        max-height: 300px;
+                    ">
+                        💾 저장된 메시지를 불러오세요
                     </div>
+                    <button class="load-account-message" data-account-id="${account.user_id}" style="
+                        background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+                        color: white;
+                        border: none;
+                        padding: 8px 16px;
+                        border-radius: 6px;
+                        font-size: 13px;
+                        cursor: pointer;
+                        width: 100%;
+                    ">💾 저장된 메시지 불러오기</button>
                 `;
                 
                 accountMessageList.appendChild(accountDiv);
@@ -2169,21 +2182,61 @@ function showMultiAccountMessageSettings(accounts) {
     }
 }
 
+// 다중 계정 모드에서 기존 설정들 숨기기
+function hideBasicSettingsForMultiAccount() {
+    try {
+        console.log('🎨 다중 계정 모드 - 기존 설정들 숨기기');
+        
+        // 그룹별 전송 텀 숨기기
+        const groupSendIntervalSection = document.querySelector('.setting-section:has(#groupSendInterval)');
+        if (groupSendIntervalSection) {
+            groupSendIntervalSection.style.display = 'none';
+        }
+        
+        // 반복 전송 설정 숨기기
+        const repeatSendSection = document.querySelector('.setting-section:has(#enableRepeatSend)');
+        if (repeatSendSection) {
+            repeatSendSection.style.display = 'none';
+        }
+        
+        // 메시지 개수 확인 숨기기
+        const messageCheckSection = document.querySelector('.setting-section:has(#enableMessageCheck)');
+        if (messageCheckSection) {
+            messageCheckSection.style.display = 'none';
+        }
+        
+        console.log('✅ 기존 설정들 숨김 완료');
+        
+    } catch (error) {
+        console.error('❌ 기존 설정 숨기기 실패:', error);
+    }
+}
+
+// 단일 계정 모드로 복원할 때 기존 설정들 다시 표시
+function showBasicSettingsForSingleAccount() {
+    try {
+        console.log('🎨 단일 계정 모드 - 기존 설정들 복원');
+        
+        // 모든 설정 섹션 다시 표시
+        const allSections = document.querySelectorAll('.setting-section');
+        allSections.forEach(section => {
+            section.style.display = 'block';
+        });
+        
+        console.log('✅ 기존 설정들 복원 완료');
+        
+    } catch (error) {
+        console.error('❌ 기존 설정 복원 실패:', error);
+    }
+}
+
 // 계정별 메시지 이벤트 설정
 function setupAccountMessageEvents() {
-    // 불러오기 버튼 이벤트
+    // 불러오기 버튼 이벤트만 추가
     document.querySelectorAll('.load-account-message').forEach(button => {
         button.addEventListener('click', async function() {
             const accountId = this.dataset.accountId;
             await loadAccountSavedMessage(accountId);
-        });
-    });
-    
-    // 저장 버튼 이벤트
-    document.querySelectorAll('.save-account-message').forEach(button => {
-        button.addEventListener('click', async function() {
-            const accountId = this.dataset.accountId;
-            await saveAccountMessage(accountId);
         });
     });
 }
@@ -2206,15 +2259,68 @@ async function loadAccountSavedMessage(accountId) {
         const result = await response.json();
         
         if (response.ok && result.success && result.message) {
-            // 해당 계정의 텍스트 영역에 메시지 설정
-            const textarea = document.querySelector(`textarea[data-account-id="${accountId}"]`);
-            if (textarea) {
-                textarea.value = result.message;
-                console.log(`✅ 계정 ${accountId}의 메시지 불러오기 성공`);
+            // 해당 계정의 미리보기 영역에 메시지 표시
+            const previewEl = document.querySelector(`.message-preview[data-account-id="${accountId}"]`);
+            if (previewEl) {
+                let messageContent = '';
+                
+                // 텍스트 메시지가 있는 경우
+                if (result.message && result.message.trim()) {
+                    messageContent += `
+                        <div style="color: #fff; font-style: normal; line-height: 1.4; margin-bottom: 8px;">
+                            ${result.message.replace(/\n/g, '<br>')}
+                        </div>
+                    `;
+                }
+                
+                // 미디어 파일이 있는 경우
+                if (result.media) {
+                    if (result.media.type === 'photo') {
+                        messageContent += `
+                            <div style="margin-top: 8px;">
+                                <img src="${result.media.url}" style="max-width: 100%; max-height: 150px; border-radius: 6px; border: 1px solid #555;" alt="사진">
+                                <div style="color: #10B981; font-size: 12px; margin-top: 4px;">📷 사진</div>
+                            </div>
+                        `;
+                    } else if (result.media.type === 'gif') {
+                        messageContent += `
+                            <div style="margin-top: 8px;">
+                                <img src="${result.media.url}" style="max-width: 100%; max-height: 150px; border-radius: 6px; border: 1px solid #555;" alt="GIF">
+                                <div style="color: #10B981; font-size: 12px; margin-top: 4px;">🎬 GIF</div>
+                            </div>
+                        `;
+                    } else if (result.media.type === 'video') {
+                        messageContent += `
+                            <div style="margin-top: 8px;">
+                                <video controls style="max-width: 100%; max-height: 150px; border-radius: 6px; border: 1px solid #555;">
+                                    <source src="${result.media.url}" type="video/mp4">
+                                    동영상을 재생할 수 없습니다.
+                                </video>
+                                <div style="color: #10B981; font-size: 12px; margin-top: 4px;">🎥 동영상</div>
+                            </div>
+                        `;
+                    } else if (result.media.type === 'document') {
+                        messageContent += `
+                            <div style="margin-top: 8px; padding: 8px; background: #2a2a2a; border-radius: 6px; border: 1px solid #555;">
+                                <div style="color: #10B981; font-size: 14px;">📄 파일: ${result.media.filename || '파일'}</div>
+                                <div style="color: #888; font-size: 12px;">크기: ${result.media.size || '알 수 없음'}</div>
+                            </div>
+                        `;
+                    }
+                }
+                
+                previewEl.innerHTML = messageContent;
+                previewEl.style.color = '#fff';
+                previewEl.style.fontStyle = 'normal';
+                console.log(`✅ 계정 ${accountId}의 메시지 불러오기 성공 (텍스트: ${!!result.message}, 미디어: ${!!result.media})`);
             }
         } else {
             console.log(`⚠️ 계정 ${accountId}의 저장된 메시지 없음`);
-            alert(`계정 ${accountId}의 저장된 메시지가 없습니다.`);
+            const previewEl = document.querySelector(`.message-preview[data-account-id="${accountId}"]`);
+            if (previewEl) {
+                previewEl.innerHTML = '❌ 저장된 메시지가 없습니다';
+                previewEl.style.color = '#ff6b6b';
+            }
         }
         
     } catch (error) {
