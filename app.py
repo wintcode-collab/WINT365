@@ -2828,11 +2828,13 @@ def check_telegram_group_message_count(account_info, group_id):
                     logger.info(f'📊 전체 메시지 개수: {total_messages}')
                     return total_messages
                 
-                # 내가 보낸 메시지 이후의 다른 사람들의 메시지 개수 계산
+                # ✅ 수정됨: 내가 보낸 메시지 이후 새로 들어온 메시지들 카운트
+                # messages[0] = 가장 최신, messages[my_last_message_index] = 내가 보낸 메시지
+                # 따라서 0부터 my_last_message_index 전까지가 새로운 메시지들
                 other_people_messages = 0
-                logger.info(f'📊 메시지 검사 범위: {my_last_message_index + 1} ~ {len(messages) - 1}')
+                logger.info(f'📊 메시지 검사 범위: 0 ~ {my_last_message_index - 1} (내 메시지 이후 새 메시지)')
                 
-                for i in range(my_last_message_index + 1, len(messages)):
+                for i in range(0, my_last_message_index):
                     message = messages[i]
                     if hasattr(message, 'from_id') and message.from_id:
                         sender_id = message.from_id.user_id if hasattr(message.from_id, 'user_id') else None
@@ -2843,7 +2845,8 @@ def check_telegram_group_message_count(account_info, group_id):
                     else:
                         logger.info(f'📊 메시지 {i}: from_id 정보 없음')
                 
-                logger.info(f'📊 최종 결과 - 내가 보낸 메시지 이후 다른 사람들의 메시지 개수: {other_people_messages}')
+                logger.info(f'📊 최종 결과 - 내가 보낸 메시지(인덱스 {my_last_message_index}) 이후 새로 들어온 메시지: {other_people_messages}개')
+                logger.info(f'📊 참고: 인덱스 0 = 가장 최신 메시지')
                 return other_people_messages
                 
             except Exception as e:
