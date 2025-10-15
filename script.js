@@ -2593,6 +2593,7 @@ function setupMessageModalEvents(accountId) {
     
     // 메시지 아이템 클릭 이벤트 (바로 체크만, 새 모달 완전 방지)
     document.querySelectorAll('.message-item').forEach((item, index) => {
+        // 메시지 아이템 전체에 이벤트 리스너 추가
         item.addEventListener('click', function(e) {
             // 이벤트 완전 차단 (새 모달 방지)
             e.stopPropagation();
@@ -2617,6 +2618,17 @@ function setupMessageModalEvents(accountId) {
             // 추가 보안: false 반환으로 이벤트 완전 차단
             return false;
         }, true); // capture phase에서 실행하여 다른 이벤트보다 먼저 실행
+        
+        // 메시지 아이템 내부의 모든 요소들에도 이벤트 전파 차단
+        const allElements = item.querySelectorAll('*');
+        allElements.forEach(element => {
+            element.addEventListener('click', function(e) {
+                e.stopPropagation();
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                return false;
+            }, true);
+        });
     });
     
     // 선택 버튼 클릭 이벤트 (바로 적용)
