@@ -1871,12 +1871,28 @@ function showAccountList(accounts) {
                 item.style.background = 'linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%)';
                 item.style.borderColor = '#444';
                 item.classList.remove('selected');
+                
+                // 텍스트 색상 복원
+                const nameEl = item.querySelector('div > div:first-child');
+                const phoneEl = item.querySelector('div > div:nth-child(2)');
+                const arrowEl = item.querySelector('div > div:last-child');
+                if (nameEl) nameEl.style.color = '#10B981';
+                if (phoneEl) phoneEl.style.color = '#888';
+                if (arrowEl) arrowEl.style.color = '#10B981';
             } else {
                 // 새로운 계정 선택
                 selectedAccounts.push(account);
                 item.style.background = 'linear-gradient(135deg, #10B981 0%, #059669 100%)';
                 item.style.borderColor = '#10B981';
                 item.classList.add('selected');
+                
+                // 텍스트 색상을 흰색으로 변경 (초록 배경에 잘 보이도록)
+                const nameEl = item.querySelector('div > div:first-child');
+                const phoneEl = item.querySelector('div > div:nth-child(2)');
+                const arrowEl = item.querySelector('div > div:last-child');
+                if (nameEl) nameEl.style.color = '#ffffff';
+                if (phoneEl) phoneEl.style.color = '#e0e0e0';
+                if (arrowEl) arrowEl.style.color = '#ffffff';
             }
             
             updateConfirmButton();
