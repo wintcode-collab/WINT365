@@ -2604,29 +2604,22 @@ function setupMessageModalEvents(accountId) {
             document.querySelectorAll('.message-item').forEach(el => {
                 el.style.borderColor = '#444';
                 el.style.background = 'linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%)';
-                el.querySelector('div:last-child').textContent = '○';
-                
-                // 텍스트 색상 원래대로 복원
-                const allTextElements = el.querySelectorAll('*');
-                allTextElements.forEach(textEl => {
-                    if (textEl.textContent && textEl.textContent.trim() && !textEl.textContent.includes('●') && !textEl.textContent.includes('○')) {
-                        textEl.style.color = ''; // 원래 색상으로 복원
-                    }
-                });
-            });
-            
-            // 새 선택 표시 (바로 체크만, 미리보기 내용 유지)
-            this.style.borderColor = '#10B981';
-            this.style.background = 'linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%)';
-            this.querySelector('div:last-child').textContent = '●';
-            
-            // 메시지 내용이 사라지지 않도록 모든 텍스트 요소의 색상을 밝게 조정
-            const allTextElements = this.querySelectorAll('*');
-            allTextElements.forEach(el => {
-                if (el.textContent && el.textContent.trim() && !el.textContent.includes('●') && !el.textContent.includes('○')) {
-                    el.style.color = '#FFFFFF'; // 흰색으로 변경하여 어두운 배경에서도 보이게
+                // 체크 아이콘 찾기 (오른쪽 끝의 div)
+                const checkIcon = el.querySelector('div:last-child');
+                if (checkIcon) {
+                    checkIcon.textContent = '○';
                 }
             });
+            
+            // 새 선택 표시 (바로 체크만, 미리보기 내용 그대로 유지)
+            this.style.borderColor = '#10B981';
+            this.style.background = 'linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%)'; // 더 밝은 배경으로 변경
+            
+            // 체크 아이콘 찾기 (오른쪽 끝의 div)
+            const checkIcon = this.querySelector('div:last-child');
+            if (checkIcon) {
+                checkIcon.textContent = '●';
+            }
             
             selectedMessageIndex = index;
             
