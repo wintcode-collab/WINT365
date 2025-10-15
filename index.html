@@ -453,13 +453,15 @@
                     </div>
                     
                     <div id="accountRotationSettings" style="display: none; margin-top: 15px;">
-                        <!-- 계정 선택 -->
+                        <!-- 선택된 계정 표시 (읽기 전용) -->
                         <div class="setting-item">
-                            <label>사용할 계정 선택:</label>
-                            <div id="rotationAccountsList" class="rotation-accounts-list">
-                                <!-- 계정 목록이 여기에 동적으로 추가됩니다 -->
+                            <label>사용할 계정:</label>
+                            <div id="rotationAccountsDisplay" style="padding: 12px; background: rgba(16, 185, 129, 0.1); border-radius: 8px; border-left: 3px solid #10B981;">
+                                <p id="rotationAccountsInfo" style="margin: 0; color: #10B981; font-size: 14px; font-weight: 600;">
+                                    <!-- 계정 정보가 여기에 표시됩니다 -->
+                                </p>
                             </div>
-                            <span class="setting-description">최소 2개 이상의 계정을 선택하세요</span>
+                            <span class="setting-description">처음 계정 선택 창에서 선택한 계정들이 자동으로 사용됩니다</span>
                         </div>
 
                         <!-- 계정 순환 간격 -->

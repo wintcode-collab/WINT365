@@ -4866,8 +4866,8 @@ async function initAccountRotation() {
         return;
     }
     
-    // 계정 목록 로드
-    await loadRotationAccounts();
+    // 계정 목록 로드 (현재 선택된 계정들 자동 사용)
+    setCurrentAccountsAsRotationAccounts();
     
     // 로테이션 활성화 토글 이벤트
     enableRotationCheckbox.addEventListener('change', function() {
@@ -4958,71 +4958,64 @@ async function loadRotationAccounts() {
     }
 }
 
-// 로테이션 계정 목록 렌더링
+// 현재 선택된 계정들을 로테이션 계정으로 설정
+function setCurrentAccountsAsRotationAccounts() {
+    try {
+        // 현재 선택된 계정이 있는지 확인
+        const lastSelectedAccount = localStorage.getItem('lastSelectedAccount');
+        if (lastSelectedAccount) {
+            // 단일 계정이 선택되어 있으면 그것을 로테이션 계정으로 설정
+            const savedAccounts = localStorage.getItem('telegramAccounts');
+            if (savedAccounts) {
+                const accounts = JSON.parse(savedAccounts);
+                const currentAccount = accounts.find(acc => acc.user_id == lastSelectedAccount);
+                if (currentAccount) {
+                    rotationAccounts = [currentAccount];
+                    renderRotationAccountsList();
+                    console.log('✅ 현재 계정을 로테이션 계정으로 설정:', currentAccount.first_name);
+                    return true;
+                }
+            }
+        }
+        
+        // 다중 계정 모드인 경우
+        if (window.selectedMultiAccounts && window.selectedMultiAccounts.length > 0) {
+            rotationAccounts = window.selectedMultiAccounts;
+            renderRotationAccountsList();
+            console.log('✅ 다중 계정을 로테이션 계정으로 설정:', window.selectedMultiAccounts.length, '개');
+            return true;
+        }
+        
+        return false;
+    } catch (error) {
+        console.error('❌ 현재 계정 설정 에러:', error);
+        return false;
+    }
+}
+
+// 로테이션 계정 목록 렌더링 (읽기 전용 표시)
 function renderRotationAccountsList() {
-    const accountsList = document.getElementById('rotationAccountsList');
-    if (!accountsList) return;
-    
-    accountsList.innerHTML = '';
+    const accountsInfo = document.getElementById('rotationAccountsInfo');
+    if (!accountsInfo) return;
     
     if (rotationAccounts.length === 0) {
-        accountsList.innerHTML = '<p style="color: #888; text-align: center; padding: 20px;">인증된 계정이 없습니다</p>';
+        accountsInfo.innerHTML = '선택된 계정이 없습니다';
         return;
     }
     
-    rotationAccounts.forEach(account => {
-        const accountItem = document.createElement('div');
-        accountItem.className = 'rotation-account-item';
-        accountItem.dataset.userId = account.user_id;
-        
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.className = 'rotation-account-checkbox';
-        checkbox.id = `rotation-account-${account.user_id}`;
-        checkbox.value = account.user_id;
-        
-        const accountInfo = document.createElement('div');
-        accountInfo.className = 'rotation-account-info';
-        
-        const accountName = document.createElement('div');
-        accountName.className = 'rotation-account-name';
-        accountName.textContent = `${account.first_name || ''} ${account.last_name || ''}`.trim() || account.username || '이름 없음';
-        
-        const accountPhone = document.createElement('div');
-        accountPhone.className = 'rotation-account-phone';
-        accountPhone.textContent = account.phone_number || '';
-        
-        accountInfo.appendChild(accountName);
-        accountInfo.appendChild(accountPhone);
-        
-        accountItem.appendChild(checkbox);
-        accountItem.appendChild(accountInfo);
-        
-        // 체크박스 변경 이벤트
-        checkbox.addEventListener('change', function() {
-            if (this.checked) {
-                accountItem.classList.add('selected');
-                if (!selectedRotationAccounts.includes(account.user_id)) {
-                    selectedRotationAccounts.push(account.user_id);
-                }
-            } else {
-                accountItem.classList.remove('selected');
-                selectedRotationAccounts = selectedRotationAccounts.filter(id => id !== account.user_id);
-            }
-            
-            calculateRotationSafety();
-        });
-        
-        // 아이템 클릭 시 체크박스 토글
-        accountItem.addEventListener('click', function(e) {
-            if (e.target !== checkbox) {
-                checkbox.checked = !checkbox.checked;
-                checkbox.dispatchEvent(new Event('change'));
-            }
-        });
-        
-        accountsList.appendChild(accountItem);
-    });
+    // 계정 이름들 표시
+    const accountNames = rotationAccounts.map(acc => 
+        `${acc.first_name || ''} ${acc.last_name || ''}`.trim() || acc.username || '이름 없음'
+    ).join(', ');
+    
+    accountsInfo.innerHTML = `✅ ${accountNames} (총 ${rotationAccounts.length}개)`;
+    
+    // 선택된 계정들을 selectedRotationAccounts에 자동 추가
+    selectedRotationAccounts = rotationAccounts.map(acc => acc.user_id);
+    
+    // 안전성 계산
+    calculateRotationSafety();
+    
 }
 
 // 로테이션 안전성 계산 및 표시
@@ -5071,22 +5064,39 @@ function calculateRotationSafety() {
         return Math.max(cycleBySingleRotation, accountCooldown);
     }
     
-    // 실제 계산 (최소값은 계정 쿨다운)
-    const cycle6 = selectedCount >= 6 ? rotationInterval : accountCooldown;
-    const cycle3 = selectedCount >= 3 ? rotationInterval * Math.ceil(selectedCount / 3) : accountCooldown;
-    const cycle2 = selectedCount >= 2 ? rotationInterval * Math.ceil(selectedCount / 2) : accountCooldown;
-    const cycle1 = accountCooldown; // 1개만 체크하면 무조건 쿨다운 시간
+    // 선택된 계정 수에 따라 동적으로 표시할 계정 수들 결정
+    const displayCounts = [];
+    if (selectedCount >= 12) displayCounts.push(12);
+    if (selectedCount >= 8) displayCounts.push(8);
+    if (selectedCount >= 6) displayCounts.push(6);
+    if (selectedCount >= 4) displayCounts.push(4);
+    if (selectedCount >= 3) displayCounts.push(3);
+    if (selectedCount >= 2) displayCounts.push(2);
+    displayCounts.push(1); // 항상 1개는 표시
     
-    // 더 정확한 계산: 그룹에 N개 계정이 있으면, 각 계정이 한 바퀴 도는 시간
-    const actualCycle6 = selectedCount >= 6 ? (6 * rotationInterval) : accountCooldown;
-    const actualCycle3 = selectedCount >= 3 ? (3 * rotationInterval) : accountCooldown;
-    const actualCycle2 = selectedCount >= 2 ? (2 * rotationInterval) : accountCooldown;
-    const actualCycle1 = accountCooldown;
+    // 기존 요소들 숨기기
+    const cycleElements = [cycle6El, cycle3El, cycle2El, cycle1El];
+    cycleElements.forEach(el => {
+        if (el) el.parentElement.style.display = 'none';
+    });
     
-    if (cycle6El) cycle6El.innerHTML = `<strong style="color: #10B981;">${actualCycle6}분마다</strong>`;
-    if (cycle3El) cycle3El.innerHTML = `<strong style="color: #10B981;">${actualCycle3}분마다</strong>`;
-    if (cycle2El) cycle2El.innerHTML = `<strong style="color: ${actualCycle2 > 60 ? '#ffa500' : '#10B981'};">${actualCycle2}분마다</strong>`;
-    if (cycle1El) cycle1El.innerHTML = `<strong style="color: #ff6b6b;">${actualCycle1}분마다</strong> (느림!)`;
+    // 동적으로 생성된 요소들로 교체
+    const groupCycleInfo = document.getElementById('groupCycleInfo');
+    if (groupCycleInfo) {
+        groupCycleInfo.innerHTML = '';
+        
+        displayCounts.forEach(count => {
+            const actualCycle = calculateGroupCycle(count);
+            const color = actualCycle > 120 ? '#ff6b6b' : actualCycle > 60 ? '#ffa500' : '#10B981';
+            const speedText = actualCycle > 120 ? ' (느림!)' : actualCycle > 60 ? ' (보통)' : ' (빠름)';
+            
+            const cycleDiv = document.createElement('p');
+            cycleDiv.style.margin = '3px 0';
+            cycleDiv.innerHTML = `• <strong>${count}개</strong> 계정 체크한 그룹: <span style="color: ${color}; font-weight: 600;">${actualCycle}분마다</span>${speedText}`;
+            
+            groupCycleInfo.appendChild(cycleDiv);
+        });
+    }
     
     // 안전성 평가
     let safetyMessage = '';
