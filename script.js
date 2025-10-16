@@ -3583,11 +3583,15 @@ async function sendMessageToGroup() {
         });
         
         console.log('🔍 다중 계정 모드 메시지 데이터:', accountMessages);
+        console.log('🔍 전송 대상 계정 수:', accountMessages.length);
         
         if (accountMessages.length === 0) {
+            console.log('❌ 전송 대상 계정이 없음 - 전송 차단');
             alert('전송할 메시지를 선택하고, 해당 계정이 선택한 그룹이 있는지 확인해주세요.');
             return;
         }
+        
+        console.log('✅ 전송 대상 계정 확인됨:', accountMessages.length, '개');
         
         messageData = {
             multiAccountMode: true,
