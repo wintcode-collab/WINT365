@@ -2545,6 +2545,7 @@ def save_account_group_mapping():
             return jsonify({'success': True})
         else:
             logger.error(f'❌ Firebase 저장 실패: {response.status_code}')
+            logger.error(f'❌ Firebase 응답: {response.text}')
             return jsonify({'success': False, 'error': 'Firebase 저장 실패'}), 500
             
     except Exception as e:

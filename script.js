@@ -3511,7 +3511,8 @@ async function sendMessageToGroup() {
         hasValidMessage = Array.from(accountMessageElements).some(element => {
             const statusSpan = element.querySelector('span[data-account-id]');
             console.log('🔍 상태 span:', statusSpan, '텍스트:', statusSpan?.textContent);
-            return statusSpan && statusSpan.textContent.includes('저장된 메시지O');
+            // 메시지가 선택되면 "저장된 메시지를 선택하세요"가 아닌 다른 텍스트로 변경됨
+            return statusSpan && !statusSpan.textContent.includes('저장된 메시지를 선택하세요');
         });
         
         console.log('🔍 다중 계정 모드 메시지 확인:', {
@@ -3571,7 +3572,7 @@ async function sendMessageToGroup() {
             const accountId = element.querySelector('span[data-account-id]')?.getAttribute('data-account-id');
             const statusSpan = element.querySelector('span[data-account-id]');
             
-            if (accountId && statusSpan && statusSpan.textContent.includes('저장된 메시지O')) {
+            if (accountId && statusSpan && !statusSpan.textContent.includes('저장된 메시지를 선택하세요')) {
                 // 해당 계정이 선택한 그룹이 있는지 확인
                 const accountGroups = getAccountGroupsForAccount(accountId);
                 console.log(`🔍 계정 ${accountId}의 선택된 그룹:`, accountGroups);
