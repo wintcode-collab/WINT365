@@ -2595,10 +2595,7 @@ function setupMessageModalEvents(accountId) {
     document.querySelectorAll('.message-item').forEach((item, index) => {
         // 메시지 아이템 전체에 이벤트 리스너 추가
         item.addEventListener('click', function(e) {
-            // 이벤트 완전 차단 (새 모달 방지)
-            e.stopPropagation();
-            e.preventDefault();
-            e.stopImmediatePropagation();
+            console.log(`📝 메시지 아이템 ${index} 클릭됨`);
             
             // 기존 선택 해제
             document.querySelectorAll('.message-item').forEach(el => {
@@ -2631,20 +2628,6 @@ function setupMessageModalEvents(accountId) {
             
             console.log(`📝 메시지 ${index} 선택됨 (체크만, 새 모달 없음)`);
             console.log('📝 selectedMessageIndex 설정됨:', selectedMessageIndex);
-            
-            // 추가 보안: false 반환으로 이벤트 완전 차단
-            return false;
-        }, true); // capture phase에서 실행하여 다른 이벤트보다 먼저 실행
-        
-        // 메시지 아이템 내부의 모든 요소들에도 이벤트 전파 차단
-        const allElements = item.querySelectorAll('*');
-        allElements.forEach(element => {
-            element.addEventListener('click', function(e) {
-                e.stopPropagation();
-                e.preventDefault();
-                e.stopImmediatePropagation();
-                return false;
-            }, true);
         });
     });
     
@@ -2659,13 +2642,9 @@ function setupMessageModalEvents(accountId) {
         }, true);
     }
     
-    // 선택 버튼 클릭 이벤트 (바로 적용) - capture phase에서 실행
+    // 선택 버튼 클릭 이벤트 (바로 적용)
     document.getElementById('selectMessageBtn').addEventListener('click', function(e) {
         console.log('🔘 선택 버튼 클릭됨, selectedMessageIndex:', selectedMessageIndex);
-        
-        // 이벤트 전파 차단 (버튼 클릭은 허용)
-        e.stopPropagation();
-        e.preventDefault();
         
         if (selectedMessageIndex === null) {
             alert('메시지를 선택해주세요.');
@@ -2681,18 +2660,13 @@ function setupMessageModalEvents(accountId) {
         document.getElementById('messageSelectionModal').remove();
         
         console.log('✅ 메시지 선택 완료, 모달창 닫힘');
-    }, true); // capture phase에서 실행
+    });
     
-    // 닫기 버튼 클릭 이벤트 - capture phase에서 실행
+    // 닫기 버튼 클릭 이벤트
     document.getElementById('closeMessageModalBtn').addEventListener('click', function(e) {
         console.log('❌ 닫기 버튼 클릭됨');
-        
-        // 이벤트 전파 차단 (버튼 클릭은 허용)
-        e.stopPropagation();
-        e.preventDefault();
-        
         document.getElementById('messageSelectionModal').remove();
-    }, true); // capture phase에서 실행
+    });
     
     // 배경 클릭으로 닫기 (이벤트 전파 차단)
     document.getElementById('messageSelectionModal').addEventListener('click', function(e) {
