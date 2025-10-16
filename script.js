@@ -3493,6 +3493,10 @@ function getAccountGroupsForAccount(accountId) {
         if (groupAccountId === accountId && groupId && groupId !== 'undefined') {
             accountGroups.push(groupId);
             console.log(`✅ 그룹 추가: ${groupId}`);
+        } else if (!groupAccountId && groupId && groupId !== 'undefined') {
+            // data-account-id가 없는 경우 (다중 계정 모드에서는 모든 그룹 사용 가능)
+            accountGroups.push(groupId);
+            console.log(`✅ 그룹 추가 (공용): ${groupId}`);
         }
     });
     
