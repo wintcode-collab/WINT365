@@ -2637,9 +2637,19 @@ def refresh_account_info():
 async def refresh_account_info_async(account_info):
     """비동기 계정 정보 새로고침 함수"""
     try:
+        # 세션 파일 경로 확인
+        session_path = f"sessions/{account_info['user_id']}.session"
+        logger.info(f'🔍 세션 파일 경로: {session_path}')
+        
+        # 세션 파일 존재 확인
+        import os
+        if not os.path.exists(session_path):
+            logger.error(f'❌ 세션 파일이 존재하지 않음: {session_path}')
+            return {'success': False, 'error': f'세션 파일이 존재하지 않습니다: {session_path}'}
+        
         # 텔레그램 클라이언트 생성
         client = TelegramClient(
-            f"sessions/{account_info['user_id']}",
+            session_path,
             account_info['api_id'],
             account_info['api_hash']
         )

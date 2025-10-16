@@ -7568,6 +7568,7 @@ async function refreshAccountInfo(userId) {
             
             return result.account_info;
         } else {
+            console.error(`❌ 계정 ${userId} 새로고침 실패:`, result.error);
             throw new Error(result.error || '새로고침 실패');
         }
         
@@ -7671,17 +7672,21 @@ window.handleRefreshAccountsInModal = async function() {
         if (result.success) {
             console.log(`✅ 계정 정보 새로고침 완료: ${result.successCount}/${result.totalCount}개`);
             
-            // 성공 메시지
-            alert(`✅ 계정 정보 새로고침 완료!\n성공: ${result.successCount}개\n전체: ${result.totalCount}개`);
-            
-            // 모달 닫고 다시 열기 (업데이트된 정보로)
-            const modal = document.getElementById('accountListModal');
-            if (modal) {
-                modal.remove();
+            if (result.successCount > 0) {
+                // 성공 메시지
+                alert(`✅ 계정 정보 새로고침 완료!\n성공: ${result.successCount}개\n전체: ${result.totalCount}개`);
+                
+                // 모달 닫고 다시 열기 (업데이트된 정보로)
+                const modal = document.getElementById('accountListModal');
+                if (modal) {
+                    modal.remove();
+                }
+                
+                // 업데이트된 계정 목록으로 모달 다시 표시
+                showAccountList(window.selectedMultiAccounts);
+            } else {
+                alert('❌ 모든 계정의 새로고침에 실패했습니다.\n\n가능한 원인:\n• 텔레그램 세션 파일이 없음\n• 계정이 인증되지 않음\n• 서버 연결 문제\n\n계정을 다시 등록해보세요.');
             }
-            
-            // 업데이트된 계정 목록으로 모달 다시 표시
-            showAccountList(window.selectedMultiAccounts);
         } else {
             alert('❌ 계정 정보 새로고침에 실패했습니다.');
         }
