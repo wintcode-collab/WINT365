@@ -7672,6 +7672,14 @@ window.handleRefreshAccountsInModal = async function() {
         if (result.success) {
             console.log(`✅ 계정 정보 새로고침 완료: ${result.successCount}/${result.totalCount}개`);
             
+            // 새로고침 방법 확인
+            window.selectedMultiAccounts.forEach((account, index) => {
+                console.log(`📋 계정 ${index + 1}: ${account.first_name} - 새로고침 방법: ${account.refresh_method || 'unknown'}`);
+                if (account.refresh_error) {
+                    console.log(`❌ 오류: ${account.refresh_error}`);
+                }
+            });
+            
             if (result.successCount > 0) {
                 // 성공 메시지
                 alert(`✅ 계정 정보 새로고침 완료!\n성공: ${result.successCount}개\n전체: ${result.totalCount}개`);

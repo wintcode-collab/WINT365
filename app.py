@@ -2630,6 +2630,8 @@ def refresh_account_info():
             phone = account_info.get('phone', '')
             session_path = None
             
+            logger.info(f'🔍 계정 정보: user_id={user_id}, phone={phone}')
+            
             # 가능한 세션 파일 경로들
             possible_paths = [
                 os.path.join(home_dir, f"session_{phone}.session"),
@@ -2637,6 +2639,8 @@ def refresh_account_info():
                 os.path.join(home_dir, f"sessions/{user_id}.session"),
                 os.path.join(home_dir, f"sessions/{phone}.session")
             ]
+            
+            logger.info(f'🔍 검색할 경로들: {possible_paths}')
             
             for path in possible_paths:
                 if os.path.exists(path):
