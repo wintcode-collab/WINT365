@@ -2616,9 +2616,26 @@ def refresh_account_info():
         if not account_info:
             return jsonify({'success': False, 'error': '계정 정보를 찾을 수 없습니다.'}), 404
         
+        # 비동기 함수 실행
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        try:
+            result = loop.run_until_complete(refresh_account_info_async(account_info))
+            return jsonify(result)
+        finally:
+            loop.close()
+            
+    except Exception as e:
+        logger.error(f'❌ 계정 정보 새로고침 에러: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+async def refresh_account_info_async(account_info):
+    """비동기 계정 정보 새로고침 함수"""
+    try:
         # 텔레그램 클라이언트 생성
         client = TelegramClient(
-            f"sessions/{user_id}",
+            f"sessions/{account_info['user_id']}",
             account_info['api_id'],
             account_info['api_hash']
         )
@@ -2628,7 +2645,7 @@ def refresh_account_info():
             await client.connect()
             
             if not await client.is_user_authorized():
-                return jsonify({'success': False, 'error': '계정이 인증되지 않았습니다.'}), 401
+                return {'success': False, 'error': '계정이 인증되지 않았습니다.'}
             
             # 현재 사용자 정보 가져오기
             me = await client.get_me()
@@ -2652,21 +2669,21 @@ def refresh_account_info():
             save_result = save_account_to_firebase(updated_account_info)
             
             if save_result:
-                logger.info(f'✅ 계정 정보 새로고침 성공: {user_id}')
-                return jsonify({
+                logger.info(f'✅ 계정 정보 새로고침 성공: {account_info["user_id"]}')
+                return {
                     'success': True, 
                     'message': '계정 정보가 새로고침되었습니다.',
                     'account_info': updated_account_info
-                })
+                }
             else:
-                return jsonify({'success': False, 'error': '계정 정보 저장에 실패했습니다.'}), 500
+                return {'success': False, 'error': '계정 정보 저장에 실패했습니다.'}
                 
         finally:
             await client.disconnect()
             
     except Exception as e:
-        logger.error(f'❌ 계정 정보 새로고침 에러: {e}')
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f'❌ 비동기 계정 정보 새로고침 에러: {e}')
+        return {'success': False, 'error': str(e)}
 
 # ============================================================
 # 계정 로테이션 시스템
