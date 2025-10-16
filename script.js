@@ -3604,29 +3604,9 @@ async function sendMessageToGroup() {
         
         console.log('✅ 전송 대상 계정 확인됨:', accountMessages.length, '개');
         
-        // 다중 계정 모드에서도 메시지 정보 가져오기 (단일 계정 모드와 동일한 방식)
-        let message;
-        let mediaInfo = null;
-        
-        if (window.selectedMediaInfo) {
-            // 저장된 메시지가 선택된 경우
-            mediaInfo = window.selectedMediaInfo;
-            if (mediaInfo.has_custom_emoji) {
-                message = null;
-            } else {
-                message = mediaInfo.text || '';
-            }
-        } else {
-            // 입력칸에서 메시지 가져오기
-            const messageInput = document.getElementById('messageInput');
-            message = messageInput ? messageInput.value.trim() : '';
-        }
-        
         messageData = {
             multiAccountMode: true,
-            accountMessages: accountMessages,
-            message: message,
-            mediaInfo: mediaInfo
+            accountMessages: accountMessages
         };
     } else {
         // 단일 계정 모드: 기존 로직
@@ -3715,18 +3695,8 @@ async function sendMessageToGroup() {
         if (window.multiAccountMode && messageData.multiAccountMode) {
             // 다중 계정 모드: 선택된 계정들 사용
             console.log('🔄 다중 계정 모드 전송 시작');
-            console.log('🔍 window.selectedMultiAccounts:', window.selectedMultiAccounts);
-            console.log('🔍 messageData.accountMessages:', messageData.accountMessages);
-            
-            if (!window.selectedMultiAccounts || window.selectedMultiAccounts.length === 0) {
-                throw new Error('선택된 다중 계정이 없습니다. 계정을 다시 선택해주세요.');
-            }
-            
             accounts = messageData.accountMessages.map(accountMsg => {
-                console.log(`🔍 계정 ${accountMsg.accountId} 찾는 중...`);
                 const account = window.selectedMultiAccounts.find(acc => acc.user_id === accountMsg.accountId);
-                console.log(`🔍 찾은 계정:`, account);
-                
                 if (!account) {
                     throw new Error(`계정 ${accountMsg.accountId}를 찾을 수 없습니다.`);
                 }
@@ -3824,12 +3794,12 @@ async function sendMessageToGroup() {
                 }
                 
                 console.log('📤 서버로 전송할 데이터:', sendData);
-                console.log('📤 전송 메시지 텍스트:', messageData.message);
+                console.log('📤 전송 메시지 텍스트:', message);
                 console.log('📤 미디어 정보 상세:', {
-                    has_custom_emoji: messageData.mediaInfo?.has_custom_emoji,
-                    custom_emoji_entities: messageData.mediaInfo?.custom_emoji_entities,
-                    raw_message_data: messageData.mediaInfo?.raw_message_data,
-                    text: messageData.mediaInfo?.text
+                    has_custom_emoji: mediaInfo?.has_custom_emoji,
+                    custom_emoji_entities: mediaInfo?.custom_emoji_entities,
+                    raw_message_data: mediaInfo?.raw_message_data,
+                    text: mediaInfo?.text
                 });
                 
                 const sendResponse = await fetch('/api/telegram/send-message', {
@@ -3868,9 +3838,9 @@ async function sendMessageToGroup() {
         
         // 결과 알림
         if (successCount > 0 && failCount === 0) {
-            alert(`✅ 모든 그룹에 메시지 전송 성공!\n\n전송된 그룹: ${successCount}개\n메시지: ${messageData.message.substring(0, 50)}${messageData.message.length > 50 ? '...' : ''}`);
+            alert(`✅ 모든 그룹에 메시지 전송 성공!\n\n전송된 그룹: ${successCount}개\n메시지: ${message.substring(0, 50)}${message.length > 50 ? '...' : ''}`);
         } else if (successCount > 0 && failCount > 0) {
-            alert(`⚠️ 부분 전송 완료\n\n성공: ${successCount}개 그룹\n실패: ${failCount}개 그룹\n메시지: ${messageData.message.substring(0, 50)}${messageData.message.length > 50 ? '...' : ''}`);
+            alert(`⚠️ 부분 전송 완료\n\n성공: ${successCount}개 그룹\n실패: ${failCount}개 그룹\n메시지: ${message.substring(0, 50)}${message.length > 50 ? '...' : ''}`);
         } else {
             throw new Error('모든 그룹 전송 실패');
         }
