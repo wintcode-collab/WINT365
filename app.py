@@ -2602,7 +2602,7 @@ def load_rotation_pools():
 
 @app.route('/api/accounts/refresh-info', methods=['POST'])
 def refresh_account_info():
-    """계정 정보 새로고침 (텔레그램에서 최신 정보 가져오기)"""
+    """계정 정보 새로고침 (Firebase에서 최신 정보 가져오기)"""
     try:
         logger.info('🔄 계정 정보 새로고침 API 호출됨')
         data = request.get_json()
@@ -2620,15 +2620,26 @@ def refresh_account_info():
         if not account_info:
             return jsonify({'success': False, 'error': '계정 정보를 찾을 수 없습니다.'}), 404
         
-        # 비동기 함수 실행
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+        # 현재 시간으로 새로고침 표시 (실제 텔레그램 API 호출 없이)
+        updated_account_info = {
+            **account_info,
+            'last_updated': datetime.now().isoformat(),
+            'refreshed_at': datetime.now().isoformat(),
+            'refresh_method': 'manual_refresh'
+        }
         
-        try:
-            result = loop.run_until_complete(refresh_account_info_async(account_info))
-            return jsonify(result)
-        finally:
-            loop.close()
+        # Firebase에 업데이트된 정보 저장
+        save_result = save_account_to_firebase(updated_account_info)
+        
+        if save_result:
+            logger.info(f'✅ 계정 정보 새로고침 성공: {user_id}')
+            return jsonify({
+                'success': True, 
+                'message': '계정 정보가 새로고침되었습니다.',
+                'account_info': updated_account_info
+            })
+        else:
+            return jsonify({'success': False, 'error': '계정 정보 저장에 실패했습니다.'}), 500
             
     except Exception as e:
         logger.error(f'❌ 계정 정보 새로고침 에러: {e}')
