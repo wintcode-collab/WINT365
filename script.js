@@ -232,6 +232,12 @@ function setupEventListeners() {
     }
     if (elements.testTelegramBtn) {
         elements.testTelegramBtn.addEventListener('click', handleTestTelegramConnection);
+        
+        // 계정 정보 새로고침 버튼
+        const refreshAccountsBtn = document.getElementById('refreshAccountsBtn');
+        if (refreshAccountsBtn) {
+            refreshAccountsBtn.addEventListener('click', handleRefreshAccounts);
+        }
     }
     
     // 텔레그램 그룹 관리 창 이벤트 리스너들
@@ -7495,4 +7501,134 @@ function getRotationSettingsForSave() {
         selectedAccounts: selectedRotationAccounts,
         groupSendInterval: parseInt(groupSendInterval?.value || 15)
     };
+}
+
+// ============================================================
+// 계정 정보 새로고침 시스템
+// ============================================================
+
+// 계정 정보 새로고침 함수
+async function refreshAccountInfo(userId) {
+    try {
+        console.log(`🔄 계정 ${userId} 정보 새로고침 시작`);
+        
+        const response = await fetch(`${getApiBaseUrl()}/api/accounts/refresh-info`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                user_id: userId
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`새로고침 실패: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            console.log(`✅ 계정 ${userId} 정보 새로고침 성공:`, result.account_info);
+            
+            // 로컬 스토리지 업데이트
+            const savedAccounts = localStorage.getItem('telegramAccounts');
+            if (savedAccounts) {
+                const accounts = JSON.parse(savedAccounts);
+                const updatedAccounts = accounts.map(acc => 
+                    acc.user_id === userId ? result.account_info : acc
+                );
+                localStorage.setItem('telegramAccounts', JSON.stringify(updatedAccounts));
+            }
+            
+            // 다중 계정 모드에서 선택된 계정 업데이트
+            if (window.selectedMultiAccounts) {
+                const updatedIndex = window.selectedMultiAccounts.findIndex(acc => acc.user_id === userId);
+                if (updatedIndex !== -1) {
+                    window.selectedMultiAccounts[updatedIndex] = result.account_info;
+                }
+            }
+            
+            return result.account_info;
+        } else {
+            throw new Error(result.error || '새로고침 실패');
+        }
+        
+    } catch (error) {
+        console.error(`❌ 계정 ${userId} 정보 새로고침 실패:`, error);
+        throw error;
+    }
+}
+
+// 모든 계정 정보 새로고침
+async function refreshAllAccountsInfo() {
+    try {
+        console.log('🔄 모든 계정 정보 새로고침 시작');
+        
+        const accounts = window.selectedMultiAccounts || [];
+        const refreshPromises = accounts.map(account => 
+            refreshAccountInfo(account.user_id).catch(error => {
+                console.warn(`⚠️ 계정 ${account.user_id} 새로고침 실패:`, error);
+                return null;
+            })
+        );
+        
+        const results = await Promise.all(refreshPromises);
+        const successCount = results.filter(result => result !== null).length;
+        
+        console.log(`✅ 계정 정보 새로고침 완료: ${successCount}/${accounts.length}개 성공`);
+        
+        // UI 업데이트
+        if (window.multiAccountMode) {
+            // 다중 계정 모드에서 계정 목록 다시 렌더링
+            showAccountList(window.selectedMultiAccounts);
+        }
+        
+        return {
+            success: true,
+            successCount: successCount,
+            totalCount: accounts.length
+        };
+        
+    } catch (error) {
+        console.error('❌ 모든 계정 정보 새로고침 실패:', error);
+        throw error;
+    }
+}
+
+// 계정 정보 새로고침 핸들러
+async function handleRefreshAccounts() {
+    try {
+        console.log('🔄 계정 정보 새로고침 시작');
+        
+        // 버튼 비활성화
+        const refreshBtn = document.getElementById('refreshAccountsBtn');
+        if (refreshBtn) {
+            refreshBtn.disabled = true;
+            refreshBtn.textContent = '🔄 새로고침 중...';
+        }
+        
+        // 모든 계정 정보 새로고침
+        const result = await refreshAllAccountsInfo();
+        
+        if (result.success) {
+            alert(`✅ 계정 정보 새로고침 완료!\n성공: ${result.successCount}개\n전체: ${result.totalCount}개`);
+            
+            // 계정 목록 다시 로드
+            await handleTestTelegramConnection();
+        } else {
+            alert('❌ 계정 정보 새로고침에 실패했습니다.');
+        }
+        
+    } catch (error) {
+        console.error('❌ 계정 정보 새로고침 에러:', error);
+        alert(`❌ 계정 정보 새로고침 실패: ${error.message}`);
+    } finally {
+        // 버튼 활성화
+        const refreshBtn = document.getElementById('refreshAccountsBtn');
+        if (refreshBtn) {
+            refreshBtn.disabled = false;
+            refreshBtn.textContent = '🔄 이름 새로고침';
+        }
+    }
 }

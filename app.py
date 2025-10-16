@@ -2600,6 +2600,74 @@ def load_rotation_pools():
         logger.error(f'❌ 풀 설정 로드 에러: {e}')
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/accounts/refresh-info', methods=['POST'])
+def refresh_account_info():
+    """계정 정보 새로고침 (텔레그램에서 최신 정보 가져오기)"""
+    try:
+        data = request.get_json()
+        user_id = data.get('user_id')
+        
+        if not user_id:
+            return jsonify({'success': False, 'error': '사용자 ID가 필요합니다.'}), 400
+        
+        # Firebase에서 계정 정보 조회
+        account_info = get_account_from_firebase(user_id)
+        
+        if not account_info:
+            return jsonify({'success': False, 'error': '계정 정보를 찾을 수 없습니다.'}), 404
+        
+        # 텔레그램 클라이언트 생성
+        client = TelegramClient(
+            f"sessions/{user_id}",
+            account_info['api_id'],
+            account_info['api_hash']
+        )
+        
+        try:
+            # 클라이언트 연결
+            await client.connect()
+            
+            if not await client.is_user_authorized():
+                return jsonify({'success': False, 'error': '계정이 인증되지 않았습니다.'}), 401
+            
+            # 현재 사용자 정보 가져오기
+            me = await client.get_me()
+            
+            # 계정 정보 업데이트
+            updated_account_info = {
+                'user_id': me.id,
+                'first_name': me.first_name or '',
+                'last_name': me.last_name or '',
+                'username': me.username or '',
+                'phone': account_info['phone'],  # 전화번호는 변경되지 않으므로 유지
+                'api_id': account_info['api_id'],
+                'api_hash': account_info['api_hash'],
+                'last_updated': datetime.now().isoformat(),
+                'is_premium': getattr(me, 'premium', False),
+                'is_bot': me.bot,
+                'is_verified': getattr(me, 'verified', False)
+            }
+            
+            # Firebase에 업데이트된 정보 저장
+            save_result = save_account_to_firebase(updated_account_info)
+            
+            if save_result:
+                logger.info(f'✅ 계정 정보 새로고침 성공: {user_id}')
+                return jsonify({
+                    'success': True, 
+                    'message': '계정 정보가 새로고침되었습니다.',
+                    'account_info': updated_account_info
+                })
+            else:
+                return jsonify({'success': False, 'error': '계정 정보 저장에 실패했습니다.'}), 500
+                
+        finally:
+            await client.disconnect()
+            
+    except Exception as e:
+        logger.error(f'❌ 계정 정보 새로고침 에러: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 # ============================================================
 # 계정 로테이션 시스템
 # ============================================================
