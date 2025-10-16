@@ -7713,7 +7713,7 @@ window.handleRefreshAccountsInModal = async function() {
                         failedAccounts[0].last_updated = new Date().toISOString();
                         
                         // Firebase에 수동 업데이트 저장
-                        await saveAccountInfoToFirebase(failedAccounts[0]);
+                        await updateAccountInfoInFirebase(failedAccounts[0]);
                         
                         alert(`✅ 계정 이름이 "${newName}"으로 수동 업데이트되었습니다!`);
                     }

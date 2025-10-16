@@ -415,7 +415,11 @@ def get_all_accounts_from_firebase():
                             'last_name': account_info.get('last_name', ''),
                             'username': account_info.get('username', ''),
                             'phone_number': account_info.get('phone_number', ''),
-                            'authenticated_at': account_info.get('authenticated_at', '')
+                            'phone': account_info.get('phone_number', ''),  # 호환성
+                            'authenticated_at': account_info.get('authenticated_at', ''),
+                            'session_data': account_info.get('session_data', ''),
+                            'api_id': account_info.get('api_id', ''),
+                            'api_hash': account_info.get('api_hash', '')
                         })
                 logger.info(f'🔥 Firebase 계정 목록 조회 성공: {len(accounts)}개 계정')
                 return accounts
@@ -429,6 +433,216 @@ def get_all_accounts_from_firebase():
     except Exception as e:
         logger.error(f'🔥 Firebase 계정 목록 조회 에러: {e}')
         return []
+
+def check_session_validity(user_id):
+    """세션 유효성 검사"""
+    try:
+        # Firebase에서 계정 정보 조회
+        account_info = get_account_from_firebase(user_id)
+        if not account_info:
+            return False
+        
+        # session_data가 있는지 확인
+        session_data = account_info.get('session_data', '')
+        if not session_data:
+            logger.warning(f'⚠️ 세션 데이터 없음: {user_id}')
+            return False
+        
+        # 임시 세션 파일로 연결 테스트
+        import os
+        import base64
+        import tempfile
+        
+        try:
+            # session_data를 디코딩
+            decoded_session = base64.b64decode(session_data)
+            
+            # 임시 세션 파일 생성
+            temp_dir = tempfile.gettempdir()
+            session_path = os.path.join(temp_dir, f"temp_check_{user_id}.session")
+            
+            # 세션 데이터를 파일로 저장
+            with open(session_path, 'wb') as f:
+                f.write(decoded_session)
+            
+            # 텔레그램 클라이언트 생성
+            from telethon import TelegramClient
+            client = TelegramClient(
+                session_path,
+                account_info['api_id'],
+                account_info['api_hash']
+            )
+            
+            try:
+                # 클라이언트 연결
+                import asyncio
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                
+                try:
+                    result = loop.run_until_complete(check_session_async(client))
+                    return result
+                finally:
+                    loop.close()
+                    
+            finally:
+                # 임시 파일 삭제
+                try:
+                    os.remove(session_path)
+                except:
+                    pass
+                    
+        except Exception as e:
+            logger.warning(f'⚠️ 세션 검증 실패: {user_id} - {e}')
+            return False
+            
+    except Exception as e:
+        logger.error(f'❌ 세션 유효성 검사 에러: {e}')
+        return False
+
+async def check_session_async(client):
+    """비동기 세션 검증"""
+    try:
+        await client.connect()
+        if await client.is_user_authorized():
+            await client.disconnect()
+            return True
+        else:
+            await client.disconnect()
+            return False
+    except:
+        try:
+            await client.disconnect()
+        except:
+            pass
+        return False
+
+def delete_account_from_firebase(user_id):
+    """Firebase에서 계정 삭제"""
+    try:
+        url = f"{FIREBASE_URL}/authenticated_accounts/{user_id}.json"
+        response = requests.delete(url, timeout=10)
+        
+        if response.status_code == 200:
+            logger.info(f'🗑️ Firebase 계정 삭제 성공: {user_id}')
+            return True
+        else:
+            logger.error(f'🗑️ Firebase 계정 삭제 실패: {response.status_code}')
+            return False
+            
+    except Exception as e:
+        logger.error(f'🗑️ Firebase 계정 삭제 에러: {e}')
+        return False
+
+def auto_update_account_info(account):
+    """계정 정보 자동 업데이트 (Load 시마다 실행)"""
+    try:
+        user_id = account.get('user_id')
+        session_data = account.get('session_data', '')
+        
+        if not session_data:
+            logger.warning(f'⚠️ 세션 데이터 없음: {user_id}')
+            return account  # 기존 정보 반환
+        
+        # 임시 세션 파일로 최신 정보 가져오기
+        import os
+        import base64
+        import tempfile
+        import asyncio
+        from telethon import TelegramClient
+        
+        try:
+            # session_data를 디코딩
+            decoded_session = base64.b64decode(session_data)
+            
+            # 임시 세션 파일 생성
+            temp_dir = tempfile.gettempdir()
+            session_path = os.path.join(temp_dir, f"temp_auto_update_{user_id}.session")
+            
+            # 세션 데이터를 파일로 저장
+            with open(session_path, 'wb') as f:
+                f.write(decoded_session)
+            
+            # 텔레그램 클라이언트 생성
+            client = TelegramClient(
+                session_path,
+                account['api_id'],
+                account['api_hash']
+            )
+            
+            try:
+                # 비동기 함수로 최신 정보 가져오기
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                
+                try:
+                    result = loop.run_until_complete(auto_update_account_async(client, account))
+                    
+                    if result:
+                        # Firebase에 업데이트된 정보 저장
+                        save_account_to_firebase(result)
+                        logger.info(f'🔄 계정 정보 자동 업데이트 완료: {user_id}')
+                        return result
+                    else:
+                        logger.warning(f'⚠️ 계정 정보 업데이트 실패: {user_id}')
+                        return account  # 기존 정보 반환
+                        
+                finally:
+                    loop.close()
+                    
+            finally:
+                # 임시 파일 삭제
+                try:
+                    os.remove(session_path)
+                except:
+                    pass
+                    
+        except Exception as e:
+            logger.warning(f'⚠️ 자동 업데이트 실패: {user_id} - {e}')
+            return account  # 기존 정보 반환
+            
+    except Exception as e:
+        logger.error(f'❌ 자동 업데이트 에러: {e}')
+        return account  # 기존 정보 반환
+
+async def auto_update_account_async(client, account):
+    """비동기 계정 정보 자동 업데이트"""
+    try:
+        await client.connect()
+        
+        if not await client.is_user_authorized():
+            logger.warning(f'⚠️ 계정 인증 실패: {account["user_id"]}')
+            await client.disconnect()
+            return None
+        
+        # 현재 사용자 정보 가져오기
+        me = await client.get_me()
+        logger.info(f'👤 최신 정보 조회 성공: {me.first_name} {me.last_name} (@{me.username})')
+        
+        # 업데이트된 계정 정보 생성
+        updated_account = {
+            **account,  # 기존 정보 유지
+            'first_name': me.first_name or '',
+            'last_name': me.last_name or '',
+            'username': me.username or '',
+            'last_updated': datetime.now().isoformat(),
+            'auto_updated_at': datetime.now().isoformat(),
+            'is_premium': getattr(me, 'premium', False),
+            'is_bot': me.bot,
+            'is_verified': getattr(me, 'verified', False),
+            'update_source': 'auto_load'
+        }
+        
+        await client.disconnect()
+        return updated_account
+        
+    except Exception as e:
+        logger.error(f'❌ 자동 업데이트 비동기 에러: {e}')
+        try:
+            await client.disconnect()
+        except:
+            pass
+        return None
 
 def test_telegram_connection(account_info):
     """텔레그램 연결 테스트 (그룹 로딩 전)"""
@@ -1253,26 +1467,42 @@ def test_firebase_connection():
 
 @app.route('/api/telegram/load-accounts', methods=['GET'])
 def load_accounts():
-    """Firebase에서 모든 인증된 텔레그램 계정 목록 로드"""
+    """Firebase에서 모든 인증된 텔레그램 계정 목록 로드 (세션 검증 포함)"""
     try:
         logger.info('🔍 인증된 계정 목록 로딩 요청')
         
         # Firebase에서 모든 계정 정보 조회
-        accounts = get_all_accounts_from_firebase()
+        all_accounts = get_all_accounts_from_firebase()
         
-        if not accounts:
+        if not all_accounts:
             return jsonify({
                 'success': True,
                 'accounts': [],
                 'message': '연동된 계정이 없습니다. 먼저 텔레그램 계정을 연동해주세요.'
             })
         
-        logger.info(f'✅ 계정 목록 로딩 성공: {len(accounts)}개 계정')
+        # 모든 계정에 대해 최신 정보 자동 업데이트
+        valid_accounts = []
+        
+        for account in all_accounts:
+            user_id = account.get('user_id')
+            if user_id:
+                # 자동으로 최신 정보 업데이트 시도
+                updated_account = auto_update_account_info(account)
+                if updated_account:
+                    valid_accounts.append(updated_account)
+                    logger.info(f'✅ 계정 정보 업데이트 성공: {user_id} ({updated_account.get("first_name", "")})')
+                else:
+                    # 업데이트 실패해도 기존 정보 유지
+                    valid_accounts.append(account)
+                    logger.warning(f'⚠️ 계정 정보 업데이트 실패, 기존 정보 유지: {user_id} ({account.get("first_name", "")})')
+        
+        logger.info(f'✅ 계정 목록 로딩 성공: {len(valid_accounts)}개 계정 (자동 업데이트 완료)')
         
         return jsonify({
             'success': True,
-            'accounts': accounts,
-            'message': f'{len(accounts)}개의 연동된 계정을 찾았습니다.'
+            'accounts': valid_accounts,
+            'message': f'{len(valid_accounts)}개의 연동된 계정을 찾았습니다. (최신 정보로 자동 업데이트됨)'
         })
         
     except Exception as e:
