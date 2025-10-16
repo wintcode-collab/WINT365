@@ -1762,7 +1762,7 @@ function showAccountList(accounts) {
                 📱 연동된 텔레그램 계정
             </h2>
                 <button id="refreshAccountsInModal" style="
-                    background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%);
+                    background: linear-gradient(135deg, #10B981 0%, #059669 100%);
                     color: white;
                     border: none;
                     padding: 8px 12px;
@@ -1771,6 +1771,7 @@ function showAccountList(accounts) {
                     font-weight: 600;
                     cursor: pointer;
                     transition: all 0.3s ease;
+                    box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
                 " title="계정 이름 새로고침">🔄</button>
             </div>
             <p style="color: #888; margin: 0; font-size: 14px;">
@@ -2316,47 +2317,63 @@ function showAccountSelectionModal(accounts) {
 function setupAccountSelectionModalEvents() {
     let selectedAccountId = null;
     
-    // 모달 내 새로고침 버튼 이벤트
-    const refreshBtn = document.getElementById('refreshAccountsInModal');
-    if (refreshBtn) {
-        refreshBtn.addEventListener('click', async function() {
-            try {
-                console.log('🔄 모달 내 계정 정보 새로고침 시작');
+    // 모달 내 새로고침 버튼 이벤트 (지연 등록)
+    setTimeout(() => {
+        const refreshBtn = document.getElementById('refreshAccountsInModal');
+        console.log('🔍 새로고침 버튼 찾기:', refreshBtn);
+        
+        if (refreshBtn) {
+            console.log('✅ 새로고침 버튼 이벤트 리스너 등록');
+            
+            refreshBtn.addEventListener('click', async function(e) {
+                e.preventDefault();
+                e.stopPropagation();
                 
-                // 버튼 비활성화
-                refreshBtn.disabled = true;
-                refreshBtn.textContent = '🔄';
-                refreshBtn.style.opacity = '0.6';
-                
-                // 모든 계정 정보 새로고침
-                const result = await refreshAllAccountsInfo();
-                
-                if (result.success) {
-                    console.log(`✅ 계정 정보 새로고침 완료: ${result.successCount}/${result.totalCount}개`);
+                try {
+                    console.log('🔄 모달 내 계정 정보 새로고침 시작');
                     
-                    // 모달 닫고 다시 열기 (업데이트된 정보로)
-                    const modal = document.getElementById('accountListModal');
-                    if (modal) {
-                        modal.remove();
+                    // 버튼 비활성화
+                    refreshBtn.disabled = true;
+                    refreshBtn.textContent = '⏳';
+                    refreshBtn.style.opacity = '0.6';
+                    refreshBtn.style.cursor = 'not-allowed';
+                    
+                    // 모든 계정 정보 새로고침
+                    const result = await refreshAllAccountsInfo();
+                    
+                    if (result.success) {
+                        console.log(`✅ 계정 정보 새로고침 완료: ${result.successCount}/${result.totalCount}개`);
+                        
+                        // 성공 메시지
+                        alert(`✅ 계정 정보 새로고침 완료!\n성공: ${result.successCount}개\n전체: ${result.totalCount}개`);
+                        
+                        // 모달 닫고 다시 열기 (업데이트된 정보로)
+                        const modal = document.getElementById('accountListModal');
+                        if (modal) {
+                            modal.remove();
+                        }
+                        
+                        // 업데이트된 계정 목록으로 모달 다시 표시
+                        showAccountList(window.selectedMultiAccounts);
+                    } else {
+                        alert('❌ 계정 정보 새로고침에 실패했습니다.');
                     }
                     
-                    // 업데이트된 계정 목록으로 모달 다시 표시
-                    showAccountList(window.selectedMultiAccounts);
-                } else {
-                    alert('❌ 계정 정보 새로고침에 실패했습니다.');
+                } catch (error) {
+                    console.error('❌ 모달 내 계정 정보 새로고침 에러:', error);
+                    alert(`❌ 계정 정보 새로고침 실패: ${error.message}`);
+                } finally {
+                    // 버튼 활성화
+                    refreshBtn.disabled = false;
+                    refreshBtn.textContent = '🔄';
+                    refreshBtn.style.opacity = '1';
+                    refreshBtn.style.cursor = 'pointer';
                 }
-                
-            } catch (error) {
-                console.error('❌ 모달 내 계정 정보 새로고침 에러:', error);
-                alert(`❌ 계정 정보 새로고침 실패: ${error.message}`);
-            } finally {
-                // 버튼 활성화
-                refreshBtn.disabled = false;
-                refreshBtn.textContent = '🔄';
-                refreshBtn.style.opacity = '1';
-            }
-        });
-    }
+            });
+        } else {
+            console.error('❌ 새로고침 버튼을 찾을 수 없습니다.');
+        }
+    }, 100); // 100ms 지연
     
     // 계정 아이템 클릭 이벤트 (포커스 표시)
     document.querySelectorAll('.account-item').forEach(item => {
@@ -7615,6 +7632,18 @@ async function refreshAllAccountsInfo() {
         console.log('🔄 모든 계정 정보 새로고침 시작');
         
         const accounts = window.selectedMultiAccounts || [];
+        console.log('📋 새로고침할 계정들:', accounts);
+        
+        if (accounts.length === 0) {
+            console.warn('⚠️ 새로고침할 계정이 없습니다.');
+            return {
+                success: false,
+                successCount: 0,
+                totalCount: 0,
+                error: '새로고침할 계정이 없습니다.'
+            };
+        }
+        
         const refreshPromises = accounts.map(account => 
             refreshAccountInfo(account.user_id).catch(error => {
                 console.warn(`⚠️ 계정 ${account.user_id} 새로고침 실패:`, error);
@@ -7627,21 +7656,34 @@ async function refreshAllAccountsInfo() {
         
         console.log(`✅ 계정 정보 새로고침 완료: ${successCount}/${accounts.length}개 성공`);
         
-        // UI 업데이트
-        if (window.multiAccountMode) {
-            // 다중 계정 모드에서 계정 목록 다시 렌더링
-            showAccountList(window.selectedMultiAccounts);
+        // 성공한 계정들로 window.selectedMultiAccounts 업데이트
+        if (successCount > 0) {
+            const updatedAccounts = [];
+            for (let i = 0; i < accounts.length; i++) {
+                if (results[i] !== null) {
+                    updatedAccounts.push(results[i]);
+                } else {
+                    updatedAccounts.push(accounts[i]); // 실패한 경우 기존 정보 유지
+                }
+            }
+            window.selectedMultiAccounts = updatedAccounts;
+            console.log('🔄 window.selectedMultiAccounts 업데이트 완료');
         }
         
         return {
-            success: true,
+            success: successCount > 0,
             successCount: successCount,
             totalCount: accounts.length
         };
         
     } catch (error) {
         console.error('❌ 모든 계정 정보 새로고침 실패:', error);
-        throw error;
+        return {
+            success: false,
+            successCount: 0,
+            totalCount: 0,
+            error: error.message
+        };
     }
 }
 
