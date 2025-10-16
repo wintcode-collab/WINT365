@@ -3604,21 +3604,30 @@ async function sendMessageToGroup() {
         
         console.log('✅ 전송 대상 계정 확인됨:', accountMessages.length, '개');
         
-        // 다중 계정 모드에서는 첫 번째 계정의 메시지 정보를 사용
-        const firstAccountElement = document.querySelector('.account-message-setting');
-        if (firstAccountElement) {
-            const messageText = firstAccountElement.querySelector('.message-preview')?.textContent || '';
-            const mediaInfo = firstAccountElement.dataset.mediaInfo ? JSON.parse(firstAccountElement.dataset.mediaInfo) : null;
-            
-            messageData = {
-                multiAccountMode: true,
-                accountMessages: accountMessages,
-                message: messageText,
-                mediaInfo: mediaInfo
-            };
+        // 다중 계정 모드에서도 메시지 정보 가져오기 (단일 계정 모드와 동일한 방식)
+        let message;
+        let mediaInfo = null;
+        
+        if (window.selectedMediaInfo) {
+            // 저장된 메시지가 선택된 경우
+            mediaInfo = window.selectedMediaInfo;
+            if (mediaInfo.has_custom_emoji) {
+                message = null;
+            } else {
+                message = mediaInfo.text || '';
+            }
         } else {
-            throw new Error('메시지 정보를 찾을 수 없습니다.');
+            // 입력칸에서 메시지 가져오기
+            const messageInput = document.getElementById('messageInput');
+            message = messageInput ? messageInput.value.trim() : '';
         }
+        
+        messageData = {
+            multiAccountMode: true,
+            accountMessages: accountMessages,
+            message: message,
+            mediaInfo: mediaInfo
+        };
     } else {
         // 단일 계정 모드: 기존 로직
         let message;
