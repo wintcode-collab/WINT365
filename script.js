@@ -6209,6 +6209,9 @@ async function initRotationPools() {
     
     // 풀 목록 렌더링
     renderRotationPoolsList();
+    
+    // 풀별 간격 설정 렌더링
+    renderPoolIntervalsList();
 }
 
 // 풀 생성 모달 표시
@@ -6232,6 +6235,7 @@ function createRotationPool(poolName) {
         accounts: [],
         currentIndex: 0,
         lastUsed: null,
+        rotationInterval: 15, // 기본 15분 간격
         createdAt: new Date().toISOString()
     };
     
@@ -6418,17 +6422,29 @@ function savePoolAccounts(poolId) {
     const pool = window.rotationPools[poolId];
     if (!pool) return;
     
-    const checkboxes = document.querySelectorAll('#poolAccountList input[type="checkbox"]:checked');
-    const selectedAccountIds = Array.from(checkboxes).map(cb => 
-        parseInt(cb.id.replace('pool-account-', ''))
-    );
+    console.log('🔍 풀 계정 저장 시작:', poolId);
+    console.log('🔍 현재 선택된 계정들:', window.selectedMultiAccounts);
     
-    // 선택된 계정들로 풀 업데이트
-    pool.accounts = window.selectedMultiAccounts.filter(acc => 
-        selectedAccountIds.includes(acc.user_id)
-    );
+    const checkboxes = document.querySelectorAll('#poolAccountList input[type="checkbox"]:checked');
+    console.log('🔍 체크된 체크박스들:', checkboxes.length, '개');
+    
+    const selectedAccountIds = Array.from(checkboxes).map(cb => {
+        const accountId = cb.id.replace('pool-account-', '');
+        console.log('🔍 체크박스 ID:', cb.id, '→ 계정 ID:', accountId);
+        return accountId;
+    });
+    
+    console.log('🔍 선택된 계정 ID들:', selectedAccountIds);
+    
+    // 선택된 계정들로 풀 업데이트 (user_id가 문자열일 수 있으므로 문자열 비교)
+    pool.accounts = window.selectedMultiAccounts.filter(acc => {
+        const isSelected = selectedAccountIds.includes(acc.user_id.toString());
+        console.log('🔍 계정 확인:', acc.user_id, acc.first_name, '선택됨:', isSelected);
+        return isSelected;
+    });
     
     console.log(`💾 풀 ${pool.name} 계정 저장:`, pool.accounts.length, '개');
+    console.log('🔍 저장된 계정들:', pool.accounts.map(acc => `${acc.first_name} (${acc.user_id})`));
     
     // 풀 목록 업데이트
     renderRotationPoolsList();
@@ -6462,12 +6478,96 @@ function showManagePoolsModal() {
     
     let message = '생성된 로테이션 풀:\n\n';
     Object.values(window.rotationPools).forEach(pool => {
-        message += `• ${pool.name}: ${pool.accounts.length}개 계정\n`;
+        const intervalMinutes = pool.rotationInterval || 15;
+        const totalCycleMinutes = intervalMinutes * pool.accounts.length;
+        const totalCycleHours = Math.floor(totalCycleMinutes / 60);
+        const remainingMinutes = totalCycleMinutes % 60;
+        
+        const cycleText = totalCycleHours > 0 
+            ? `${totalCycleHours}시간 ${remainingMinutes}분`
+            : `${totalCycleMinutes}분`;
+        
+        message += `• ${pool.name}: ${pool.accounts.length}개 계정, ${intervalMinutes}분 간격\n  전체 주기: ${cycleText}\n\n`;
     });
     
     alert(message);
 }
 
+// 풀별 간격 설정 렌더링
+function renderPoolIntervalsList() {
+    const intervalsList = document.getElementById('poolIntervalsList');
+    if (!intervalsList) return;
+    
+    const pools = Object.values(window.rotationPools);
+    
+    if (pools.length === 0) {
+        intervalsList.innerHTML = '<p style="margin: 0; color: #888; font-size: 12px;">풀을 생성한 후 간격을 설정할 수 있습니다</p>';
+        return;
+    }
+    
+    let html = '';
+    pools.forEach(pool => {
+        const intervalMinutes = pool.rotationInterval || 15; // 기본 15분
+        const accountCount = pool.accounts.length;
+        const totalCycleMinutes = intervalMinutes * accountCount;
+        const totalCycleHours = Math.floor(totalCycleMinutes / 60);
+        const remainingMinutes = totalCycleMinutes % 60;
+        
+        const cycleText = totalCycleHours > 0 
+            ? `${totalCycleHours}시간 ${remainingMinutes}분`
+            : `${totalCycleMinutes}분`;
+        
+        html += `
+            <div style="margin-bottom: 15px; padding: 10px; background: rgba(255,255,255,0.1); border-radius: 6px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span style="font-weight: 600; color: #10B981;">${pool.name}</span>
+                    <span style="font-size: 12px; color: #888;">${accountCount}개 계정</span>
+                </div>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <label style="font-size: 12px; color: #666;">간격:</label>
+                    <input type="number" 
+                           id="pool-interval-${pool.id}" 
+                           value="${intervalMinutes}" 
+                           min="1" 
+                           max="1440" 
+                           style="width: 60px; padding: 4px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;"
+                           onchange="updatePoolInterval('${pool.id}', this.value)">
+                    <span style="font-size: 12px; color: #666;">분</span>
+                    <span style="font-size: 11px; color: #888; margin-left: 10px;">
+                        전체 주기: ${cycleText}
+                    </span>
+                </div>
+            </div>
+        `;
+    });
+    
+    intervalsList.innerHTML = html;
+}
+
+// 풀 간격 업데이트
+function updatePoolInterval(poolId, intervalMinutes) {
+    const pool = window.rotationPools[poolId];
+    if (!pool) return;
+    
+    const interval = parseInt(intervalMinutes);
+    if (isNaN(interval) || interval < 1) {
+        alert('간격은 1분 이상이어야 합니다.');
+        return;
+    }
+    
+    pool.rotationInterval = interval;
+    
+    console.log(`⏰ 풀 ${pool.name} 간격 업데이트: ${interval}분`);
+    
+    // 풀 설정 저장
+    savePoolSettings();
+    
+    // 간격 목록 다시 렌더링
+    renderPoolIntervalsList();
+    
+    // 풀 목록도 업데이트
+    renderRotationPoolsList();
+}
 // 풀 목록 렌더링
 function renderRotationPoolsList() {
     const poolsInfo = document.getElementById('rotationPoolsInfo');
@@ -6482,10 +6582,22 @@ function renderRotationPoolsList() {
     
     const poolList = Object.values(window.rotationPools).map(pool => {
         const accountNames = pool.accounts.map(acc => acc.first_name).join(', ');
-        return `• ${pool.name}: ${pool.accounts.length}개 계정 (${accountNames})`;
+        const intervalMinutes = pool.rotationInterval || 15;
+        const totalCycleMinutes = intervalMinutes * pool.accounts.length;
+        const totalCycleHours = Math.floor(totalCycleMinutes / 60);
+        const remainingMinutes = totalCycleMinutes % 60;
+        
+        const cycleText = totalCycleHours > 0 
+            ? `${totalCycleHours}시간 ${remainingMinutes}분`
+            : `${totalCycleMinutes}분`;
+        
+        return `• ${pool.name}: ${pool.accounts.length}개 계정, ${intervalMinutes}분 간격 (전체 주기: ${cycleText})`;
     }).join('<br>');
     
     poolsInfo.innerHTML = `✅ ${poolCount}개 풀 생성됨:<br>${poolList}`;
+    
+    // 풀별 간격 설정도 업데이트
+    renderPoolIntervalsList();
     
     // 그룹별 풀 매핑도 업데이트
     renderGroupPoolMapping();
