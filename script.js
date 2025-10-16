@@ -3242,19 +3242,29 @@ function renderGroupsList(groups) {
     const groupsList = document.getElementById('groupsList');
     if (!groupsList) return;
     
-    groupsList.innerHTML = groups.map((group, index) => `
+    groupsList.innerHTML = groups.map((group, index) => {
+        // 다중 계정 모드에서는 그룹이 속한 계정들 찾기
+        let accountIds = [];
+        if (window.multiAccountMode && window.groupAccountMapping && window.groupAccountMapping[group.id]) {
+            accountIds = window.groupAccountMapping[group.id];
+        }
+        
+        return `
         <div class="group-item" data-group-id="${group.id}" data-group-index="${index}">
             <div class="group-checkbox-container">
-                <input type="checkbox" class="group-checkbox" id="group-${group.id}" data-group-id="${group.id}" data-group-title="${group.title}">
+                <input type="checkbox" class="group-checkbox" id="group-${group.id}" data-group-id="${group.id}" data-group-title="${group.title}" data-account-ids="${accountIds.join(',')}">
                 <label for="group-${group.id}" class="group-label">
                     <div class="group-name">${group.title}</div>
                     <div class="group-info">
                         <div class="group-type">
                             ${group.type === 'supergroup' ? '슈퍼그룹' : '채널'}
                         </div>
+                        ${window.multiAccountMode ? `<div class="group-accounts">계정: ${accountIds.length}개</div>` : ''}
                     </div>
                 </label>
             </div>
+        `;
+    }).join('');
             <div class="group-status-info">
                 <div class="group-message-count">
                     <span class="status-label">메시지 수:</span>
@@ -3480,16 +3490,23 @@ function getAccountGroupsForAccount(accountId) {
     const checkedBoxes = document.querySelectorAll('.group-checkbox:checked');
     const accountGroups = [];
     
-    checkedBoxes.forEach(checkbox => {
+    console.log(`🔍 계정 ${accountId}의 그룹 찾기 시작`);
+    console.log(`🔍 체크된 체크박스 수: ${checkedBoxes.length}`);
+    
+    checkedBoxes.forEach((checkbox, index) => {
         const groupId = checkbox.dataset.groupId;
-        const groupAccountId = checkbox.dataset.accountId;
+        const accountIds = checkbox.dataset.accountIds;
         
-        // 해당 계정의 그룹인지 확인
-        if (groupAccountId === accountId && groupId && groupId !== 'undefined') {
+        console.log(`🔍 체크박스 ${index}: groupId=${groupId}, accountIds=${accountIds}, targetAccountId=${accountId}`);
+        
+        // 해당 계정의 그룹인지 확인 (쉼표로 구분된 계정 ID 목록에서 찾기)
+        if (accountIds && accountIds.includes(accountId) && groupId && groupId !== 'undefined') {
             accountGroups.push(groupId);
+            console.log(`✅ 그룹 추가: ${groupId}`);
         }
     });
     
+    console.log(`🔍 계정 ${accountId}의 최종 그룹:`, accountGroups);
     return accountGroups;
 }
 
