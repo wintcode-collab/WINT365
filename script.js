@@ -3721,9 +3721,23 @@ async function sendMessageToGroup() {
                     continue;
                 }
                 
-                // 메시지 정보 가져오기
-                const messageText = accountElement.querySelector('.message-preview')?.textContent || '';
+                // 메시지 정보 가져오기 (다중계정 모드: 각 계정별 메시지)
+                const messagePreview = accountElement.querySelector('.message-preview');
+                const messageText = messagePreview ? messagePreview.textContent.trim() : '';
                 const mediaInfo = accountElement.dataset.mediaInfo ? JSON.parse(accountElement.dataset.mediaInfo) : null;
+                
+                console.log(`🔍 계정 ${account.user_id} 메시지 정보:`, {
+                    messagePreview: !!messagePreview,
+                    messageText: messageText,
+                    mediaInfo: !!mediaInfo
+                });
+                
+                // 메시지가 비어있으면 전송 제외
+                if (!messageText || messageText.trim() === '') {
+                    console.error(`❌ 계정 ${account.user_id}의 메시지가 비어있습니다.`);
+                    failCount++;
+                    continue;
+                }
                 
                 for (let i = 0; i < account.selectedGroups.length; i++) {
                     const groupId = account.selectedGroups[i];
@@ -3739,12 +3753,27 @@ async function sendMessageToGroup() {
                             mediaInfo: mediaInfo
                         };
                         
-                        // 메시지가 비어있는 경우 처리
-                        if (!messageText || messageText.trim() === '') {
+                        // 메시지가 비어있는 경우 다른 방법으로 시도
+                        let finalMessage = messageText;
+                        if (!finalMessage || finalMessage.trim() === '') {
+                            // statusSpan에서 메시지 추출 시도
+                            const statusSpan = accountElement.querySelector('span[data-account-id]');
+                            if (statusSpan && statusSpan.textContent !== '- 저장된 메시지를 선택하세요') {
+                                const statusText = statusSpan.textContent;
+                                // "- " 제거하고 메시지 추출
+                                finalMessage = statusText.replace(/^- /, '').trim();
+                                console.log(`🔍 statusSpan에서 메시지 추출: ${finalMessage}`);
+                            }
+                        }
+                        
+                        if (!finalMessage || finalMessage.trim() === '') {
                             console.error(`❌ 계정 ${account.user_id}의 메시지가 비어있습니다.`);
                             failCount++;
                             continue;
                         }
+                        
+                        // 최종 메시지로 업데이트
+                        sendData.message = finalMessage;
                         
                         // 커스텀 이모지가 있는 경우 원본 메시지 객체 전체를 전송
                         if (mediaInfo && mediaInfo.has_custom_emoji) {
