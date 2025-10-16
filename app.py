@@ -2553,6 +2553,54 @@ def save_account_group_mapping():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 # ============================================================
+# 로테이션 풀 시스템 API 엔드포인트
+# ============================================================
+
+@app.route('/api/rotation-pools/save', methods=['POST'])
+def save_rotation_pools():
+    """로테이션 풀 설정 저장"""
+    try:
+        data = request.get_json()
+        user_id = data.get('user_id')
+        pools_data = data.get('pools_data')
+        
+        if not user_id or not pools_data:
+            return jsonify({'success': False, 'error': '필수 데이터가 누락되었습니다.'}), 400
+        
+        # Firebase에 저장
+        success = save_rotation_pools_to_firebase(user_id, pools_data)
+        
+        if success:
+            return jsonify({'success': True, 'message': '풀 설정이 저장되었습니다.'})
+        else:
+            return jsonify({'success': False, 'error': '풀 설정 저장에 실패했습니다.'}), 500
+            
+    except Exception as e:
+        logger.error(f'❌ 풀 설정 저장 에러: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/rotation-pools/load', methods=['GET'])
+def load_rotation_pools():
+    """로테이션 풀 설정 로드"""
+    try:
+        user_id = request.args.get('user_id')
+        
+        if not user_id:
+            return jsonify({'success': False, 'error': '사용자 ID가 필요합니다.'}), 400
+        
+        # Firebase에서 조회
+        pools_data = get_rotation_pools_from_firebase(user_id)
+        
+        if pools_data is not None:
+            return jsonify({'success': True, 'pools_data': pools_data})
+        else:
+            return jsonify({'success': True, 'pools_data': None, 'message': '저장된 풀 설정이 없습니다.'})
+            
+    except Exception as e:
+        logger.error(f'❌ 풀 설정 로드 에러: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# ============================================================
 # 계정 로테이션 시스템
 # ============================================================
 
@@ -2777,6 +2825,61 @@ def get_auto_send_status_from_firebase(user_id):
             
     except Exception as e:
         logger.error(f'🔥 Firebase 자동전송 상태 조회 에러: {e}')
+    return None
+
+# ============================================================
+# 로테이션 풀 시스템 Firebase API
+# ============================================================
+
+def save_rotation_pools_to_firebase(user_id, pools_data):
+    """Firebase에 로테이션 풀 설정 저장"""
+    try:
+        logger.info(f'🔥 Firebase 로테이션 풀 설정 저장 시작: {user_id}')
+        
+        # 데이터 검증
+        if not isinstance(pools_data, dict):
+            logger.error('❌ 풀 데이터 형식이 올바르지 않습니다.')
+            return False
+        
+        url = f"{FIREBASE_URL}/rotation_pools/{user_id}.json"
+        logger.info(f'🔥 Firebase URL: {url}')
+        
+        response = requests.put(url, json=pools_data, timeout=10)
+        logger.info(f'🔥 Firebase 응답 상태: {response.status_code}')
+        logger.info(f'🔥 Firebase 응답 내용: {response.text}')
+        
+        if response.status_code == 200:
+            logger.info(f'🔥 Firebase 로테이션 풀 설정 저장 성공: {user_id}')
+            return True
+        else:
+            logger.error(f'🔥 Firebase 로테이션 풀 설정 저장 실패: {response.status_code} - {response.text}')
+            return False
+            
+    except Exception as e:
+        logger.error(f'🔥 Firebase 로테이션 풀 설정 저장 에러: {e}')
+        return False
+
+def get_rotation_pools_from_firebase(user_id):
+    """Firebase에서 로테이션 풀 설정 조회"""
+    try:
+        url = f"{FIREBASE_URL}/rotation_pools/{user_id}.json"
+        
+        response = requests.get(url, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data:
+                logger.info(f'🔥 Firebase 로테이션 풀 설정 조회 성공: {user_id}')
+                return data
+            else:
+                logger.info(f'🔥 Firebase 로테이션 풀 설정 없음: {user_id}')
+                return None
+        else:
+            logger.error(f'🔥 Firebase 로테이션 풀 설정 조회 실패: {response.status_code}')
+            return None
+            
+    except Exception as e:
+        logger.error(f'🔥 Firebase 로테이션 풀 설정 조회 에러: {e}')
         return None
 
 def schedule_retry_for_group(user_id, group_id, message, media_info, wait_seconds=480):

@@ -520,6 +520,96 @@
                     </div>
                 </div>
 
+                <!-- 로테이션 풀 관리 섹션 -->
+                <div class="setting-section">
+                    <div class="setting-item">
+                        <label>
+                            <input type="checkbox" id="enableRotationPools" style="margin-right: 8px;">
+                            🔄 로테이션 풀 시스템 (고급)
+                        </label>
+                        <p class="setting-description" style="margin-top: 8px; color: #888; font-size: 12px; line-height: 1.4;">
+                            • 여러 계정 그룹을 독립적으로 로테이션할 수 있습니다<br>
+                            • 각 풀은 독립적으로 순환하며 서로 영향을 주지 않습니다<br>
+                            • 그룹별로 사용할 풀을 선택할 수 있습니다
+                        </p>
+                    </div>
+                    
+                    <div id="rotationPoolsSettings" style="display: none; margin-top: 15px;">
+                        <!-- 풀 관리 버튼들 -->
+                        <div class="setting-item" style="margin-bottom: 20px;">
+                            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                                <button id="createRotationPool" style="
+                                    background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+                                    color: white;
+                                    border: none;
+                                    padding: 10px 16px;
+                                    border-radius: 6px;
+                                    font-size: 14px;
+                                    font-weight: 600;
+                                    cursor: pointer;
+                                    transition: all 0.3s ease;
+                                ">➕ 새 풀 생성</button>
+                                
+                                <button id="managePools" style="
+                                    background: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%);
+                                    color: white;
+                                    border: none;
+                                    padding: 10px 16px;
+                                    border-radius: 6px;
+                                    font-size: 14px;
+                                    font-weight: 600;
+                                    cursor: pointer;
+                                    transition: all 0.3s ease;
+                                ">⚙️ 풀 관리</button>
+                                
+                                <button id="setupGroupPoolMapping" style="
+                                    background: linear-gradient(135deg, #A855F7 0%, #9333EA 100%);
+                                    color: white;
+                                    border: none;
+                                    padding: 10px 16px;
+                                    border-radius: 6px;
+                                    font-size: 14px;
+                                    font-weight: 600;
+                                    cursor: pointer;
+                                    transition: all 0.3s ease;
+                                ">🗺️ 그룹별 풀 설정</button>
+                            </div>
+                        </div>
+                        
+                        <!-- 풀 목록 표시 -->
+                        <div class="setting-item">
+                            <label>로테이션 풀 목록:</label>
+                            <div id="rotationPoolsList" style="
+                                padding: 12px; 
+                                background: rgba(99, 102, 241, 0.1); 
+                                border-radius: 8px; 
+                                border-left: 3px solid #6366F1;
+                                min-height: 60px;
+                            ">
+                                <p id="rotationPoolsInfo" style="margin: 0; color: #6366F1; font-size: 14px; font-weight: 600;">
+                                    풀을 생성하여 시작하세요
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <!-- 그룹별 풀 매핑 -->
+                        <div class="setting-item">
+                            <label>그룹별 풀 설정:</label>
+                            <div id="groupPoolMapping" style="
+                                padding: 12px; 
+                                background: rgba(168, 85, 247, 0.1); 
+                                border-radius: 8px; 
+                                border-left: 3px solid #A855F7;
+                                min-height: 60px;
+                            ">
+                                <p id="groupPoolMappingInfo" style="margin: 0; color: #A855F7; font-size: 14px; font-weight: 600;">
+                                    풀을 생성한 후 그룹별 설정을 할 수 있습니다
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
             </div>
 
             <div class="auto-send-settings-footer">

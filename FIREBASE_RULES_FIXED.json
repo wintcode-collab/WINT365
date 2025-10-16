@@ -24,6 +24,26 @@
       ".read": true,
       ".write": true
     },
+    "auto_send_settings": {
+      ".read": true,
+      ".write": true
+    },
+    "auto_send_status": {
+      ".read": true,
+      ".write": true
+    },
+    "account_group_mapping": {
+      ".read": true,
+      ".write": true
+    },
+    "account_saved_messages": {
+      ".read": true,
+      ".write": true
+    },
+    "rotation_pools": {
+      ".read": true,
+      ".write": true
+    },
     ".read": false,
     ".write": false
   }

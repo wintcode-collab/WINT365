@@ -1887,7 +1887,7 @@ function showAccountList(accounts) {
                 selectedAccounts.push(account);
                 item.style.background = 'linear-gradient(135deg, #374151 0%, #1F2937 100%)'; // 어두운 회색 배경
                 item.style.borderColor = '#4B5563';
-                item.classList.add('selected');
+            item.classList.add('selected');
                 
                 // 텍스트 색상을 흰색으로 변경 (어두운 배경에 잘 보이도록)
                 const nameEl = item.querySelector('div > div:first-child');
@@ -1912,7 +1912,7 @@ function showAccountList(accounts) {
     
     // 확인 버튼 상태 업데이트 함수
     function updateConfirmButton() {
-        const confirmBtn = modal.querySelector('#confirmAccountSelection');
+            const confirmBtn = modal.querySelector('#confirmAccountSelection');
         if (selectedAccounts.length > 0) {
             confirmBtn.style.opacity = '1';
             confirmBtn.style.pointerEvents = 'auto';
@@ -1924,8 +1924,8 @@ function showAccountList(accounts) {
     
     // 확인 버튼 이벤트
     modal.querySelector('#confirmAccountSelection').addEventListener('click', async () => {
-        // 모달 닫기
-        document.body.removeChild(modal);
+            // 모달 닫기
+            document.body.removeChild(modal);
         
         // 다중 선택 모드 (2개 이상)
         if (selectedAccounts.length >= 2) {
@@ -3518,10 +3518,14 @@ async function sendMessageToGroup() {
     const messageInput = document.querySelector('.message-input');
     const sendBtn = document.getElementById('sendMessageBtn');
     
-    // 메시지 확인 (다중 계정 모드와 단일 계정 모드 구분)
+    // 메시지 확인 (다중 계정 모드, 풀 시스템, 단일 계정 모드 구분)
     let hasValidMessage = false;
     
-    if (window.multiAccountMode) {
+    if (window.rotationPoolsEnabled) {
+        // 풀 시스템 모드: 그룹별로 할당된 풀의 계정들이 메시지를 가지고 있는지 확인
+        console.log('🔄 풀 시스템 모드로 전송 확인');
+        hasValidMessage = await checkPoolSystemMessages(checkedBoxes);
+    } else if (window.multiAccountMode) {
         // 다중 계정 모드: 각 계정별로 선택된 메시지가 있는지 확인
         const accountMessageElements = document.querySelectorAll('.account-message-setting');
         
@@ -3532,7 +3536,7 @@ async function sendMessageToGroup() {
         });
     } else {
         // 단일 계정 모드: 기존 로직
-        const hasSavedMessage = window.selectedMediaInfo && window.selectedMediaInfo.raw_message_data;
+    const hasSavedMessage = window.selectedMediaInfo && window.selectedMediaInfo.raw_message_data;
         hasValidMessage = messageInput && (messageInput.value.trim() || hasSavedMessage);
     }
     
@@ -3617,30 +3621,30 @@ async function sendMessageToGroup() {
         };
     } else {
         // 단일 계정 모드: 기존 로직
-        let message;
-        let mediaInfo = null;
+    let message;
+    let mediaInfo = null;
+    
+    if (window.selectedMediaInfo) {
+        // 저장된 메시지가 선택된 경우 - 원본 메시지 객체 전체를 그대로 전송
+        mediaInfo = window.selectedMediaInfo;
         
-        if (window.selectedMediaInfo) {
-            // 저장된 메시지가 선택된 경우 - 원본 메시지 객체 전체를 그대로 전송
-            mediaInfo = window.selectedMediaInfo;
-            
-            // 커스텀 이모지가 있는 경우 원본 메시지 객체 전체를 전송
-            if (mediaInfo.has_custom_emoji) {
-                // 텍스트 처리를 완전히 우회하고 원본 메시지 객체를 그대로 전송
-                message = null; // 텍스트는 null로 설정
-                console.log('📤 커스텀 이모지 원본 객체 전체 전송 모드');
-                console.log('📤 원본 메시지 객체:', mediaInfo.raw_message_data);
-            } else {
-                message = mediaInfo.text || messageInput.value.trim();
-                console.log('📤 일반 저장된 메시지 사용:', message);
-            }
-            
-            console.log('📤 최종 전송 메시지:', message);
-            console.log('📤 미디어 정보:', mediaInfo);
-            console.log('📤 커스텀 이모지 여부:', mediaInfo.has_custom_emoji);
+        // 커스텀 이모지가 있는 경우 원본 메시지 객체 전체를 전송
+        if (mediaInfo.has_custom_emoji) {
+            // 텍스트 처리를 완전히 우회하고 원본 메시지 객체를 그대로 전송
+            message = null; // 텍스트는 null로 설정
+            console.log('📤 커스텀 이모지 원본 객체 전체 전송 모드');
+            console.log('📤 원본 메시지 객체:', mediaInfo.raw_message_data);
         } else {
-            message = messageInput.value.trim();
-            console.log('📤 입력칸 텍스트 사용:', message);
+            message = mediaInfo.text || messageInput.value.trim();
+            console.log('📤 일반 저장된 메시지 사용:', message);
+        }
+        
+        console.log('📤 최종 전송 메시지:', message);
+        console.log('📤 미디어 정보:', mediaInfo);
+        console.log('📤 커스텀 이모지 여부:', mediaInfo.has_custom_emoji);
+    } else {
+        message = messageInput.value.trim();
+        console.log('📤 입력칸 텍스트 사용:', message);
         }
         
         messageData = {
@@ -3699,7 +3703,23 @@ async function sendMessageToGroup() {
     try {
         let account;
         
-        if (window.multiAccountMode && messageData.multiAccountMode) {
+        if (window.rotationPoolsEnabled) {
+            // 풀 시스템 모드: 그룹별로 할당된 풀의 계정들로 전송
+            console.log('🚀 풀 시스템 모드로 전송 시작');
+            const sendResults = await sendMessageWithPoolSystem(checkedBoxes);
+            
+            const successCount = sendResults.filter(r => r.success).length;
+            const failCount = sendResults.filter(r => !r.success).length;
+            
+            if (successCount > 0) {
+                alert(`✅ 메시지 전송 완료!\n성공: ${successCount}개\n실패: ${failCount}개`);
+            } else {
+                alert(`❌ 모든 전송이 실패했습니다.\n실패: ${failCount}개`);
+            }
+            
+            console.log('📊 풀 시스템 전송 결과:', sendResults);
+            
+        } else if (window.multiAccountMode && messageData.multiAccountMode) {
             // 다중 계정 모드: 전송 대상 계정들 사용
             console.log('🔄 다중 계정 모드: 전송 대상 계정들 사용');
             const accounts = messageData.accountMessages.map(accountMsg => {
@@ -3839,28 +3859,28 @@ async function sendMessageToGroup() {
             return; // 다중 계정 모드 전송 완료
         } else {
             // 단일 계정 모드: 기존 로직
-            const accountName = document.getElementById('selectedAccountName').textContent;
-            const accountPhone = document.getElementById('selectedAccountPhone').textContent;
-            
-            // 계정 목록에서 해당 계정 찾기
-            const response = await fetch('/api/telegram/load-accounts', {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                }
-            });
-            
-            const result = await response.json();
-            if (!response.ok || !result.success || !result.accounts) {
-                throw new Error(result.error || '계정 목록 로딩 실패');
+        const accountName = document.getElementById('selectedAccountName').textContent;
+        const accountPhone = document.getElementById('selectedAccountPhone').textContent;
+        
+        // 계정 목록에서 해당 계정 찾기
+        const response = await fetch('/api/telegram/load-accounts', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
             }
-            
+        });
+        
+        const result = await response.json();
+        if (!response.ok || !result.success || !result.accounts) {
+            throw new Error(result.error || '계정 목록 로딩 실패');
+        }
+        
             account = result.accounts.find(acc => 
-                `${acc.first_name} ${acc.last_name || ''}`.trim() === accountName.trim()
-            );
-            
-            if (!account) {
-                throw new Error('계정을 찾을 수 없습니다.');
+            `${acc.first_name} ${acc.last_name || ''}`.trim() === accountName.trim()
+        );
+        
+        if (!account) {
+            throw new Error('계정을 찾을 수 없습니다.');
             }
         }
         
@@ -4832,6 +4852,9 @@ async function showAutoSendSettingsModal() {
         
         // 계정 로테이션 기능 초기화
         await initAccountRotation();
+        
+        // 로테이션 풀 시스템 초기화
+        await initRotationPools();
     }
 }
 
@@ -6108,6 +6131,960 @@ document.addEventListener('DOMContentLoaded', function() {
 
 let rotationAccounts = []; // 로테이션에 사용할 계정 목록
 let selectedRotationAccounts = []; // 사용자가 선택한 로테이션 계정들
+
+// 로테이션 풀 시스템 (새로운 기능)
+window.rotationPools = {}; // 로테이션 풀 관리
+window.groupPoolMapping = {}; // 그룹별 풀 매핑
+window.poolRotationIndex = {}; // 풀별 로테이션 인덱스
+window.rotationPoolsEnabled = false; // 풀 시스템 활성화 여부
+
+// 로테이션 풀 시스템 초기화
+async function initRotationPools() {
+    console.log('🔄 로테이션 풀 시스템 초기화');
+    
+    const enablePoolsCheckbox = document.getElementById('enableRotationPools');
+    const poolsSettings = document.getElementById('rotationPoolsSettings');
+    
+    if (!enablePoolsCheckbox || !poolsSettings) {
+        console.warn('⚠️ 로테이션 풀 UI 요소를 찾을 수 없습니다.');
+        return;
+    }
+    
+    // 이벤트 리스너 설정
+    enablePoolsCheckbox.addEventListener('change', function() {
+        window.rotationPoolsEnabled = this.checked;
+        
+        if (this.checked) {
+            poolsSettings.style.display = 'block';
+            console.log('✅ 로테이션 풀 시스템 활성화');
+        } else {
+            poolsSettings.style.display = 'none';
+            console.log('❌ 로테이션 풀 시스템 비활성화');
+        }
+    });
+    
+    // 풀 생성 버튼
+    const createPoolBtn = document.getElementById('createRotationPool');
+    if (createPoolBtn) {
+        createPoolBtn.addEventListener('click', showCreatePoolModal);
+    }
+    
+    // 풀 관리 버튼
+    const managePoolsBtn = document.getElementById('managePools');
+    if (managePoolsBtn) {
+        managePoolsBtn.addEventListener('click', showManagePoolsModal);
+    }
+    
+    // 그룹별 풀 매핑 버튼
+    const groupPoolMappingBtn = document.getElementById('setupGroupPoolMapping');
+    if (groupPoolMappingBtn) {
+        groupPoolMappingBtn.addEventListener('click', showGroupPoolMappingModal);
+    }
+    
+    // 저장된 풀 설정 로드
+    await loadSavedPoolSettings();
+    
+    // 풀 목록 렌더링
+    renderRotationPoolsList();
+}
+
+// 풀 생성 모달 표시
+function showCreatePoolModal() {
+    console.log('➕ 풀 생성 모달 표시');
+    
+    const poolName = prompt('새 로테이션 풀의 이름을 입력하세요:', '로테이션 풀 ' + (Object.keys(window.rotationPools).length + 1));
+    
+    if (poolName && poolName.trim()) {
+        createRotationPool(poolName.trim());
+    }
+}
+
+// 로테이션 풀 생성
+function createRotationPool(poolName) {
+    const poolId = 'pool_' + Date.now();
+    
+    window.rotationPools[poolId] = {
+        id: poolId,
+        name: poolName,
+        accounts: [],
+        currentIndex: 0,
+        lastUsed: null,
+        createdAt: new Date().toISOString()
+    };
+    
+    window.poolRotationIndex[poolId] = 0;
+    
+    console.log(`✅ 로테이션 풀 생성: ${poolName} (${poolId})`);
+    
+    // 풀 목록 업데이트
+    renderRotationPoolsList();
+    
+    // 풀 설정 저장
+    savePoolSettings();
+    
+    // 풀 관리 모달 표시 (계정 추가를 위해)
+    showManagePoolModal(poolId);
+}
+
+// 풀 관리 모달 표시
+function showManagePoolModal(poolId) {
+    const pool = window.rotationPools[poolId];
+    if (!pool) {
+        console.error('❌ 풀을 찾을 수 없습니다:', poolId);
+        return;
+    }
+    
+    console.log(`⚙️ 풀 관리 모달 표시: ${pool.name}`);
+    
+    // 간단한 계정 선택 모달
+    const availableAccounts = window.selectedMultiAccounts || [];
+    
+    if (availableAccounts.length === 0) {
+        alert('사용 가능한 계정이 없습니다. 먼저 계정을 선택해주세요.');
+        return;
+    }
+    
+    // 계정 선택 모달 HTML 생성
+    let modalHtml = `
+        <div class="modal-overlay" id="poolManageModal" style="
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+        ">
+            <div class="modal-content" style="
+                background: #1a1a1a;
+                border-radius: 12px;
+                padding: 24px;
+                max-width: 500px;
+                width: 90%;
+                max-height: 80%;
+                overflow-y: auto;
+            ">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h3 style="color: #fff; margin: 0; font-size: 18px;">⚙️ ${pool.name} 관리</h3>
+                    <button id="closePoolModal" style="
+                        background: none;
+                        border: none;
+                        color: #888;
+                        font-size: 24px;
+                        cursor: pointer;
+                        padding: 0;
+                        width: 30px;
+                        height: 30px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                    ">×</button>
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                    <label style="color: #fff; font-weight: 600; margin-bottom: 10px; display: block;">계정 선택:</label>
+                    <div id="poolAccountList" style="
+                        max-height: 200px;
+                        overflow-y: auto;
+                        border: 1px solid #333;
+                        border-radius: 6px;
+                        padding: 10px;
+                    "></div>
+                </div>
+                
+                <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                    <button id="savePoolAccounts" style="
+                        background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+                        color: white;
+                        border: none;
+                        padding: 10px 20px;
+                        border-radius: 6px;
+                        font-size: 14px;
+                        font-weight: 600;
+                        cursor: pointer;
+                    ">💾 저장</button>
+                    <button id="cancelPoolModal" style="
+                        background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);
+                        color: white;
+                        border: none;
+                        padding: 10px 20px;
+                        border-radius: 6px;
+                        font-size: 14px;
+                        font-weight: 600;
+                        cursor: pointer;
+                    ">취소</button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // 모달 HTML 삽입
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // 계정 목록 렌더링
+    renderPoolAccountList(poolId, availableAccounts);
+    
+    // 이벤트 리스너 설정
+    setupPoolModalEvents(poolId);
+}
+
+// 풀 계정 목록 렌더링
+function renderPoolAccountList(poolId, availableAccounts) {
+    const pool = window.rotationPools[poolId];
+    const accountList = document.getElementById('poolAccountList');
+    
+    if (!accountList) return;
+    
+    accountList.innerHTML = availableAccounts.map(account => {
+        const isSelected = pool.accounts.some(acc => acc.user_id === account.user_id);
+        
+        return `
+            <div style="
+                display: flex;
+                align-items: center;
+                padding: 8px;
+                border-radius: 4px;
+                margin-bottom: 5px;
+                background: ${isSelected ? 'rgba(16, 185, 129, 0.1)' : 'transparent'};
+                border: 1px solid ${isSelected ? '#10B981' : '#333'};
+            ">
+                <input type="checkbox" 
+                       id="pool-account-${account.user_id}" 
+                       ${isSelected ? 'checked' : ''}
+                       style="margin-right: 10px; transform: scale(1.2);">
+                <label for="pool-account-${account.user_id}" style="
+                    color: #fff;
+                    cursor: pointer;
+                    flex: 1;
+                    margin: 0;
+                ">
+                    ${account.first_name} ${account.last_name || ''} (${account.phone})
+                </label>
+            </div>
+        `;
+    }).join('');
+}
+
+// 풀 모달 이벤트 설정
+function setupPoolModalEvents(poolId) {
+    // 닫기 버튼
+    const closeBtn = document.getElementById('closePoolModal');
+    const cancelBtn = document.getElementById('cancelPoolModal');
+    const modal = document.getElementById('poolManageModal');
+    
+    if (closeBtn) closeBtn.addEventListener('click', closePoolModal);
+    if (cancelBtn) cancelBtn.addEventListener('click', closePoolModal);
+    if (modal) {
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) closePoolModal();
+        });
+    }
+    
+    // 저장 버튼
+    const saveBtn = document.getElementById('savePoolAccounts');
+    if (saveBtn) {
+        saveBtn.addEventListener('click', () => savePoolAccounts(poolId));
+    }
+}
+
+// 풀 계정 저장
+function savePoolAccounts(poolId) {
+    const pool = window.rotationPools[poolId];
+    if (!pool) return;
+    
+    const checkboxes = document.querySelectorAll('#poolAccountList input[type="checkbox"]:checked');
+    const selectedAccountIds = Array.from(checkboxes).map(cb => 
+        parseInt(cb.id.replace('pool-account-', ''))
+    );
+    
+    // 선택된 계정들로 풀 업데이트
+    pool.accounts = window.selectedMultiAccounts.filter(acc => 
+        selectedAccountIds.includes(acc.user_id)
+    );
+    
+    console.log(`💾 풀 ${pool.name} 계정 저장:`, pool.accounts.length, '개');
+    
+    // 풀 목록 업데이트
+    renderRotationPoolsList();
+    
+    // 풀 설정 저장
+    savePoolSettings();
+    
+    // 모달 닫기
+    closePoolModal();
+}
+
+// 풀 모달 닫기
+function closePoolModal() {
+    const modal = document.getElementById('poolManageModal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+// 풀 관리 모달 표시 (전체 풀 목록)
+function showManagePoolsModal() {
+    console.log('⚙️ 전체 풀 관리 모달 표시');
+    
+    // 간단한 풀 목록 표시
+    const poolCount = Object.keys(window.rotationPools).length;
+    
+    if (poolCount === 0) {
+        alert('생성된 풀이 없습니다. 먼저 풀을 생성해주세요.');
+        return;
+    }
+    
+    let message = '생성된 로테이션 풀:\n\n';
+    Object.values(window.rotationPools).forEach(pool => {
+        message += `• ${pool.name}: ${pool.accounts.length}개 계정\n`;
+    });
+    
+    alert(message);
+}
+
+// 풀 목록 렌더링
+function renderRotationPoolsList() {
+    const poolsInfo = document.getElementById('rotationPoolsInfo');
+    const poolCount = Object.keys(window.rotationPools).length;
+    
+    if (!poolsInfo) return;
+    
+    if (poolCount === 0) {
+        poolsInfo.innerHTML = '풀을 생성하여 시작하세요';
+        return;
+    }
+    
+    const poolList = Object.values(window.rotationPools).map(pool => {
+        const accountNames = pool.accounts.map(acc => acc.first_name).join(', ');
+        return `• ${pool.name}: ${pool.accounts.length}개 계정 (${accountNames})`;
+    }).join('<br>');
+    
+    poolsInfo.innerHTML = `✅ ${poolCount}개 풀 생성됨:<br>${poolList}`;
+    
+    // 그룹별 풀 매핑도 업데이트
+    renderGroupPoolMapping();
+}
+
+// 그룹별 풀 매핑 렌더링
+function renderGroupPoolMapping() {
+    const mappingInfo = document.getElementById('groupPoolMappingInfo');
+    
+    if (!mappingInfo) return;
+    
+    const mappingCount = Object.keys(window.groupPoolMapping).length;
+    
+    if (mappingCount === 0) {
+        mappingInfo.innerHTML = '풀을 생성한 후 그룹별 설정을 할 수 있습니다';
+        return;
+    }
+    
+    const mappingList = Object.entries(window.groupPoolMapping).map(([groupName, poolIds]) => {
+        const poolNames = poolIds.map(poolId => window.rotationPools[poolId]?.name || poolId).join(', ');
+        return `• ${groupName}: ${poolNames}`;
+    }).join('<br>');
+    
+    mappingInfo.innerHTML = `✅ ${mappingCount}개 그룹 설정됨:<br>${mappingList}`;
+}
+
+// 풀 설정 저장
+async function savePoolSettings() {
+    try {
+        const poolData = {
+            pools: window.rotationPools,
+            groupMapping: window.groupPoolMapping,
+            rotationIndex: window.poolRotationIndex,
+            enabled: window.rotationPoolsEnabled
+        };
+        
+        // 로컬 스토리지에 저장
+        localStorage.setItem('rotationPools', JSON.stringify(poolData));
+        
+        // Firebase에도 저장
+        const key = getCurrentAccountKey ? getCurrentAccountKey() : null;
+        if (key) {
+            try {
+                const response = await fetch(`${getApiBaseUrl()}/api/rotation-pools/save`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        user_id: key,
+                        pools_data: poolData
+                    })
+                });
+                
+                if (response.ok) {
+                    console.log('✅ Firebase 풀 설정 저장 성공');
+                } else {
+                    console.warn('⚠️ Firebase 풀 설정 저장 실패');
+                }
+            } catch (error) {
+                console.warn('⚠️ Firebase 풀 설정 저장 에러:', error);
+            }
+        }
+        
+        console.log('💾 풀 설정 저장 완료');
+    } catch (error) {
+        console.error('❌ 풀 설정 저장 실패:', error);
+    }
+}
+
+// 저장된 풀 설정 로드
+async function loadSavedPoolSettings() {
+    try {
+        // 로컬 스토리지에서 로드
+        const savedData = localStorage.getItem('rotationPools');
+        if (savedData) {
+            const poolData = JSON.parse(savedData);
+            
+            window.rotationPools = poolData.pools || {};
+            window.groupPoolMapping = poolData.groupMapping || {};
+            window.poolRotationIndex = poolData.rotationIndex || {};
+            window.rotationPoolsEnabled = poolData.enabled || false;
+            
+            console.log('✅ 풀 설정 로드 완료:', Object.keys(window.rotationPools).length, '개 풀');
+        }
+        
+        // Firebase에서도 로드
+        const key = getCurrentAccountKey ? getCurrentAccountKey() : null;
+        if (key) {
+            try {
+                const response = await fetch(`${getApiBaseUrl()}/api/rotation-pools/load?user_id=${key}`);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    if (data.success && data.pools_data && !savedData) {
+                        // 로컬에 없고 Firebase에 있으면 Firebase 데이터 사용
+                        window.rotationPools = data.pools_data.pools || {};
+                        window.groupPoolMapping = data.pools_data.groupMapping || {};
+                        window.poolRotationIndex = data.pools_data.rotationIndex || {};
+                        window.rotationPoolsEnabled = data.pools_data.enabled || false;
+                        
+                        console.log('✅ Firebase에서 풀 설정 로드 완료');
+                    }
+                } else {
+                    console.warn('⚠️ Firebase 풀 설정 로드 실패');
+                }
+            } catch (error) {
+                console.warn('⚠️ Firebase 풀 설정 로드 에러:', error);
+            }
+        }
+    } catch (error) {
+        console.error('❌ 풀 설정 로드 실패:', error);
+    }
+}
+
+// ============================================================
+// 독립적 로테이션 로직
+// ============================================================
+
+// 특정 풀에서 다음 계정 가져오기
+function getNextAccountFromPool(poolId, groupId = null) {
+    const pool = window.rotationPools[poolId];
+    
+    if (!pool || !pool.accounts || pool.accounts.length === 0) {
+        console.warn(`⚠️ 풀 ${poolId}에 계정이 없습니다.`);
+        return null;
+    }
+    
+    // 현재 인덱스에서 계정 가져오기
+    const currentIndex = window.poolRotationIndex[poolId] || 0;
+    const account = pool.accounts[currentIndex];
+    
+    // 다음 인덱스로 이동
+    window.poolRotationIndex[poolId] = (currentIndex + 1) % pool.accounts.length;
+    
+    // 풀 사용 시간 업데이트
+    pool.lastUsed = Date.now();
+    
+    console.log(`🔄 풀 ${pool.name}에서 계정 ${account.first_name} 선택 (${currentIndex + 1}/${pool.accounts.length})`);
+    
+    return account;
+}
+
+// 특정 풀의 현재 계정 가져오기 (인덱스 변경 없음)
+function getCurrentAccountFromPool(poolId) {
+    const pool = window.rotationPools[poolId];
+    
+    if (!pool || !pool.accounts || pool.accounts.length === 0) {
+        return null;
+    }
+    
+    const currentIndex = window.poolRotationIndex[poolId] || 0;
+    return pool.accounts[currentIndex];
+}
+
+// 그룹에 할당된 풀들의 계정 가져오기
+function getAccountsForGroupFromPools(groupId) {
+    const poolIds = window.groupPoolMapping[groupId];
+    
+    if (!poolIds || poolIds.length === 0) {
+        console.warn(`⚠️ 그룹 ${groupId}에 할당된 풀이 없습니다.`);
+        return [];
+    }
+    
+    const accounts = [];
+    
+    poolIds.forEach(poolId => {
+        const account = getNextAccountFromPool(poolId, groupId);
+        if (account) {
+            accounts.push({
+                ...account,
+                poolId: poolId,
+                poolName: window.rotationPools[poolId]?.name || poolId
+            });
+        }
+    });
+    
+    console.log(`🔍 그룹 ${groupId}에 할당된 ${accounts.length}개 계정:`, accounts.map(acc => `${acc.first_name} (${acc.poolName})`));
+    
+    return accounts;
+}
+
+// 모든 풀의 로테이션 상태 초기화
+function resetAllPoolRotations() {
+    Object.keys(window.poolRotationIndex).forEach(poolId => {
+        window.poolRotationIndex[poolId] = 0;
+    });
+    
+    console.log('🔄 모든 풀의 로테이션 상태 초기화');
+}
+
+// 특정 풀의 로테이션 상태 초기화
+function resetPoolRotation(poolId) {
+    window.poolRotationIndex[poolId] = 0;
+    console.log(`🔄 풀 ${poolId}의 로테이션 상태 초기화`);
+}
+
+// 풀별 로테이션 통계
+function getPoolRotationStats() {
+    const stats = {};
+    
+    Object.entries(window.rotationPools).forEach(([poolId, pool]) => {
+        const currentIndex = window.poolRotationIndex[poolId] || 0;
+        
+        stats[poolId] = {
+            name: pool.name,
+            totalAccounts: pool.accounts.length,
+            currentIndex: currentIndex,
+            currentAccount: pool.accounts[currentIndex]?.first_name || 'N/A',
+            lastUsed: pool.lastUsed ? new Date(pool.lastUsed).toLocaleString() : 'Never',
+            progress: pool.accounts.length > 0 ? `${currentIndex + 1}/${pool.accounts.length}` : '0/0'
+        };
+    });
+    
+    return stats;
+}
+
+// ============================================================
+// 그룹별 풀 매핑 시스템
+// ============================================================
+
+// 그룹별 풀 매핑 설정 모달 표시
+function showGroupPoolMappingModal() {
+    console.log('🗺️ 그룹별 풀 매핑 모달 표시');
+    
+    // 그룹 목록 가져오기
+    const groups = Array.from(document.querySelectorAll('.group-checkbox')).map(checkbox => ({
+        id: checkbox.dataset.groupId,
+        title: checkbox.dataset.groupTitle
+    }));
+    
+    if (groups.length === 0) {
+        alert('그룹이 없습니다. 먼저 그룹을 로드해주세요.');
+        return;
+    }
+    
+    // 풀 목록 가져오기
+    const pools = Object.values(window.rotationPools);
+    
+    if (pools.length === 0) {
+        alert('풀이 없습니다. 먼저 풀을 생성해주세요.');
+        return;
+    }
+    
+    // 모달 HTML 생성
+    let modalHtml = `
+        <div class="modal-overlay" id="groupPoolMappingModal" style="
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+        ">
+            <div class="modal-content" style="
+                background: #1a1a1a;
+                border-radius: 12px;
+                padding: 24px;
+                max-width: 600px;
+                width: 90%;
+                max-height: 80%;
+                overflow-y: auto;
+            ">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h3 style="color: #fff; margin: 0; font-size: 18px;">🗺️ 그룹별 풀 설정</h3>
+                    <button id="closeGroupPoolModal" style="
+                        background: none;
+                        border: none;
+                        color: #888;
+                        font-size: 24px;
+                        cursor: pointer;
+                        padding: 0;
+                        width: 30px;
+                        height: 30px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                    ">×</button>
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                    <p style="color: #888; font-size: 14px; margin-bottom: 15px;">
+                        각 그룹에서 사용할 풀을 선택하세요. 여러 풀을 선택하면 모든 풀의 계정이 사용됩니다.
+                    </p>
+                    <div id="groupPoolMappingList" style="
+                        max-height: 400px;
+                        overflow-y: auto;
+                        border: 1px solid #333;
+                        border-radius: 6px;
+                        padding: 15px;
+                    "></div>
+                </div>
+                
+                <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                    <button id="saveGroupPoolMapping" style="
+                        background: linear-gradient(135deg, #A855F7 0%, #9333EA 100%);
+                        color: white;
+                        border: none;
+                        padding: 10px 20px;
+                        border-radius: 6px;
+                        font-size: 14px;
+                        font-weight: 600;
+                        cursor: pointer;
+                    ">💾 저장</button>
+                    <button id="cancelGroupPoolModal" style="
+                        background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);
+                        color: white;
+                        border: none;
+                        padding: 10px 20px;
+                        border-radius: 6px;
+                        font-size: 14px;
+                        font-weight: 600;
+                        cursor: pointer;
+                    ">취소</button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // 모달 HTML 삽입
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // 그룹별 풀 매핑 목록 렌더링
+    renderGroupPoolMappingList(groups, pools);
+    
+    // 이벤트 리스너 설정
+    setupGroupPoolMappingModalEvents();
+}
+
+// 그룹별 풀 매핑 목록 렌더링
+function renderGroupPoolMappingList(groups, pools) {
+    const mappingList = document.getElementById('groupPoolMappingList');
+    
+    if (!mappingList) return;
+    
+    mappingList.innerHTML = groups.map(group => {
+        const currentPoolIds = window.groupPoolMapping[group.id] || [];
+        
+        return `
+            <div style="
+                margin-bottom: 20px;
+                padding: 15px;
+                border: 1px solid #333;
+                border-radius: 8px;
+                background: rgba(168, 85, 247, 0.05);
+            ">
+                <div style="
+                    color: #fff;
+                    font-weight: 600;
+                    margin-bottom: 10px;
+                    font-size: 14px;
+                ">
+                    📱 ${group.title}
+                </div>
+                
+                <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                    ${pools.map(pool => {
+                        const isSelected = currentPoolIds.includes(pool.id);
+                        return `
+                            <label style="
+                                display: flex;
+                                align-items: center;
+                                padding: 6px 12px;
+                                border-radius: 6px;
+                                cursor: pointer;
+                                font-size: 12px;
+                                background: ${isSelected ? 'rgba(168, 85, 247, 0.2)' : 'rgba(255, 255, 255, 0.05)'};
+                                border: 1px solid ${isSelected ? '#A855F7' : '#333'};
+                                color: ${isSelected ? '#A855F7' : '#fff'};
+                                transition: all 0.2s ease;
+                            ">
+                                <input type="checkbox" 
+                                       id="group-${group.id}-pool-${pool.id}"
+                                       ${isSelected ? 'checked' : ''}
+                                       style="margin-right: 6px; transform: scale(1.1);">
+                                ${pool.name} (${pool.accounts.length}개)
+                            </label>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// 그룹별 풀 매핑 모달 이벤트 설정
+function setupGroupPoolMappingModalEvents() {
+    // 닫기 버튼
+    const closeBtn = document.getElementById('closeGroupPoolModal');
+    const cancelBtn = document.getElementById('cancelGroupPoolModal');
+    const modal = document.getElementById('groupPoolMappingModal');
+    
+    if (closeBtn) closeBtn.addEventListener('click', closeGroupPoolMappingModal);
+    if (cancelBtn) cancelBtn.addEventListener('click', closeGroupPoolMappingModal);
+    if (modal) {
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) closeGroupPoolMappingModal();
+        });
+    }
+    
+    // 저장 버튼
+    const saveBtn = document.getElementById('saveGroupPoolMapping');
+    if (saveBtn) {
+        saveBtn.addEventListener('click', saveGroupPoolMapping);
+    }
+}
+
+// 그룹별 풀 매핑 저장
+function saveGroupPoolMapping() {
+    // 기존 매핑 초기화
+    window.groupPoolMapping = {};
+    
+    // 체크박스에서 매핑 정보 수집
+    const checkboxes = document.querySelectorAll('#groupPoolMappingList input[type="checkbox"]:checked');
+    
+    checkboxes.forEach(checkbox => {
+        const groupId = checkbox.id.match(/group-(\d+)-pool-/)[1];
+        const poolId = checkbox.id.match(/group-\d+-pool-(.+)/)[1];
+        
+        if (!window.groupPoolMapping[groupId]) {
+            window.groupPoolMapping[groupId] = [];
+        }
+        
+        if (!window.groupPoolMapping[groupId].includes(poolId)) {
+            window.groupPoolMapping[groupId].push(poolId);
+        }
+    });
+    
+    console.log('💾 그룹별 풀 매핑 저장:', window.groupPoolMapping);
+    
+    // UI 업데이트
+    renderGroupPoolMapping();
+    
+    // 설정 저장
+    savePoolSettings();
+    
+    // 모달 닫기
+    closeGroupPoolMappingModal();
+}
+
+// ============================================================
+// 풀 시스템 전송 로직
+// ============================================================
+
+// 풀 시스템에서 메시지 확인
+async function checkPoolSystemMessages(checkedBoxes) {
+    console.log('🔍 풀 시스템 메시지 확인 시작');
+    
+    let hasValidMessages = false;
+    const groupMessages = {};
+    
+    for (const checkbox of checkedBoxes) {
+        const groupId = checkbox.dataset.groupId;
+        const groupTitle = checkbox.dataset.groupTitle;
+        
+        if (!groupId) continue;
+        
+        // 그룹에 할당된 풀들 가져오기
+        const poolIds = window.groupPoolMapping[groupId];
+        
+        if (!poolIds || poolIds.length === 0) {
+            console.warn(`⚠️ 그룹 ${groupTitle}에 할당된 풀이 없습니다.`);
+            continue;
+        }
+        
+        // 각 풀의 계정들이 메시지를 가지고 있는지 확인
+        let groupHasMessages = false;
+        const poolAccounts = [];
+        
+        for (const poolId of poolIds) {
+            const pool = window.rotationPools[poolId];
+            if (!pool || !pool.accounts) continue;
+            
+            for (const account of pool.accounts) {
+                // 해당 계정이 메시지를 가지고 있는지 확인
+                const accountElement = document.querySelector(`.account-message-setting[data-account-id="${account.user_id}"]`);
+                if (accountElement) {
+                    const statusSpan = accountElement.querySelector('span[data-account-id]');
+                    if (statusSpan && statusSpan.textContent !== '- 저장된 메시지를 선택하세요') {
+                        groupHasMessages = true;
+                        poolAccounts.push({
+                            ...account,
+                            poolId: poolId,
+                            poolName: pool.name
+                        });
+                    }
+                }
+            }
+        }
+        
+        if (groupHasMessages) {
+            hasValidMessages = true;
+            groupMessages[groupId] = {
+                title: groupTitle,
+                accounts: poolAccounts
+            };
+        }
+    }
+    
+    console.log('🔍 풀 시스템 메시지 확인 결과:', hasValidMessages ? '유효한 메시지 있음' : '유효한 메시지 없음');
+    console.log('📋 그룹별 계정 정보:', groupMessages);
+    
+    return hasValidMessages;
+}
+
+// 풀 시스템으로 메시지 전송
+async function sendMessageWithPoolSystem(checkedBoxes) {
+    console.log('🚀 풀 시스템으로 메시지 전송 시작');
+    
+    const sendResults = [];
+    
+    for (const checkbox of checkedBoxes) {
+        const groupId = checkbox.dataset.groupId;
+        const groupTitle = checkbox.dataset.groupTitle;
+        
+        if (!groupId) continue;
+        
+        // 그룹에 할당된 풀들에서 계정 가져오기
+        const accounts = getAccountsForGroupFromPools(groupId);
+        
+        if (accounts.length === 0) {
+            console.warn(`⚠️ 그룹 ${groupTitle}에 사용할 수 있는 계정이 없습니다.`);
+            continue;
+        }
+        
+        // 각 계정별로 메시지 전송
+        for (const account of accounts) {
+            try {
+                const result = await sendMessageFromPoolAccount(account, groupId, groupTitle);
+                sendResults.push(result);
+            } catch (error) {
+                console.error(`❌ 계정 ${account.first_name} 전송 실패:`, error);
+                sendResults.push({
+                    success: false,
+                    account: account.first_name,
+                    group: groupTitle,
+                    error: error.message
+                });
+            }
+        }
+    }
+    
+    console.log('📊 전송 결과:', sendResults);
+    return sendResults;
+}
+
+// 풀 계정으로 메시지 전송
+async function sendMessageFromPoolAccount(account, groupId, groupTitle) {
+    console.log(`📤 풀 계정 ${account.first_name} (${account.poolName})으로 그룹 ${groupTitle} 전송`);
+    
+    // 계정의 메시지 정보 가져오기
+    const accountElement = document.querySelector(`.account-message-setting[data-account-id="${account.user_id}"]`);
+    if (!accountElement) {
+        throw new Error('계정 메시지 설정을 찾을 수 없습니다.');
+    }
+    
+    const statusSpan = accountElement.querySelector('span[data-account-id]');
+    if (!statusSpan || statusSpan.textContent === '- 저장된 메시지를 선택하세요') {
+        throw new Error('메시지가 선택되지 않았습니다.');
+    }
+    
+    // 미디어 정보 가져오기
+    const mediaInfoStr = accountElement.dataset.mediaInfo;
+    if (!mediaInfoStr) {
+        throw new Error('미디어 정보가 없습니다.');
+    }
+    
+    const mediaInfo = JSON.parse(mediaInfoStr);
+    
+    // 전송 데이터 구성
+    const sendData = {
+        userId: account.user_id,
+        groupId: groupId,
+        message: mediaInfo.has_custom_emoji ? null : mediaInfo.message,
+        mediaInfo: mediaInfo.has_custom_emoji ? mediaInfo.original_message_object : null,
+        poolInfo: {
+            poolId: account.poolId,
+            poolName: account.poolName
+        }
+    };
+    
+    console.log('📤 전송 데이터:', sendData);
+    
+    // 서버로 전송
+    const response = await fetch(`${getApiBaseUrl()}/api/telegram/send-message`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(sendData)
+    });
+    
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `전송 실패: ${response.status}`);
+    }
+    
+    const result = await response.json();
+    
+    console.log(`✅ 계정 ${account.first_name} (${account.poolName}) 전송 성공:`, result);
+    
+    return {
+        success: true,
+        account: account.first_name,
+        pool: account.poolName,
+        group: groupTitle,
+        result: result
+    };
+}
+
+// 그룹별 풀 매핑 모달 닫기
+function closeGroupPoolMappingModal() {
+    const modal = document.getElementById('groupPoolMappingModal');
+    if (modal) {
+        modal.remove();
+    }
+}
 
 // 계정 로테이션 초기화
 async function initAccountRotation() {
