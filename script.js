@@ -3721,34 +3721,29 @@ async function sendMessageToGroup() {
                     continue;
                 }
                 
-                // 메시지 정보 가져오기 (다중계정 모드: 각 계정별 메시지)
-                const messagePreview = accountElement.querySelector('.message-preview');
-                let messageText = messagePreview ? messagePreview.textContent.trim() : '';
+                // 메시지 정보 가져오기 (다중계정 모드: 원본 메시지 객체 사용)
                 const mediaInfo = accountElement.dataset.mediaInfo ? JSON.parse(accountElement.dataset.mediaInfo) : null;
                 
-                // messagePreview가 없으면 statusSpan에서 메시지 추출
-                if (!messageText || messageText.trim() === '') {
-                    const statusSpan = accountElement.querySelector('span[data-account-id]');
-                    if (statusSpan && statusSpan.textContent !== '- 저장된 메시지를 선택하세요') {
-                        const statusText = statusSpan.textContent;
-                        // "- " 제거하고 메시지 추출
-                        messageText = statusText.replace(/^- /, '').trim();
-                        console.log(`🔍 statusSpan에서 메시지 추출: ${messageText}`);
-                    }
-                }
-                
-                console.log(`🔍 계정 ${account.user_id} 메시지 정보:`, {
-                    messagePreview: !!messagePreview,
-                    messageText: messageText,
-                    mediaInfo: !!mediaInfo
-                });
-                
-                // 메시지가 비어있으면 전송 제외
-                if (!messageText || messageText.trim() === '') {
-                    console.error(`❌ 계정 ${account.user_id}의 메시지가 비어있습니다.`);
+                if (!mediaInfo) {
+                    console.error(`❌ 계정 ${account.user_id}의 미디어 정보가 없습니다.`);
                     failCount++;
                     continue;
                 }
+                
+                // 원본 메시지 객체 사용 (단일계정 모드와 동일)
+                let message;
+                if (mediaInfo.has_custom_emoji) {
+                    message = null; // 커스텀 이모지는 원본 객체로 전송
+                } else {
+                    message = mediaInfo.text || '';
+                }
+                
+                console.log(`🔍 계정 ${account.user_id} 메시지 정보:`, {
+                    message: message,
+                    mediaInfo: !!mediaInfo,
+                    hasCustomEmoji: mediaInfo.has_custom_emoji,
+                    originalMessageObject: !!mediaInfo.original_message_object
+                });
                 
                 for (let i = 0; i < account.selectedGroups.length; i++) {
                     const groupId = account.selectedGroups[i];
@@ -3760,39 +3755,22 @@ async function sendMessageToGroup() {
                         const sendData = {
                             userId: account.user_id,
                             groupId: groupId,
-                            message: messageText,
+                            message: message,
                             mediaInfo: mediaInfo
                         };
                         
-                        // 메시지가 비어있는 경우 다른 방법으로 시도
-                        let finalMessage = messageText;
-                        if (!finalMessage || finalMessage.trim() === '') {
-                            // statusSpan에서 메시지 추출 시도
-                            const statusSpan = accountElement.querySelector('span[data-account-id]');
-                            if (statusSpan && statusSpan.textContent !== '- 저장된 메시지를 선택하세요') {
-                                const statusText = statusSpan.textContent;
-                                // "- " 제거하고 메시지 추출
-                                finalMessage = statusText.replace(/^- /, '').trim();
-                                console.log(`🔍 statusSpan에서 메시지 추출: ${finalMessage}`);
-                            }
-                        }
                         
-                        if (!finalMessage || finalMessage.trim() === '') {
-                            console.error(`❌ 계정 ${account.user_id}의 메시지가 비어있습니다.`);
-                            failCount++;
-                            continue;
-                        }
-                        
-                        // 최종 메시지로 업데이트
-                        sendData.message = finalMessage;
-                        
-                        // 커스텀 이모지가 있는 경우 원본 메시지 객체 전체를 전송
+                        // 커스텀 이모지가 있는 경우 원본 메시지 객체 전체를 전송 (단일계정 모드와 동일)
                         if (mediaInfo && mediaInfo.has_custom_emoji) {
+                            // 텍스트 처리를 완전히 우회하고 원본 메시지 객체를 그대로 전송
                             sendData.original_message_object = mediaInfo.original_message_object || mediaInfo.raw_message_data || mediaInfo;
                             sendData.is_original_message = true;
                             sendData.bypass_text_processing = true;
-                            sendData.message = null;
+                            sendData.message = null; // 텍스트는 null로 설정
                             sendData.send_as_original = true;
+                            
+                            console.log('📤 커스텀 이모지 원본 객체 전체 전송 모드');
+                            console.log('📤 원본 메시지 객체:', mediaInfo.raw_message_data);
                         }
                         
                         // 원본 메시지 객체가 있는 경우 우선 사용
@@ -3805,7 +3783,7 @@ async function sendMessageToGroup() {
                         }
                         
                         console.log('📤 서버로 전송할 데이터:', sendData);
-                        console.log('📤 메시지 텍스트:', messageText);
+                        console.log('📤 메시지 텍스트:', message);
                         console.log('📤 미디어 정보:', mediaInfo);
                         console.log('📤 계정 ID:', account.user_id);
                         console.log('📤 그룹 ID:', groupId);
