@@ -2622,32 +2622,37 @@ def refresh_account_info():
         
         # 텔레그램에서 실제 최신 정보 가져오기
         try:
-            # 세션 파일 경로 확인 (전화번호로 찾기)
-            import os
-            home_dir = os.path.expanduser("~")
-            
-            # 전화번호로 세션 파일 찾기
-            phone = account_info.get('phone', '')
+            # Firebase에 저장된 session_data 사용
+            session_data = account_info.get('session_data', '')
             session_path = None
             
-            logger.info(f'🔍 계정 정보: user_id={user_id}, phone={phone}')
+            logger.info(f'🔍 계정 정보: user_id={user_id}')
             
-            # 가능한 세션 파일 경로들
-            possible_paths = [
-                os.path.join(home_dir, f"session_{phone}.session"),
-                os.path.join(home_dir, f"session_+{phone}.session"),
-                os.path.join(home_dir, f"sessions/{user_id}.session"),
-                os.path.join(home_dir, f"sessions/{phone}.session")
-            ]
-            
-            logger.info(f'🔍 검색할 경로들: {possible_paths}')
-            
-            for path in possible_paths:
-                if os.path.exists(path):
-                    session_path = path
-                    break
-            
-            logger.info(f'🔍 찾은 세션 파일: {session_path}')
+            if session_data:
+                # Firebase에서 session_data를 가져와서 임시 세션 파일 생성
+                import os
+                import base64
+                import tempfile
+                
+                try:
+                    # session_data를 디코딩
+                    decoded_session = base64.b64decode(session_data)
+                    
+                    # 임시 세션 파일 생성
+                    temp_dir = tempfile.gettempdir()
+                    session_path = os.path.join(temp_dir, f"temp_session_{user_id}.session")
+                    
+                    # 세션 데이터를 파일로 저장
+                    with open(session_path, 'wb') as f:
+                        f.write(decoded_session)
+                    
+                    logger.info(f'✅ Firebase session_data로 임시 세션 파일 생성: {session_path}')
+                    
+                except Exception as e:
+                    logger.error(f'❌ session_data 디코딩 실패: {e}')
+                    session_path = None
+            else:
+                logger.warning(f'⚠️ session_data가 없음: {user_id}')
             
             # 세션 파일 존재 확인
             if not session_path:
@@ -2717,28 +2722,35 @@ def refresh_account_info():
 async def refresh_account_info_async(account_info):
     """비동기 계정 정보 새로고침 함수"""
     try:
-        # 세션 파일 경로 확인 (전화번호로 찾기)
-        import os
-        home_dir = os.path.expanduser("~")
-        
-        # 전화번호로 세션 파일 찾기
-        phone = account_info.get('phone', '')
+        # Firebase에 저장된 session_data 사용
+        session_data = account_info.get('session_data', '')
         session_path = None
         
-        # 가능한 세션 파일 경로들
-        possible_paths = [
-            os.path.join(home_dir, f"session_{phone}.session"),
-            os.path.join(home_dir, f"session_+{phone}.session"),
-            os.path.join(home_dir, f"sessions/{account_info['user_id']}.session"),
-            os.path.join(home_dir, f"sessions/{phone}.session")
-        ]
-        
-        for path in possible_paths:
-            if os.path.exists(path):
-                session_path = path
-                break
-        
-        logger.info(f'🔍 찾은 세션 파일: {session_path}')
+        if session_data:
+            # Firebase에서 session_data를 가져와서 임시 세션 파일 생성
+            import os
+            import base64
+            import tempfile
+            
+            try:
+                # session_data를 디코딩
+                decoded_session = base64.b64decode(session_data)
+                
+                # 임시 세션 파일 생성
+                temp_dir = tempfile.gettempdir()
+                session_path = os.path.join(temp_dir, f"temp_session_{account_info['user_id']}.session")
+                
+                # 세션 데이터를 파일로 저장
+                with open(session_path, 'wb') as f:
+                    f.write(decoded_session)
+                
+                logger.info(f'✅ Firebase session_data로 임시 세션 파일 생성: {session_path}')
+                
+            except Exception as e:
+                logger.error(f'❌ session_data 디코딩 실패: {e}')
+                session_path = None
+        else:
+            logger.warning(f'⚠️ session_data가 없음: {account_info["user_id"]}')
         
         # 세션 파일 존재 확인
         if not session_path:
