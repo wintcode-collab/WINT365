@@ -3604,10 +3604,21 @@ async function sendMessageToGroup() {
         
         console.log('✅ 전송 대상 계정 확인됨:', accountMessages.length, '개');
         
-        messageData = {
-            multiAccountMode: true,
-            accountMessages: accountMessages
-        };
+        // 다중 계정 모드에서는 첫 번째 계정의 메시지 정보를 사용
+        const firstAccountElement = document.querySelector('.account-message-setting');
+        if (firstAccountElement) {
+            const messageText = firstAccountElement.querySelector('.message-preview')?.textContent || '';
+            const mediaInfo = firstAccountElement.dataset.mediaInfo ? JSON.parse(firstAccountElement.dataset.mediaInfo) : null;
+            
+            messageData = {
+                multiAccountMode: true,
+                accountMessages: accountMessages,
+                message: messageText,
+                mediaInfo: mediaInfo
+            };
+        } else {
+            throw new Error('메시지 정보를 찾을 수 없습니다.');
+        }
     } else {
         // 단일 계정 모드: 기존 로직
         let message;
@@ -3695,8 +3706,18 @@ async function sendMessageToGroup() {
         if (window.multiAccountMode && messageData.multiAccountMode) {
             // 다중 계정 모드: 선택된 계정들 사용
             console.log('🔄 다중 계정 모드 전송 시작');
+            console.log('🔍 window.selectedMultiAccounts:', window.selectedMultiAccounts);
+            console.log('🔍 messageData.accountMessages:', messageData.accountMessages);
+            
+            if (!window.selectedMultiAccounts || window.selectedMultiAccounts.length === 0) {
+                throw new Error('선택된 다중 계정이 없습니다. 계정을 다시 선택해주세요.');
+            }
+            
             accounts = messageData.accountMessages.map(accountMsg => {
+                console.log(`🔍 계정 ${accountMsg.accountId} 찾는 중...`);
                 const account = window.selectedMultiAccounts.find(acc => acc.user_id === accountMsg.accountId);
+                console.log(`🔍 찾은 계정:`, account);
+                
                 if (!account) {
                     throw new Error(`계정 ${accountMsg.accountId}를 찾을 수 없습니다.`);
                 }
