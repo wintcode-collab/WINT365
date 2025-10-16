@@ -1761,7 +1761,7 @@ function showAccountList(accounts) {
                 <h2 style="color: #10B981; margin: 0; font-size: 24px; font-weight: 600;">
                 📱 연동된 텔레그램 계정
             </h2>
-                <button id="refreshAccountsInModal" style="
+                <button onclick="handleRefreshAccountsInModal()" style="
                     background: linear-gradient(135deg, #10B981 0%, #059669 100%);
                     color: white;
                     border: none;
@@ -2325,69 +2325,6 @@ function showAccountSelectionModal(accounts) {
 // 계정 선택 모달 이벤트 설정
 function setupAccountSelectionModalEvents() {
     let selectedAccountId = null;
-    
-    // 이벤트 위임을 사용한 새로고침 버튼 이벤트
-    console.log('🔧 이벤트 위임으로 새로고침 버튼 이벤트 설정');
-    
-    // 모달에 이벤트 위임 등록
-    const modal = document.getElementById('accountListModal');
-    if (modal) {
-        modal.addEventListener('click', async function(e) {
-            // 새로고침 버튼 클릭 확인
-            if (e.target && e.target.id === 'refreshAccountsInModal') {
-                e.preventDefault();
-                e.stopPropagation();
-                
-                console.log('🔄 새로고침 버튼 클릭됨!');
-                
-                const refreshBtn = e.target;
-                
-                try {
-                    console.log('🔄 모달 내 계정 정보 새로고침 시작');
-                    
-                    // 버튼 비활성화
-                    refreshBtn.disabled = true;
-                    refreshBtn.textContent = '⏳';
-                    refreshBtn.style.opacity = '0.6';
-                    refreshBtn.style.cursor = 'not-allowed';
-                    
-                    // 모든 계정 정보 새로고침
-                    const result = await refreshAllAccountsInfo();
-                    
-                    if (result.success) {
-                        console.log(`✅ 계정 정보 새로고침 완료: ${result.successCount}/${result.totalCount}개`);
-                        
-                        // 성공 메시지
-                        alert(`✅ 계정 정보 새로고침 완료!\n성공: ${result.successCount}개\n전체: ${result.totalCount}개`);
-                        
-                        // 모달 닫고 다시 열기 (업데이트된 정보로)
-                        const modal = document.getElementById('accountListModal');
-                        if (modal) {
-                            modal.remove();
-                        }
-                        
-                        // 업데이트된 계정 목록으로 모달 다시 표시
-                        showAccountList(window.selectedMultiAccounts);
-                    } else {
-                        alert('❌ 계정 정보 새로고침에 실패했습니다.');
-                    }
-                    
-                } catch (error) {
-                    console.error('❌ 모달 내 계정 정보 새로고침 에러:', error);
-                    alert(`❌ 계정 정보 새로고침 실패: ${error.message}`);
-                } finally {
-                    // 버튼 활성화
-                    refreshBtn.disabled = false;
-                    refreshBtn.textContent = '🔄';
-                    refreshBtn.style.opacity = '1';
-                    refreshBtn.style.cursor = 'pointer';
-                }
-            }
-        });
-        console.log('✅ 이벤트 위임 등록 완료');
-    } else {
-        console.error('❌ 모달을 찾을 수 없습니다.');
-    }
     
     // 계정 아이템 클릭 이벤트 (포커스 표시)
     document.querySelectorAll('.account-item').forEach(item => {
@@ -7700,6 +7637,38 @@ async function refreshAllAccountsInfo() {
         };
     }
 }
+
+// 전역 함수: 모달 내 새로고침 핸들러
+window.handleRefreshAccountsInModal = async function() {
+    console.log('🔄 새로고침 버튼 클릭됨! (전역 함수)');
+    
+    try {
+        // 모든 계정 정보 새로고침
+        const result = await refreshAllAccountsInfo();
+        
+        if (result.success) {
+            console.log(`✅ 계정 정보 새로고침 완료: ${result.successCount}/${result.totalCount}개`);
+            
+            // 성공 메시지
+            alert(`✅ 계정 정보 새로고침 완료!\n성공: ${result.successCount}개\n전체: ${result.totalCount}개`);
+            
+            // 모달 닫고 다시 열기 (업데이트된 정보로)
+            const modal = document.getElementById('accountListModal');
+            if (modal) {
+                modal.remove();
+            }
+            
+            // 업데이트된 계정 목록으로 모달 다시 표시
+            showAccountList(window.selectedMultiAccounts);
+        } else {
+            alert('❌ 계정 정보 새로고침에 실패했습니다.');
+        }
+        
+    } catch (error) {
+        console.error('❌ 모달 내 계정 정보 새로고침 에러:', error);
+        alert(`❌ 계정 정보 새로고침 실패: ${error.message}`);
+    }
+};
 
 // 계정 정보 새로고침 핸들러
 async function handleRefreshAccounts() {
