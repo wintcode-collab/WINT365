@@ -6198,6 +6198,12 @@ async function initRotationPools() {
         managePoolsBtn.addEventListener('click', showManagePoolsModal);
     }
     
+    // 풀 삭제 버튼
+    const deletePoolBtn = document.getElementById('deletePool');
+    if (deletePoolBtn) {
+        deletePoolBtn.addEventListener('click', showDeletePoolModal);
+    }
+    
     // 그룹별 풀 매핑 버튼
     const groupPoolMappingBtn = document.getElementById('setupGroupPoolMapping');
     if (groupPoolMappingBtn) {
@@ -6493,6 +6499,264 @@ function showManagePoolsModal() {
     alert(message);
 }
 
+// 풀 삭제 모달 표시
+function showDeletePoolModal() {
+    console.log('🗑️ 풀 삭제 모달 표시');
+    
+    const poolCount = Object.keys(window.rotationPools).length;
+    
+    if (poolCount === 0) {
+        alert('삭제할 풀이 없습니다. 먼저 풀을 생성해주세요.');
+        return;
+    }
+    
+    // 풀 선택 모달 HTML 생성
+    let modalHtml = `
+        <div class="modal-overlay" id="deletePoolModal" style="
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+        ">
+            <div style="
+                background: white;
+                padding: 30px;
+                border-radius: 12px;
+                max-width: 500px;
+                width: 90%;
+                max-height: 80vh;
+                overflow-y: auto;
+                box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            ">
+                <h3 style="margin: 0 0 20px 0; color: #EF4444; font-size: 18px; font-weight: 600;">
+                    🗑️ 풀 삭제
+                </h3>
+                
+                <p style="margin: 0 0 20px 0; color: #666; font-size: 14px; line-height: 1.5;">
+                    삭제할 풀을 선택하세요. 이 작업은 되돌릴 수 없습니다.
+                </p>
+                
+                <div id="deletePoolList" style="margin-bottom: 20px;">
+    `;
+    
+    // 풀 목록 생성
+    Object.values(window.rotationPools).forEach(pool => {
+        const intervalMinutes = pool.rotationInterval || 15;
+        const totalCycleMinutes = intervalMinutes * pool.accounts.length;
+        const totalCycleHours = Math.floor(totalCycleMinutes / 60);
+        const remainingMinutes = totalCycleMinutes % 60;
+        
+        const cycleText = totalCycleHours > 0 
+            ? `${totalCycleHours}시간 ${remainingMinutes}분`
+            : `${totalCycleMinutes}분`;
+        
+        modalHtml += `
+            <div style="
+                padding: 15px;
+                border: 2px solid #E5E7EB;
+                border-radius: 8px;
+                margin-bottom: 10px;
+                cursor: pointer;
+                transition: all 0.3s ease;
+                background: #F9FAFB;
+            " onclick="selectPoolForDeletion('${pool.id}')" data-pool-id="${pool.id}">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <div style="font-weight: 600; color: #374151; margin-bottom: 5px;">
+                            ${pool.name}
+                        </div>
+                        <div style="font-size: 12px; color: #6B7280;">
+                            ${pool.accounts.length}개 계정, ${intervalMinutes}분 간격
+                        </div>
+                        <div style="font-size: 11px; color: #9CA3AF;">
+                            전체 주기: ${cycleText}
+                        </div>
+                    </div>
+                    <div style="
+                        width: 20px;
+                        height: 20px;
+                        border: 2px solid #D1D5DB;
+                        border-radius: 50%;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        background: white;
+                    " id="pool-check-${pool.id}">
+                        <span style="color: #EF4444; font-size: 12px; display: none;" id="pool-checkmark-${pool.id}">✓</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    modalHtml += `
+                </div>
+                
+                <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                    <button id="cancelDeletePool" style="
+                        background: #6B7280;
+                        color: white;
+                        border: none;
+                        padding: 10px 20px;
+                        border-radius: 6px;
+                        font-size: 14px;
+                        font-weight: 600;
+                        cursor: pointer;
+                    ">취소</button>
+                    <button id="confirmDeletePool" style="
+                        background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
+                        color: white;
+                        border: none;
+                        padding: 10px 20px;
+                        border-radius: 6px;
+                        font-size: 14px;
+                        font-weight: 600;
+                        cursor: pointer;
+                        opacity: 0.5;
+                        pointer-events: none;
+                    ">삭제</button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // 모달 추가
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // 이벤트 리스너 설정
+    setupDeletePoolModalEvents();
+}
+
+// 풀 삭제 모달 이벤트 설정
+function setupDeletePoolModalEvents() {
+    const modal = document.getElementById('deletePoolModal');
+    const cancelBtn = document.getElementById('cancelDeletePool');
+    const confirmBtn = document.getElementById('confirmDeletePool');
+    
+    // 취소 버튼
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', closeDeletePoolModal);
+    }
+    
+    // 확인 버튼
+    if (confirmBtn) {
+        confirmBtn.addEventListener('click', confirmPoolDeletion);
+    }
+    
+    // 배경 클릭으로 닫기
+    if (modal) {
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                closeDeletePoolModal();
+            }
+        });
+    }
+}
+
+// 풀 선택 (삭제용)
+function selectPoolForDeletion(poolId) {
+    console.log('🔍 풀 선택:', poolId);
+    
+    // 모든 선택 해제
+    document.querySelectorAll('[data-pool-id]').forEach(item => {
+        item.style.borderColor = '#E5E7EB';
+        item.style.background = '#F9FAFB';
+        const checkmark = document.getElementById(`pool-checkmark-${item.dataset.poolId}`);
+        if (checkmark) checkmark.style.display = 'none';
+    });
+    
+    // 선택된 풀 강조
+    const selectedItem = document.querySelector(`[data-pool-id="${poolId}"]`);
+    if (selectedItem) {
+        selectedItem.style.borderColor = '#EF4444';
+        selectedItem.style.background = '#FEF2F2';
+        
+        const checkmark = document.getElementById(`pool-checkmark-${poolId}`);
+        if (checkmark) checkmark.style.display = 'block';
+        
+        // 확인 버튼 활성화
+        const confirmBtn = document.getElementById('confirmDeletePool');
+        if (confirmBtn) {
+            confirmBtn.style.opacity = '1';
+            confirmBtn.style.pointerEvents = 'auto';
+            confirmBtn.dataset.selectedPoolId = poolId;
+        }
+    }
+}
+
+// 풀 삭제 확인
+function confirmPoolDeletion() {
+    const confirmBtn = document.getElementById('confirmDeletePool');
+    const poolId = confirmBtn.dataset.selectedPoolId;
+    
+    if (!poolId) {
+        alert('삭제할 풀을 선택해주세요.');
+        return;
+    }
+    
+    const pool = window.rotationPools[poolId];
+    if (!pool) {
+        alert('선택된 풀을 찾을 수 없습니다.');
+        return;
+    }
+    
+    const confirmDelete = confirm(
+        `🗑️ 풀을 삭제하시겠습니까?\n\n` +
+        `풀 이름: ${pool.name}\n` +
+        `계정 수: ${pool.accounts.length}개\n` +
+        `간격: ${pool.rotationInterval || 15}분\n\n` +
+        `⚠️ 이 작업은 되돌릴 수 없습니다!`
+    );
+    
+    if (!confirmDelete) {
+        return;
+    }
+    
+    // 풀 삭제
+    delete window.rotationPools[poolId];
+    delete window.poolRotationIndex[poolId];
+    
+    // 그룹별 풀 매핑에서도 제거
+    Object.keys(window.groupPoolMapping).forEach(groupId => {
+        const poolIds = window.groupPoolMapping[groupId];
+        if (Array.isArray(poolIds)) {
+            window.groupPoolMapping[groupId] = poolIds.filter(id => id !== poolId);
+            if (window.groupPoolMapping[groupId].length === 0) {
+                delete window.groupPoolMapping[groupId];
+            }
+        }
+    });
+    
+    console.log(`🗑️ 풀 삭제 완료: ${pool.name}`);
+    
+    // 풀 설정 저장
+    savePoolSettings();
+    
+    // UI 업데이트
+    renderRotationPoolsList();
+    renderPoolIntervalsList();
+    renderGroupPoolMapping();
+    
+    // 모달 닫기
+    closeDeletePoolModal();
+    
+    alert(`✅ 풀 "${pool.name}"이 삭제되었습니다.`);
+}
+
+// 풀 삭제 모달 닫기
+function closeDeletePoolModal() {
+    const modal = document.getElementById('deletePoolModal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
 // 풀별 간격 설정 렌더링
 function renderPoolIntervalsList() {
     const intervalsList = document.getElementById('poolIntervalsList');
@@ -6521,7 +6785,18 @@ function renderPoolIntervalsList() {
             <div style="margin-bottom: 15px; padding: 10px; background: rgba(255,255,255,0.1); border-radius: 6px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                     <span style="font-weight: 600; color: #10B981;">${pool.name}</span>
-                    <span style="font-size: 12px; color: #888;">${accountCount}개 계정</span>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <span style="font-size: 12px; color: #888;">${accountCount}개 계정</span>
+                        <button onclick="deletePoolFromInterval('${pool.id}')" style="
+                            background: #EF4444;
+                            color: white;
+                            border: none;
+                            padding: 4px 8px;
+                            border-radius: 4px;
+                            font-size: 11px;
+                            cursor: pointer;
+                        ">삭제</button>
+                    </div>
                 </div>
                 <div style="display: flex; gap: 10px; align-items: center;">
                     <label style="font-size: 12px; color: #666;">간격:</label>
@@ -6568,6 +6843,55 @@ function updatePoolInterval(poolId, intervalMinutes) {
     // 풀 목록도 업데이트
     renderRotationPoolsList();
 }
+
+// 간격 설정에서 풀 삭제
+function deletePoolFromInterval(poolId) {
+    const pool = window.rotationPools[poolId];
+    if (!pool) {
+        alert('풀을 찾을 수 없습니다.');
+        return;
+    }
+    
+    const confirmDelete = confirm(
+        `🗑️ 풀을 삭제하시겠습니까?\n\n` +
+        `풀 이름: ${pool.name}\n` +
+        `계정 수: ${pool.accounts.length}개\n` +
+        `간격: ${pool.rotationInterval || 15}분\n\n` +
+        `⚠️ 이 작업은 되돌릴 수 없습니다!`
+    );
+    
+    if (!confirmDelete) {
+        return;
+    }
+    
+    // 풀 삭제
+    delete window.rotationPools[poolId];
+    delete window.poolRotationIndex[poolId];
+    
+    // 그룹별 풀 매핑에서도 제거
+    Object.keys(window.groupPoolMapping).forEach(groupId => {
+        const poolIds = window.groupPoolMapping[groupId];
+        if (Array.isArray(poolIds)) {
+            window.groupPoolMapping[groupId] = poolIds.filter(id => id !== poolId);
+            if (window.groupPoolMapping[groupId].length === 0) {
+                delete window.groupPoolMapping[groupId];
+            }
+        }
+    });
+    
+    console.log(`🗑️ 풀 삭제 완료: ${pool.name}`);
+    
+    // 풀 설정 저장
+    savePoolSettings();
+    
+    // UI 업데이트
+    renderRotationPoolsList();
+    renderPoolIntervalsList();
+    renderGroupPoolMapping();
+    
+    alert(`✅ 풀 "${pool.name}"이 삭제되었습니다.`);
+}
+
 // 풀 목록 렌더링
 function renderRotationPoolsList() {
     const poolsInfo = document.getElementById('rotationPoolsInfo');
