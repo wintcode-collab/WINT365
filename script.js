@@ -5033,6 +5033,10 @@ function loadAutoSendSettings() {
                 window.groupPoolMapping = settings.rotationPools.groupMapping || {};
                 window.poolRotationIndex = settings.rotationPools.rotationIndex || {};
                 console.log('✅ 풀 시스템 설정 로드됨:', settings.rotationPools);
+            } else {
+                // 풀 시스템 설정이 없거나 비활성화되어 있으면 명시적으로 false로 설정
+                window.rotationPoolsEnabled = false;
+                console.log('✅ 풀 시스템 비활성화 상태로 설정');
             }
             
             // 풀 시스템이 비활성화되어 있을 때만 기존 자동전송 설정 로드
@@ -5053,6 +5057,10 @@ function loadAutoSendSettings() {
             } else {
                 console.log('✅ 풀 시스템 활성화됨 - 기존 자동전송 설정 무시');
             }
+        } else {
+            // 설정이 아예 없으면 풀 시스템 비활성화
+            window.rotationPoolsEnabled = false;
+            console.log('✅ 설정 없음 - 풀 시스템 비활성화 상태로 설정');
         }
         
         // 풀 시스템 활성화 상태에 따라 UI 업데이트
@@ -5060,7 +5068,7 @@ function loadAutoSendSettings() {
         const poolsSettings = document.getElementById('rotationPoolsSettings');
         const repeatSendSettings = document.getElementById('repeatSendSettings');
         
-        if (enablePoolsCheckbox && window.rotationPoolsEnabled !== undefined) {
+        if (enablePoolsCheckbox) {
             enablePoolsCheckbox.checked = window.rotationPoolsEnabled;
             
             if (window.rotationPoolsEnabled) {
@@ -5070,7 +5078,7 @@ function loadAutoSendSettings() {
             } else {
                 if (poolsSettings) poolsSettings.style.display = 'none';
                 if (repeatSendSettings) repeatSendSettings.style.display = 'block';
-                console.log('✅ 풀 시스템 비활성화 상태 복원됨');
+                console.log('✅ 풀 시스템 비활성화 상태 복원됨 - 반복전송 설정 표시');
             }
         }
     } catch (error) {
@@ -5101,10 +5109,9 @@ function saveAutoSendSettings() {
         }
     };
     
-    // 풀 시스템이 활성화되어 있으면 기존 자동전송 설정은 저장하지 않음
+    // 풀 시스템이 활성화되어 있으면 기존 자동전송 설정은 무의미한 값으로 설정
     if (window.rotationPoolsEnabled) {
-        console.log('✅ 풀 시스템 활성화됨 - 기존 자동전송 설정 무시');
-        // 풀 시스템 설정만 저장
+        console.log('✅ 풀 시스템 활성화됨 - 기존 자동전송 설정 무의미한 값으로 설정');
         settings.groupInterval = 0; // 무의미한 값으로 설정
         settings.repeatInterval = 0; // 무의미한 값으로 설정
         settings.maxRepeats = 0; // 무의미한 값으로 설정
@@ -6346,8 +6353,8 @@ async function initRotationPools() {
             console.log('❌ 로테이션 풀 시스템 비활성화 - 반복전송 설정 복원');
         }
         
-        // 풀 시스템 상태 변경 시 자동전송 설정도 함께 저장
-        saveAutoSendSettings();
+        // 풀 시스템 상태 변경 시에는 저장하지 않음 (설정 저장 버튼을 눌렀을 때만 저장)
+        console.log('✅ 풀 시스템 상태 변경됨:', window.rotationPoolsEnabled);
     });
     
     // 풀 생성 버튼
@@ -7125,11 +7132,7 @@ async function savePoolSettings() {
         // 로컬 스토리지에 저장
         localStorage.setItem('rotationPools', JSON.stringify(poolData));
         
-        // 풀 시스템 설정이 변경되면 자동전송 설정도 함께 저장
-        if (window.rotationPoolsEnabled) {
-            console.log('✅ 풀 시스템 활성화됨 - 자동전송 설정도 함께 저장');
-            saveAutoSendSettings();
-        }
+        console.log('✅ 풀 시스템 설정 저장됨:', poolData);
         
         // Firebase에도 저장
         const key = getCurrentAccountKey ? getCurrentAccountKey() : null;
