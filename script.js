@@ -3482,10 +3482,28 @@ async function sendMessageToGroup() {
     const messageInput = document.querySelector('.message-input');
     const sendBtn = document.getElementById('sendMessageBtn');
     
-    // 메시지 확인 (저장된 메시지가 선택되어 있으면 입력칸이 비어있어도 OK)
-    const hasSavedMessage = window.selectedMediaInfo && window.selectedMediaInfo.raw_message_data;
+    // 메시지 확인 (다중 계정 모드와 단일 계정 모드 구분)
+    let hasValidMessage = false;
     
-    if (!messageInput || (!messageInput.value.trim() && !hasSavedMessage)) {
+    if (window.multiAccountMode) {
+        // 다중 계정 모드: 각 계정별로 선택된 메시지가 있는지 확인
+        const accountMessageElements = document.querySelectorAll('.account-message-item');
+        hasValidMessage = Array.from(accountMessageElements).some(element => {
+            const statusSpan = element.querySelector('span[data-account-id]');
+            return statusSpan && statusSpan.textContent.includes('저장된 메시지O');
+        });
+        
+        console.log('🔍 다중 계정 모드 메시지 확인:', {
+            accountMessageElements: accountMessageElements.length,
+            hasValidMessage: hasValidMessage
+        });
+    } else {
+        // 단일 계정 모드: 기존 로직
+        const hasSavedMessage = window.selectedMediaInfo && window.selectedMediaInfo.raw_message_data;
+        hasValidMessage = messageInput && (messageInput.value.trim() || hasSavedMessage);
+    }
+    
+    if (!hasValidMessage) {
         alert('전송할 메시지를 입력하거나 저장된 메시지를 선택해주세요.');
         messageInput?.focus();
         return;
@@ -3514,31 +3532,71 @@ async function sendMessageToGroup() {
         }
     } catch (e) { console.warn('선택 그룹 저장 실패', e); }
     
-    // 원본 메시지 데이터가 있으면 우선 사용, 없으면 입력칸의 텍스트 사용
-    let message;
-    let mediaInfo = null;
+    // 메시지 데이터 준비 (다중 계정 모드와 단일 계정 모드 구분)
+    let messageData = null;
     
-    if (window.selectedMediaInfo) {
-        // 저장된 메시지가 선택된 경우 - 원본 메시지 객체 전체를 그대로 전송
-        mediaInfo = window.selectedMediaInfo;
+    if (window.multiAccountMode) {
+        // 다중 계정 모드: 각 계정별 메시지 정보 수집
+        const accountMessages = [];
+        const accountMessageElements = document.querySelectorAll('.account-message-item');
         
-        // 커스텀 이모지가 있는 경우 원본 메시지 객체 전체를 전송
-        if (mediaInfo.has_custom_emoji) {
-            // 텍스트 처리를 완전히 우회하고 원본 메시지 객체를 그대로 전송
-            message = null; // 텍스트는 null로 설정
-            console.log('📤 커스텀 이모지 원본 객체 전체 전송 모드');
-            console.log('📤 원본 메시지 객체:', mediaInfo.raw_message_data);
-        } else {
-            message = mediaInfo.text || messageInput.value.trim();
-            console.log('📤 일반 저장된 메시지 사용:', message);
+        accountMessageElements.forEach(element => {
+            const accountId = element.querySelector('span[data-account-id]')?.getAttribute('data-account-id');
+            const statusSpan = element.querySelector('span[data-account-id]');
+            
+            if (accountId && statusSpan && statusSpan.textContent.includes('저장된 메시지O')) {
+                // 계정별로 선택된 메시지 정보를 저장 (실제로는 서버에서 가져와야 함)
+                accountMessages.push({
+                    accountId: accountId,
+                    hasMessage: true
+                });
+            }
+        });
+        
+        console.log('🔍 다중 계정 모드 메시지 데이터:', accountMessages);
+        
+        if (accountMessages.length === 0) {
+            alert('전송할 메시지를 선택해주세요.');
+            return;
         }
         
-        console.log('📤 최종 전송 메시지:', message);
-        console.log('📤 미디어 정보:', mediaInfo);
-        console.log('📤 커스텀 이모지 여부:', mediaInfo.has_custom_emoji);
+        messageData = {
+            multiAccountMode: true,
+            accountMessages: accountMessages
+        };
     } else {
-        message = messageInput.value.trim();
-        console.log('📤 입력칸 텍스트 사용:', message);
+        // 단일 계정 모드: 기존 로직
+        let message;
+        let mediaInfo = null;
+        
+        if (window.selectedMediaInfo) {
+            // 저장된 메시지가 선택된 경우 - 원본 메시지 객체 전체를 그대로 전송
+            mediaInfo = window.selectedMediaInfo;
+            
+            // 커스텀 이모지가 있는 경우 원본 메시지 객체 전체를 전송
+            if (mediaInfo.has_custom_emoji) {
+                // 텍스트 처리를 완전히 우회하고 원본 메시지 객체를 그대로 전송
+                message = null; // 텍스트는 null로 설정
+                console.log('📤 커스텀 이모지 원본 객체 전체 전송 모드');
+                console.log('📤 원본 메시지 객체:', mediaInfo.raw_message_data);
+            } else {
+                message = mediaInfo.text || messageInput.value.trim();
+                console.log('📤 일반 저장된 메시지 사용:', message);
+            }
+            
+            console.log('📤 최종 전송 메시지:', message);
+            console.log('📤 미디어 정보:', mediaInfo);
+            console.log('📤 커스텀 이모지 여부:', mediaInfo.has_custom_emoji);
+        } else {
+            message = messageInput.value.trim();
+            console.log('📤 입력칸 텍스트 사용:', message);
+        }
+        
+        messageData = {
+            multiAccountMode: false,
+            message: message,
+            mediaInfo: mediaInfo
+        };
     }
     
     console.log('🔍 선택된 그룹 ID들:', selectedGroupIds);
@@ -3566,7 +3624,7 @@ async function sendMessageToGroup() {
         await saveAutoSendSettingsToFirebase(currentSettings);
         
         // 자동전송 시작
-        const autoSendSuccess = await startAutoSendWithGroups(validGroupIds, message, mediaInfo);
+        const autoSendSuccess = await startAutoSendWithGroups(validGroupIds, messageData);
         if (autoSendSuccess) {
             console.log('✅ 자동전송 시작 성공');
             alert('🤖 자동전송이 시작되었습니다!\n\n설정된 간격마다 자동으로 전송됩니다.\nPC를 종료해도 계속 작동합니다.');
