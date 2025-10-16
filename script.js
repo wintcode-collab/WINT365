@@ -3493,10 +3493,6 @@ function getAccountGroupsForAccount(accountId) {
         if (groupAccountId === accountId && groupId && groupId !== 'undefined') {
             accountGroups.push(groupId);
             console.log(`✅ 그룹 추가: ${groupId}`);
-        } else if (!groupAccountId && groupId && groupId !== 'undefined') {
-            // data-account-id가 없는 경우 (다중 계정 모드에서는 모든 그룹 사용 가능)
-            accountGroups.push(groupId);
-            console.log(`✅ 그룹 추가 (공용): ${groupId}`);
         }
     });
     
@@ -3693,19 +3689,10 @@ async function sendMessageToGroup() {
         let accounts = [];
         
         if (window.multiAccountMode && messageData.multiAccountMode) {
-            // 다중 계정 모드: 선택된 계정들 사용
-            console.log('🔄 다중 계정 모드 전송 시작');
-            accounts = messageData.accountMessages.map(accountMsg => {
-                const account = window.selectedMultiAccounts.find(acc => acc.user_id === accountMsg.accountId);
-                if (!account) {
-                    throw new Error(`계정 ${accountMsg.accountId}를 찾을 수 없습니다.`);
-                }
-                return {
-                    ...account,
-                    selectedGroups: accountMsg.selectedGroups
-                };
-            });
-            console.log('🔄 전송할 계정들:', accounts);
+            // 다중 계정 모드: 수동 전송 비활성화
+            console.log('❌ 다중 계정 모드에서는 수동 전송이 비활성화되어 있습니다.');
+            alert('다중 계정 모드에서는 수동 전송이 비활성화되어 있습니다.\n자동 전송을 사용하거나 단일 계정 모드로 전환해주세요.');
+            return;
         } else {
             // 단일 계정 모드: 기존 로직
             const accountName = document.getElementById('selectedAccountName').textContent;
