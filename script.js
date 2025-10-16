@@ -2311,23 +2311,36 @@ function showAccountSelectionModal(accounts) {
     
     // 이벤트 리스너 추가
     setupAccountSelectionModalEvents();
+    
+    // 디버깅: 버튼 생성 확인
+    setTimeout(() => {
+        const refreshBtn = document.getElementById('refreshAccountsInModal');
+        console.log('🔍 새로고침 버튼 존재 확인:', refreshBtn);
+        if (refreshBtn) {
+            console.log('✅ 새로고침 버튼 HTML:', refreshBtn.outerHTML);
+        }
+    }, 200);
 }
 
 // 계정 선택 모달 이벤트 설정
 function setupAccountSelectionModalEvents() {
     let selectedAccountId = null;
     
-    // 모달 내 새로고침 버튼 이벤트 (지연 등록)
-    setTimeout(() => {
-        const refreshBtn = document.getElementById('refreshAccountsInModal');
-        console.log('🔍 새로고침 버튼 찾기:', refreshBtn);
-        
-        if (refreshBtn) {
-            console.log('✅ 새로고침 버튼 이벤트 리스너 등록');
-            
-            refreshBtn.addEventListener('click', async function(e) {
+    // 이벤트 위임을 사용한 새로고침 버튼 이벤트
+    console.log('🔧 이벤트 위임으로 새로고침 버튼 이벤트 설정');
+    
+    // 모달에 이벤트 위임 등록
+    const modal = document.getElementById('accountListModal');
+    if (modal) {
+        modal.addEventListener('click', async function(e) {
+            // 새로고침 버튼 클릭 확인
+            if (e.target && e.target.id === 'refreshAccountsInModal') {
                 e.preventDefault();
                 e.stopPropagation();
+                
+                console.log('🔄 새로고침 버튼 클릭됨!');
+                
+                const refreshBtn = e.target;
                 
                 try {
                     console.log('🔄 모달 내 계정 정보 새로고침 시작');
@@ -2369,11 +2382,12 @@ function setupAccountSelectionModalEvents() {
                     refreshBtn.style.opacity = '1';
                     refreshBtn.style.cursor = 'pointer';
                 }
-            });
-        } else {
-            console.error('❌ 새로고침 버튼을 찾을 수 없습니다.');
-        }
-    }, 100); // 100ms 지연
+            }
+        });
+        console.log('✅ 이벤트 위임 등록 완료');
+    } else {
+        console.error('❌ 모달을 찾을 수 없습니다.');
+    }
     
     // 계정 아이템 클릭 이벤트 (포커스 표시)
     document.querySelectorAll('.account-item').forEach(item => {
