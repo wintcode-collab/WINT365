@@ -3506,25 +3506,12 @@ async function sendMessageToGroup() {
     if (window.multiAccountMode) {
         // 다중 계정 모드: 각 계정별로 선택된 메시지가 있는지 확인
         const accountMessageElements = document.querySelectorAll('.account-message-setting');
-        console.log('🔍 계정별 메시지 요소들:', accountMessageElements);
         
         hasValidMessage = Array.from(accountMessageElements).some(element => {
             const statusSpan = element.querySelector('span[data-account-id]');
-            console.log('🔍 상태 span:', statusSpan, '텍스트:', statusSpan?.textContent);
-            // 메시지가 선택되면 "저장된 메시지를 선택하세요"가 아닌 다른 텍스트로 변경됨
-            return statusSpan && !statusSpan.textContent.includes('저장된 메시지를 선택하세요');
+            // 메시지가 선택되면 텍스트가 "저장된 메시지를 선택하세요"가 아님
+            return statusSpan && statusSpan.textContent !== '- 저장된 메시지를 선택하세요';
         });
-        
-        console.log('🔍 다중 계정 모드 메시지 확인:', {
-            accountMessageElements: accountMessageElements.length,
-            hasValidMessage: hasValidMessage,
-            multiAccountMode: window.multiAccountMode
-        });
-        
-        // 다중 계정 모드에서는 최소 하나의 계정에 메시지가 선택되어 있으면 OK
-        if (hasValidMessage) {
-            console.log('✅ 다중 계정 모드: 메시지 선택 확인됨');
-        }
     } else {
         // 단일 계정 모드: 기존 로직
         const hasSavedMessage = window.selectedMediaInfo && window.selectedMediaInfo.raw_message_data;
@@ -3572,7 +3559,8 @@ async function sendMessageToGroup() {
             const accountId = element.querySelector('span[data-account-id]')?.getAttribute('data-account-id');
             const statusSpan = element.querySelector('span[data-account-id]');
             
-            if (accountId && statusSpan && !statusSpan.textContent.includes('저장된 메시지를 선택하세요')) {
+            // 메시지가 선택된 계정만 처리
+            if (accountId && statusSpan && statusSpan.textContent !== '- 저장된 메시지를 선택하세요') {
                 // 해당 계정이 선택한 그룹이 있는지 확인
                 const accountGroups = getAccountGroupsForAccount(accountId);
                 console.log(`🔍 계정 ${accountId}의 선택된 그룹:`, accountGroups);
@@ -3588,6 +3576,9 @@ async function sendMessageToGroup() {
                 } else {
                     console.log(`⏭️ 계정 ${accountId}: 메시지는 있지만 그룹 없음 - 전송 제외`);
                 }
+            } else {
+                // 메시지가 선택되지 않은 계정은 완전히 제외
+                console.log(`❌ 계정 ${accountId}: 메시지 선택 안됨 - 전송 제외`);
             }
         });
         
