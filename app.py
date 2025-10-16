@@ -2663,9 +2663,12 @@ def refresh_account_info():
                 try:
                     result = loop.run_until_complete(refresh_account_info_async(account_info))
                     
+                    logger.info(f'🔍 비동기 함수 결과: {result}')
+                    
                     if result.get('success'):
                         updated_account_info = result.get('account_info', account_info)
                         updated_account_info['refresh_method'] = 'telegram_api_success'
+                        logger.info(f'✅ 텔레그램 API 성공: {updated_account_info.get("first_name")} {updated_account_info.get("last_name")}')
                     else:
                         # API 실패 시 기존 정보 유지
                         updated_account_info = {
@@ -2675,6 +2678,7 @@ def refresh_account_info():
                             'refresh_method': 'telegram_api_failed',
                             'refresh_error': result.get('error', 'Unknown error')
                         }
+                        logger.warning(f'⚠️ 텔레그램 API 실패: {result.get("error")}')
                 finally:
                     loop.close()
                     
