@@ -2620,13 +2620,74 @@ def refresh_account_info():
         if not account_info:
             return jsonify({'success': False, 'error': '계정 정보를 찾을 수 없습니다.'}), 404
         
-        # 현재 시간으로 새로고침 표시 (실제 텔레그램 API 호출 없이)
-        updated_account_info = {
-            **account_info,
-            'last_updated': datetime.now().isoformat(),
-            'refreshed_at': datetime.now().isoformat(),
-            'refresh_method': 'manual_refresh'
-        }
+        # 텔레그램에서 실제 최신 정보 가져오기
+        try:
+            # 세션 파일 경로 확인 (전화번호로 찾기)
+            import os
+            home_dir = os.path.expanduser("~")
+            
+            # 전화번호로 세션 파일 찾기
+            phone = account_info.get('phone', '')
+            session_path = None
+            
+            # 가능한 세션 파일 경로들
+            possible_paths = [
+                os.path.join(home_dir, f"session_{phone}.session"),
+                os.path.join(home_dir, f"session_+{phone}.session"),
+                os.path.join(home_dir, f"sessions/{user_id}.session"),
+                os.path.join(home_dir, f"sessions/{phone}.session")
+            ]
+            
+            for path in possible_paths:
+                if os.path.exists(path):
+                    session_path = path
+                    break
+            
+            logger.info(f'🔍 찾은 세션 파일: {session_path}')
+            
+            # 세션 파일 존재 확인
+            if not session_path:
+                logger.warning(f'⚠️ 세션 파일을 찾을 수 없음 (전화번호: {phone})')
+                # 세션 파일이 없으면 기존 정보 유지하고 시간만 업데이트
+                updated_account_info = {
+                    **account_info,
+                    'last_updated': datetime.now().isoformat(),
+                    'refreshed_at': datetime.now().isoformat(),
+                    'refresh_method': 'no_session_file'
+                }
+            else:
+                # 비동기 함수로 실제 텔레그램에서 정보 가져오기
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                
+                try:
+                    result = loop.run_until_complete(refresh_account_info_async(account_info))
+                    
+                    if result.get('success'):
+                        updated_account_info = result.get('account_info', account_info)
+                        updated_account_info['refresh_method'] = 'telegram_api_success'
+                    else:
+                        # API 실패 시 기존 정보 유지
+                        updated_account_info = {
+                            **account_info,
+                            'last_updated': datetime.now().isoformat(),
+                            'refreshed_at': datetime.now().isoformat(),
+                            'refresh_method': 'telegram_api_failed',
+                            'refresh_error': result.get('error', 'Unknown error')
+                        }
+                finally:
+                    loop.close()
+                    
+        except Exception as e:
+            logger.error(f'❌ 텔레그램 정보 새로고침 실패: {e}')
+            # 예외 발생 시 기존 정보 유지
+            updated_account_info = {
+                **account_info,
+                'last_updated': datetime.now().isoformat(),
+                'refreshed_at': datetime.now().isoformat(),
+                'refresh_method': 'exception',
+                'refresh_error': str(e)
+            }
         
         # Firebase에 업데이트된 정보 저장
         save_result = save_account_to_firebase(updated_account_info)
@@ -2648,15 +2709,33 @@ def refresh_account_info():
 async def refresh_account_info_async(account_info):
     """비동기 계정 정보 새로고침 함수"""
     try:
-        # 세션 파일 경로 확인
-        session_path = f"sessions/{account_info['user_id']}.session"
-        logger.info(f'🔍 세션 파일 경로: {session_path}')
+        # 세션 파일 경로 확인 (전화번호로 찾기)
+        import os
+        home_dir = os.path.expanduser("~")
+        
+        # 전화번호로 세션 파일 찾기
+        phone = account_info.get('phone', '')
+        session_path = None
+        
+        # 가능한 세션 파일 경로들
+        possible_paths = [
+            os.path.join(home_dir, f"session_{phone}.session"),
+            os.path.join(home_dir, f"session_+{phone}.session"),
+            os.path.join(home_dir, f"sessions/{account_info['user_id']}.session"),
+            os.path.join(home_dir, f"sessions/{phone}.session")
+        ]
+        
+        for path in possible_paths:
+            if os.path.exists(path):
+                session_path = path
+                break
+        
+        logger.info(f'🔍 찾은 세션 파일: {session_path}')
         
         # 세션 파일 존재 확인
-        import os
-        if not os.path.exists(session_path):
-            logger.error(f'❌ 세션 파일이 존재하지 않음: {session_path}')
-            return {'success': False, 'error': f'세션 파일이 존재하지 않습니다: {session_path}'}
+        if not session_path:
+            logger.error(f'❌ 세션 파일을 찾을 수 없음 (전화번호: {phone})')
+            return {'success': False, 'error': f'세션 파일을 찾을 수 없습니다 (전화번호: {phone})'}
         
         # 텔레그램 클라이언트 생성
         client = TelegramClient(
@@ -2668,43 +2747,41 @@ async def refresh_account_info_async(account_info):
         try:
             # 클라이언트 연결
             await client.connect()
+            logger.info(f'🔗 텔레그램 클라이언트 연결 성공: {account_info["user_id"]}')
             
             if not await client.is_user_authorized():
                 return {'success': False, 'error': '계정이 인증되지 않았습니다.'}
             
             # 현재 사용자 정보 가져오기
             me = await client.get_me()
+            logger.info(f'👤 사용자 정보 조회 성공: {me.first_name} {me.last_name} (@{me.username})')
             
-            # 계정 정보 업데이트
+            # 계정 정보 업데이트 (기존 정보 유지하면서 최신 정보로 업데이트)
             updated_account_info = {
-                'user_id': me.id,
+                **account_info,  # 기존 정보 유지
                 'first_name': me.first_name or '',
                 'last_name': me.last_name or '',
                 'username': me.username or '',
-                'phone': account_info['phone'],  # 전화번호는 변경되지 않으므로 유지
-                'api_id': account_info['api_id'],
-                'api_hash': account_info['api_hash'],
                 'last_updated': datetime.now().isoformat(),
+                'refreshed_at': datetime.now().isoformat(),
                 'is_premium': getattr(me, 'premium', False),
                 'is_bot': me.bot,
-                'is_verified': getattr(me, 'verified', False)
+                'is_verified': getattr(me, 'verified', False),
+                'refresh_source': 'telegram_live'
             }
             
-            # Firebase에 업데이트된 정보 저장
-            save_result = save_account_to_firebase(updated_account_info)
+            logger.info(f'✅ 텔레그램에서 최신 정보 가져오기 성공: {me.first_name} {me.last_name}')
             
-            if save_result:
-                logger.info(f'✅ 계정 정보 새로고침 성공: {account_info["user_id"]}')
-                return {
-                    'success': True, 
-                    'message': '계정 정보가 새로고침되었습니다.',
-                    'account_info': updated_account_info
-                }
-            else:
-                return {'success': False, 'error': '계정 정보 저장에 실패했습니다.'}
+            return {
+                'success': True,
+                'message': '계정 정보가 성공적으로 새로고침되었습니다.',
+                'account_info': updated_account_info
+            }
                 
         finally:
+            # 클라이언트 연결 해제
             await client.disconnect()
+            logger.info(f'🔌 텔레그램 클라이언트 연결 해제: {account_info["user_id"]}')
             
     except Exception as e:
         logger.error(f'❌ 비동기 계정 정보 새로고침 에러: {e}')
