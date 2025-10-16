@@ -3547,7 +3547,21 @@ async function sendMessageToGroup() {
     if (window.rotationPoolsEnabled) {
         // 풀 시스템 모드: 그룹별로 할당된 풀의 계정들이 메시지를 가지고 있는지 확인
         console.log('🔄 풀 시스템 모드로 전송 확인');
-        hasValidMessage = await checkPoolSystemMessages(checkedBoxes);
+        
+        // 그룹별 풀 매핑이 있는지 확인
+        const hasGroupPoolMapping = Object.keys(window.groupPoolMapping).length > 0;
+        
+        if (hasGroupPoolMapping) {
+            // 그룹별 풀 매핑이 있으면 풀 시스템 사용
+            hasValidMessage = await checkPoolSystemMessages(checkedBoxes);
+        } else {
+            // 그룹별 풀 매핑이 없으면 기본 다중 계정 모드로 전환
+            console.log('⚠️ 그룹별 풀 매핑이 없음 - 기본 다중 계정 모드로 전환');
+            hasValidMessage = Array.from(document.querySelectorAll('.account-message-setting')).some(element => {
+                const statusSpan = element.querySelector('span[data-account-id]');
+                return statusSpan && statusSpan.textContent !== '- 저장된 메시지를 선택하세요';
+            });
+        }
     } else if (window.multiAccountMode) {
         // 다중 계정 모드: 각 계정별로 선택된 메시지가 있는지 확인
         const accountMessageElements = document.querySelectorAll('.account-message-setting');
@@ -3727,20 +3741,106 @@ async function sendMessageToGroup() {
         let account;
         
         if (window.rotationPoolsEnabled) {
-            // 풀 시스템 모드: 그룹별로 할당된 풀의 계정들로 전송
-            console.log('🚀 풀 시스템 모드로 전송 시작');
-            const sendResults = await sendMessageWithPoolSystem(checkedBoxes);
+            // 그룹별 풀 매핑이 있는지 확인
+            const hasGroupPoolMapping = Object.keys(window.groupPoolMapping).length > 0;
             
-            const successCount = sendResults.filter(r => r.success).length;
-            const failCount = sendResults.filter(r => !r.success).length;
-            
-            if (successCount > 0) {
-                alert(`✅ 메시지 전송 완료!\n성공: ${successCount}개\n실패: ${failCount}개`);
+            if (hasGroupPoolMapping) {
+                // 풀 시스템 모드: 그룹별로 할당된 풀의 계정들로 전송
+                console.log('🚀 풀 시스템 모드로 전송 시작');
+                const sendResults = await sendMessageWithPoolSystem(checkedBoxes);
+                
+                const successCount = sendResults.filter(r => r.success).length;
+                const failCount = sendResults.filter(r => !r.success).length;
+                
+                if (successCount > 0) {
+                    alert(`✅ 메시지 전송 완료!\n성공: ${successCount}개\n실패: ${failCount}개`);
+                } else {
+                    alert(`❌ 모든 전송이 실패했습니다.\n실패: ${failCount}개`);
+                }
+                
+                console.log('📊 풀 시스템 전송 결과:', sendResults);
             } else {
-                alert(`❌ 모든 전송이 실패했습니다.\n실패: ${failCount}개`);
+                // 그룹별 풀 매핑이 없으면 기본 다중 계정 모드로 전송
+                console.log('⚠️ 그룹별 풀 매핑이 없음 - 기본 다중 계정 모드로 전송');
+                // 기존 다중 계정 모드 전송 로직 사용
+                if (messageData.multiAccountMode) {
+                    console.log('🔄 다중 계정 모드: 전송 대상 계정들 사용');
+                    const accounts = messageData.accountMessages.map(accountMsg => {
+                        const account = window.selectedMultiAccounts.find(acc => acc.user_id === accountMsg.accountId);
+                        return account;
+                    }).filter(Boolean);
+                    
+                    console.log('✅ 전송할 계정들:', accounts);
+                    
+                    for (const account of accounts) {
+                        console.log(`🔄 계정 ${account.first_name} 전송 시작`);
+                        
+                        // 각 계정별 메시지 정보 가져오기
+                        const accountElement = document.querySelector(`[data-account-id="${account.user_id}"]`);
+                        if (!accountElement) {
+                            console.error(`❌ 계정 ${account.user_id}의 UI 요소를 찾을 수 없습니다.`);
+                            continue;
+                        }
+                        
+                        const messageText = accountElement.dataset.messageText || '';
+                        const mediaInfoStr = accountElement.dataset.mediaInfo;
+                        
+                        if (!messageText && !mediaInfoStr) {
+                            console.error(`❌ 계정 ${account.user_id}의 메시지가 비어있습니다.`);
+                            continue;
+                        }
+                        
+                        let mediaInfo = null;
+                        if (mediaInfoStr) {
+                            try {
+                                mediaInfo = JSON.parse(mediaInfoStr);
+                            } catch (e) {
+                                console.error(`❌ 계정 ${account.user_id}의 미디어 정보 파싱 실패:`, e);
+                            }
+                        }
+                        
+                        // 각 그룹에 전송
+                        for (let i = 0; i < checkedBoxes.length; i++) {
+                            const checkbox = checkedBoxes[i];
+                            const groupId = checkbox.dataset.groupId;
+                            const groupTitle = checkbox.dataset.groupTitle;
+                            
+                            console.log(`🔍 그룹 ${i + 1} 전송 시도: ${groupId}`);
+                            
+                            const sendData = {
+                                user_id: account.user_id,
+                                group_id: groupId,
+                                message: messageText,
+                                media_info: mediaInfo
+                            };
+                            
+                            console.log('📤 서버로 전송할 데이터:', sendData);
+                            
+                            try {
+                                const response = await fetch('/api/telegram/send-message', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json'
+                                    },
+                                    body: JSON.stringify(sendData)
+                                });
+                                
+                                const result = await response.json();
+                                
+                                if (result.success) {
+                                    console.log(`✅ 그룹 ${i + 1} 전송 성공: ${groupId}`);
+                                } else {
+                                    console.error(`❌ 그룹 ${i + 1} 전송 실패:`, result);
+                                }
+                            } catch (error) {
+                                console.error(`❌ 그룹 ${i + 1} 전송 실패:`, error);
+                            }
+                        }
+                    }
+                    
+                    alert('✅ 메시지 전송 완료!');
+                }
             }
-            
-            console.log('📊 풀 시스템 전송 결과:', sendResults);
             
         } else if (window.multiAccountMode && messageData.multiAccountMode) {
             // 다중 계정 모드: 전송 대상 계정들 사용
@@ -4926,19 +5026,52 @@ function loadAutoSendSettings() {
         }
         
         if (settings) {
-            const groupInterval = document.getElementById('groupInterval');
-            const repeatInterval = document.getElementById('repeatInterval');
-            const maxRepeats = document.getElementById('maxRepeats');
-            const messageThreshold = document.getElementById('messageThreshold');
-            const enableMessageCheck = document.getElementById('enableMessageCheck');
+            // 풀 시스템 설정이 있으면 먼저 로드
+            if (settings.rotationPools && settings.rotationPools.enabled) {
+                window.rotationPoolsEnabled = true;
+                window.rotationPools = settings.rotationPools.pools || {};
+                window.groupPoolMapping = settings.rotationPools.groupMapping || {};
+                window.poolRotationIndex = settings.rotationPools.rotationIndex || {};
+                console.log('✅ 풀 시스템 설정 로드됨:', settings.rotationPools);
+            }
             
-            if (groupInterval) groupInterval.value = settings.groupInterval || 30;
-            if (repeatInterval) repeatInterval.value = settings.repeatInterval || 30;
-            if (maxRepeats) maxRepeats.value = settings.maxRepeats || 10;
-            if (messageThreshold) messageThreshold.value = settings.messageThreshold || 5;
-            if (enableMessageCheck) enableMessageCheck.checked = settings.enableMessageCheck !== false;
+            // 풀 시스템이 비활성화되어 있을 때만 기존 자동전송 설정 로드
+            if (!window.rotationPoolsEnabled) {
+                const groupInterval = document.getElementById('groupInterval');
+                const repeatInterval = document.getElementById('repeatInterval');
+                const maxRepeats = document.getElementById('maxRepeats');
+                const messageThreshold = document.getElementById('messageThreshold');
+                const enableMessageCheck = document.getElementById('enableMessageCheck');
+                
+                if (groupInterval) groupInterval.value = settings.groupInterval || 30;
+                if (repeatInterval) repeatInterval.value = settings.repeatInterval || 30;
+                if (maxRepeats) maxRepeats.value = settings.maxRepeats || 10;
+                if (messageThreshold) messageThreshold.value = settings.messageThreshold || 5;
+                if (enableMessageCheck) enableMessageCheck.checked = settings.enableMessageCheck !== false;
+                
+                console.log('✅ 기존 자동전송 설정 로드됨:', settings);
+            } else {
+                console.log('✅ 풀 시스템 활성화됨 - 기존 자동전송 설정 무시');
+            }
+        }
+        
+        // 풀 시스템 활성화 상태에 따라 UI 업데이트
+        const enablePoolsCheckbox = document.getElementById('enableRotationPools');
+        const poolsSettings = document.getElementById('rotationPoolsSettings');
+        const repeatSendSettings = document.getElementById('repeatSendSettings');
+        
+        if (enablePoolsCheckbox && window.rotationPoolsEnabled !== undefined) {
+            enablePoolsCheckbox.checked = window.rotationPoolsEnabled;
             
-            console.log('자동전송 설정 로드됨:', settings);
+            if (window.rotationPoolsEnabled) {
+                if (poolsSettings) poolsSettings.style.display = 'block';
+                if (repeatSendSettings) repeatSendSettings.style.display = 'none';
+                console.log('✅ 풀 시스템 활성화 상태 복원됨');
+            } else {
+                if (poolsSettings) poolsSettings.style.display = 'none';
+                if (repeatSendSettings) repeatSendSettings.style.display = 'block';
+                console.log('✅ 풀 시스템 비활성화 상태 복원됨');
+            }
         }
     } catch (error) {
         console.error('자동전송 설정 로드 실패:', error);
@@ -4959,8 +5092,26 @@ function saveAutoSendSettings() {
         maxRepeats: parseInt(maxRepeats),
         messageThreshold: parseInt(messageThreshold),
         enableMessageCheck: enableMessageCheck,
-        accountRotation: getRotationSettingsForSave() // 계정 로테이션 설정 추가
+        accountRotation: getRotationSettingsForSave(), // 계정 로테이션 설정 추가
+        rotationPools: {
+            enabled: window.rotationPoolsEnabled || false,
+            pools: window.rotationPools || {},
+            groupMapping: window.groupPoolMapping || {},
+            rotationIndex: window.poolRotationIndex || {}
+        }
     };
+    
+    // 풀 시스템이 활성화되어 있으면 기존 자동전송 설정은 저장하지 않음
+    if (window.rotationPoolsEnabled) {
+        console.log('✅ 풀 시스템 활성화됨 - 기존 자동전송 설정 무시');
+        // 풀 시스템 설정만 저장
+        settings.groupInterval = 0; // 무의미한 값으로 설정
+        settings.repeatInterval = 0; // 무의미한 값으로 설정
+        settings.maxRepeats = 0; // 무의미한 값으로 설정
+        settings.messageThreshold = 0; // 무의미한 값으로 설정
+        settings.enableMessageCheck = false; // 무의미한 값으로 설정
+        settings.accountRotation = {}; // 무의미한 값으로 설정
+    }
     
     console.log('🔧 자동전송 설정 저장:', settings);
     console.log('🔧 그룹 간격 원본 값:', groupInterval, '변환된 값:', parseInt(groupInterval));
@@ -6179,11 +6330,24 @@ async function initRotationPools() {
         
         if (this.checked) {
             poolsSettings.style.display = 'block';
-            console.log('✅ 로테이션 풀 시스템 활성화');
+            // 반복전송 설정 숨기기 (풀별 간격이 우선)
+            const repeatSendSettings = document.getElementById('repeatSendSettings');
+            if (repeatSendSettings) {
+                repeatSendSettings.style.display = 'none';
+            }
+            console.log('✅ 로테이션 풀 시스템 활성화 - 반복전송 설정 숨김');
         } else {
             poolsSettings.style.display = 'none';
-            console.log('❌ 로테이션 풀 시스템 비활성화');
+            // 반복전송 설정 다시 보이기
+            const repeatSendSettings = document.getElementById('repeatSendSettings');
+            if (repeatSendSettings) {
+                repeatSendSettings.style.display = 'block';
+            }
+            console.log('❌ 로테이션 풀 시스템 비활성화 - 반복전송 설정 복원');
         }
+        
+        // 풀 시스템 상태 변경 시 자동전송 설정도 함께 저장
+        saveAutoSendSettings();
     });
     
     // 풀 생성 버튼
@@ -6960,6 +7124,12 @@ async function savePoolSettings() {
         
         // 로컬 스토리지에 저장
         localStorage.setItem('rotationPools', JSON.stringify(poolData));
+        
+        // 풀 시스템 설정이 변경되면 자동전송 설정도 함께 저장
+        if (window.rotationPoolsEnabled) {
+            console.log('✅ 풀 시스템 활성화됨 - 자동전송 설정도 함께 저장');
+            saveAutoSendSettings();
+        }
         
         // Firebase에도 저장
         const key = getCurrentAccountKey ? getCurrentAccountKey() : null;
