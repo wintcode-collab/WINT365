@@ -7643,6 +7643,28 @@ window.handleRefreshAccountsInModal = async function() {
     console.log('🔄 새로고침 버튼 클릭됨! (전역 함수)');
     
     try {
+        // 계정이 선택되지 않은 경우 자동으로 모든 계정 선택
+        if (!window.selectedMultiAccounts || window.selectedMultiAccounts.length === 0) {
+            console.log('⚠️ 선택된 계정이 없음. 모든 계정을 자동 선택합니다.');
+            
+            // 현재 모달에 표시된 모든 계정을 선택
+            const accountItems = document.querySelectorAll('.account-item');
+            if (accountItems.length > 0) {
+                const allAccounts = Array.from(accountItems).map(item => ({
+                    user_id: parseInt(item.dataset.userId),
+                    first_name: item.querySelector('div[style*="color: #10B981"]')?.textContent?.trim() || 'Unknown',
+                    phone_number: item.querySelector('div[style*="📱"]')?.textContent?.replace('📱 ', '') || '',
+                    username: item.querySelector('div[style*="@"]')?.textContent?.replace('@', '') || ''
+                }));
+                
+                window.selectedMultiAccounts = allAccounts;
+                console.log('✅ 모든 계정 자동 선택 완료:', allAccounts);
+            } else {
+                alert('❌ 새로고침할 계정이 없습니다. 먼저 계정을 로드해주세요.');
+                return;
+            }
+        }
+        
         // 모든 계정 정보 새로고침
         const result = await refreshAllAccountsInfo();
         
