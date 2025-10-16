@@ -2630,6 +2630,7 @@ function setupMessageModalEvents(accountId) {
             selectedMessageIndex = index;
             
             console.log(`📝 메시지 ${index} 선택됨 (체크만, 새 모달 없음)`);
+            console.log('📝 selectedMessageIndex 설정됨:', selectedMessageIndex);
             
             // 추가 보안: false 반환으로 이벤트 완전 차단
             return false;
@@ -2660,6 +2661,8 @@ function setupMessageModalEvents(accountId) {
     
     // 선택 버튼 클릭 이벤트 (바로 적용)
     document.getElementById('selectMessageBtn').addEventListener('click', function() {
+        console.log('🔘 선택 버튼 클릭됨, selectedMessageIndex:', selectedMessageIndex);
+        
         if (selectedMessageIndex === null) {
             alert('메시지를 선택해주세요.');
             return;
@@ -2678,6 +2681,7 @@ function setupMessageModalEvents(accountId) {
     
     // 닫기 버튼 클릭 이벤트
     document.getElementById('closeMessageModalBtn').addEventListener('click', function() {
+        console.log('❌ 닫기 버튼 클릭됨');
         document.getElementById('messageSelectionModal').remove();
     });
     
