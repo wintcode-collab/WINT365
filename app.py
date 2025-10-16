@@ -2604,10 +2604,14 @@ def load_rotation_pools():
 def refresh_account_info():
     """계정 정보 새로고침 (텔레그램에서 최신 정보 가져오기)"""
     try:
+        logger.info('🔄 계정 정보 새로고침 API 호출됨')
         data = request.get_json()
+        logger.info(f'📥 받은 데이터: {data}')
+        
         user_id = data.get('user_id')
         
         if not user_id:
+            logger.error('❌ 사용자 ID가 없습니다.')
             return jsonify({'success': False, 'error': '사용자 ID가 필요합니다.'}), 400
         
         # Firebase에서 계정 정보 조회
