@@ -5078,7 +5078,7 @@ function loadAutoSendSettings() {
             
             if (window.rotationPoolsEnabled) {
                 if (poolsSettings) poolsSettings.style.display = 'block';
-                // 반복전송 설정은 표시하되, 반복전송 간격만 숨김
+                // 반복전송 설정은 표시하되, 반복전송 간격만 숨김 (최대 반복횟수는 유지)
                 if (repeatSendSettings) repeatSendSettings.style.display = 'block';
                 const repeatInterval = document.getElementById('repeatInterval');
                 if (repeatInterval) {
@@ -6359,7 +6359,7 @@ async function initRotationPools() {
         
         if (this.checked) {
             poolsSettings.style.display = 'block';
-            // 반복전송 설정에서 반복전송 간격만 숨기기 (그룹간 간격은 유지)
+            // 반복전송 설정에서 반복전송 간격만 숨기기 (최대 반복횟수는 유지)
             const repeatInterval = document.getElementById('repeatInterval');
             if (repeatInterval) {
                 const repeatIntervalRow = repeatInterval.closest('.setting-row');
