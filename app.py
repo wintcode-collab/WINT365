@@ -3904,12 +3904,47 @@ def stop_auto_send():
     try:
         data = request.get_json()
         user_id = data.get('userId')
+        account_name = data.get('account_name')
         
-        if not user_id:
+        # userId나 account_name 중 하나라도 있으면 처리
+        if not user_id and not account_name:
             return jsonify({
                 'success': False,
-                'error': '사용자 ID가 필요합니다.'
+                'error': '사용자 ID 또는 계정명이 필요합니다.'
             }), 400
+        
+        # account_name만 있는 경우 userId 찾기
+        if not user_id and account_name:
+            try:
+                # Firebase에서 계정 목록 조회하여 이름으로 userId 찾기
+                accounts_ref = db.reference('authenticated_accounts')
+                accounts_data = accounts_ref.get()
+                
+                if accounts_data:
+                    for acc_user_id, acc_data in accounts_data.items():
+                        if isinstance(acc_data, dict):
+                            first_name = acc_data.get('first_name', '')
+                            last_name = acc_data.get('last_name', '')
+                            full_name = f"{first_name} {last_name}".strip()
+                            
+                            if full_name == account_name:
+                                user_id = acc_user_id
+                                logger.info(f'계정명으로 userId 찾음: {account_name} -> {user_id}')
+                                break
+                
+                if not user_id:
+                    logger.warning(f'계정명으로 userId를 찾을 수 없음: {account_name}')
+                    return jsonify({
+                        'success': False,
+                        'error': f'계정명 "{account_name}"에 해당하는 사용자를 찾을 수 없습니다.'
+                    }), 404
+                    
+            except Exception as e:
+                logger.error(f'계정명으로 userId 찾기 실패: {e}')
+                return jsonify({
+                    'success': False,
+                    'error': f'계정 정보 조회 실패: {str(e)}'
+                }), 500
         
         # 자동전송 작업 중지
         result = stop_auto_send_job(user_id)

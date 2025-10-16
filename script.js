@@ -5039,15 +5039,20 @@ function loadAutoSendSettings() {
                 console.log('✅ 풀 시스템 비활성화 상태로 설정');
             }
             
-            // 풀 시스템이 비활성화되어 있을 때만 기존 자동전송 설정 로드
+            // 그룹간 전송간격은 풀 시스템 활성화 여부와 관계없이 항상 로드
+            const groupInterval = document.getElementById('groupInterval');
+            if (groupInterval && settings.groupInterval > 0) {
+                groupInterval.value = settings.groupInterval;
+                console.log('✅ 그룹간 전송간격 로드됨:', settings.groupInterval);
+            }
+            
+            // 풀 시스템이 비활성화되어 있을 때만 나머지 자동전송 설정 로드
             if (!window.rotationPoolsEnabled) {
-                const groupInterval = document.getElementById('groupInterval');
                 const repeatInterval = document.getElementById('repeatInterval');
                 const maxRepeats = document.getElementById('maxRepeats');
                 const messageThreshold = document.getElementById('messageThreshold');
                 const enableMessageCheck = document.getElementById('enableMessageCheck');
                 
-                if (groupInterval) groupInterval.value = settings.groupInterval || 30;
                 if (repeatInterval) repeatInterval.value = settings.repeatInterval || 30;
                 if (maxRepeats) maxRepeats.value = settings.maxRepeats || 10;
                 if (messageThreshold) messageThreshold.value = settings.messageThreshold || 5;
@@ -5055,7 +5060,7 @@ function loadAutoSendSettings() {
                 
                 console.log('✅ 기존 자동전송 설정 로드됨:', settings);
             } else {
-                console.log('✅ 풀 시스템 활성화됨 - 기존 자동전송 설정 무시');
+                console.log('✅ 풀 시스템 활성화됨 - 그룹간 간격만 로드, 나머지 설정 무시');
             }
         } else {
             // 설정이 아예 없으면 풀 시스템 비활성화
@@ -5073,12 +5078,28 @@ function loadAutoSendSettings() {
             
             if (window.rotationPoolsEnabled) {
                 if (poolsSettings) poolsSettings.style.display = 'block';
-                if (repeatSendSettings) repeatSendSettings.style.display = 'none';
-                console.log('✅ 풀 시스템 활성화 상태 복원됨');
+                // 반복전송 설정은 표시하되, 반복전송 간격만 숨김
+                if (repeatSendSettings) repeatSendSettings.style.display = 'block';
+                const repeatInterval = document.getElementById('repeatInterval');
+                if (repeatInterval) {
+                    const repeatIntervalRow = repeatInterval.closest('.setting-row');
+                    if (repeatIntervalRow) {
+                        repeatIntervalRow.style.display = 'none';
+                    }
+                }
+                console.log('✅ 풀 시스템 활성화 상태 복원됨 - 그룹간 간격은 표시');
             } else {
                 if (poolsSettings) poolsSettings.style.display = 'none';
                 if (repeatSendSettings) repeatSendSettings.style.display = 'block';
-                console.log('✅ 풀 시스템 비활성화 상태 복원됨 - 반복전송 설정 표시');
+                // 반복전송 간격 다시 표시
+                const repeatInterval = document.getElementById('repeatInterval');
+                if (repeatInterval) {
+                    const repeatIntervalRow = repeatInterval.closest('.setting-row');
+                    if (repeatIntervalRow) {
+                        repeatIntervalRow.style.display = 'block';
+                    }
+                }
+                console.log('✅ 풀 시스템 비활성화 상태 복원됨 - 모든 설정 표시');
             }
         }
     } catch (error) {
@@ -5109,11 +5130,12 @@ function saveAutoSendSettings() {
         }
     };
     
-    // 풀 시스템이 활성화되어 있으면 기존 자동전송 설정은 무의미한 값으로 설정
+    // 풀 시스템이 활성화되어 있으면 반복전송 설정만 무의미한 값으로 설정 (그룹간 간격은 유지)
     if (window.rotationPoolsEnabled) {
-        console.log('✅ 풀 시스템 활성화됨 - 기존 자동전송 설정 무의미한 값으로 설정');
-        settings.groupInterval = 0; // 무의미한 값으로 설정
-        settings.repeatInterval = 0; // 무의미한 값으로 설정
+        console.log('✅ 풀 시스템 활성화됨 - 반복전송 설정만 무의미한 값으로 설정');
+        // 그룹간 전송간격은 풀 시스템에서도 여전히 필요하므로 유지
+        // settings.groupInterval = parseInt(groupInterval); // 유지
+        settings.repeatInterval = 0; // 무의미한 값으로 설정 (풀별 간격이 우선)
         settings.maxRepeats = 0; // 무의미한 값으로 설정
         settings.messageThreshold = 0; // 무의미한 값으로 설정
         settings.enableMessageCheck = false; // 무의미한 값으로 설정
@@ -5953,15 +5975,15 @@ async function stopAutoSend() {
                 console.warn('⚠️ 계정 목록 조회 실패(중지 준비)', e);
             }
         }
-        // 마지막 안전장치: userId가 여전히 없으면 사용자에게 안내하고 중지 요청 중단
-        if (!userId) {
-            console.warn('❌ userId 매핑 실패: 중지 요청을 보내지 않습니다');
-            alert('자동전송 중지에 필요한 계정 식별자를 찾지 못했습니다. 계정을 다시 선택한 후 시도해 주세요.');
+        // 계정명이나 userId 중 하나라도 있으면 중지 요청 전송
+        if (!accountName && !userId) {
+            console.warn('⚠️ 계정명과 userId 모두 없어 자동전송 중지 요청을 건너뜀');
             return;
         }
-        if (!accountName && !userId) {
-            console.warn('⚠️ 계정명이 없어 자동전송 중지 요청을 건너뜀');
-            return;
+        
+        // userId가 없어도 계정명으로 중지 시도
+        if (!userId && accountName) {
+            console.log('⚠️ userId 없음, 계정명으로만 중지 시도:', accountName);
         }
         console.log('🛑 자동전송 중지 요청:', { account_name: accountName, userId });
         const resp = await fetch(`${getApiBaseUrl()}/api/auto-send/stop`, {
@@ -6337,20 +6359,26 @@ async function initRotationPools() {
         
         if (this.checked) {
             poolsSettings.style.display = 'block';
-            // 반복전송 설정 숨기기 (풀별 간격이 우선)
-            const repeatSendSettings = document.getElementById('repeatSendSettings');
-            if (repeatSendSettings) {
-                repeatSendSettings.style.display = 'none';
+            // 반복전송 설정에서 반복전송 간격만 숨기기 (그룹간 간격은 유지)
+            const repeatInterval = document.getElementById('repeatInterval');
+            if (repeatInterval) {
+                const repeatIntervalRow = repeatInterval.closest('.setting-row');
+                if (repeatIntervalRow) {
+                    repeatIntervalRow.style.display = 'none';
+                }
             }
-            console.log('✅ 로테이션 풀 시스템 활성화 - 반복전송 설정 숨김');
+            console.log('✅ 로테이션 풀 시스템 활성화 - 반복전송 간격만 숨김');
         } else {
             poolsSettings.style.display = 'none';
-            // 반복전송 설정 다시 보이기
-            const repeatSendSettings = document.getElementById('repeatSendSettings');
-            if (repeatSendSettings) {
-                repeatSendSettings.style.display = 'block';
+            // 반복전송 설정에서 반복전송 간격 다시 보이기
+            const repeatInterval = document.getElementById('repeatInterval');
+            if (repeatInterval) {
+                const repeatIntervalRow = repeatInterval.closest('.setting-row');
+                if (repeatIntervalRow) {
+                    repeatIntervalRow.style.display = 'block';
+                }
             }
-            console.log('❌ 로테이션 풀 시스템 비활성화 - 반복전송 설정 복원');
+            console.log('❌ 로테이션 풀 시스템 비활성화 - 반복전송 간격 복원');
         }
         
         // 풀 시스템 상태 변경 시에는 저장하지 않음 (설정 저장 버튼을 눌렀을 때만 저장)
@@ -6958,6 +6986,7 @@ function renderPoolIntervalsList() {
                     <span style="font-weight: 600; color: #10B981;">${pool.name}</span>
                     <div style="display: flex; gap: 10px; align-items: center;">
                         <span style="font-size: 12px; color: #888;">${accountCount}개 계정</span>
+                        <span style="font-size: 11px; color: #10B981; font-weight: 600;">전체 주기: ${cycleText}</span>
                         <button onclick="deletePoolFromInterval('${pool.id}')" style="
                             background: #EF4444;
                             color: white;
@@ -6977,9 +7006,10 @@ function renderPoolIntervalsList() {
                            min="1" 
                            max="1440" 
                            style="width: 60px; padding: 4px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;"
+                           oninput="updatePoolIntervalRealTime('${pool.id}', this.value)"
                            onchange="updatePoolInterval('${pool.id}', this.value)">
                     <span style="font-size: 12px; color: #666;">분</span>
-                    <span style="font-size: 11px; color: #888; margin-left: 10px;">
+                    <span style="font-size: 11px; color: #888; margin-left: 10px;" id="cycle-display-${pool.id}">
                         전체 주기: ${cycleText}
                     </span>
                 </div>
@@ -6990,7 +7020,31 @@ function renderPoolIntervalsList() {
     intervalsList.innerHTML = html;
 }
 
-// 풀 간격 업데이트
+// 실시간 전체 주기 업데이트 (저장하지 않음)
+function updatePoolIntervalRealTime(poolId, intervalMinutes) {
+    const pool = window.rotationPools[poolId];
+    if (!pool) return;
+    
+    const interval = parseInt(intervalMinutes);
+    if (isNaN(interval) || interval < 1) return;
+    
+    const accountCount = pool.accounts.length;
+    const totalCycleMinutes = interval * accountCount;
+    const totalCycleHours = Math.floor(totalCycleMinutes / 60);
+    const remainingMinutes = totalCycleMinutes % 60;
+    
+    const cycleText = totalCycleHours > 0 
+        ? `${totalCycleHours}시간 ${remainingMinutes}분`
+        : `${totalCycleMinutes}분`;
+    
+    // 전체 주기 표시 업데이트
+    const cycleDisplay = document.getElementById(`cycle-display-${poolId}`);
+    if (cycleDisplay) {
+        cycleDisplay.textContent = `전체 주기: ${cycleText}`;
+    }
+}
+
+// 풀 간격 업데이트 (저장함)
 function updatePoolInterval(poolId, intervalMinutes) {
     const pool = window.rotationPools[poolId];
     if (!pool) return;
@@ -7008,10 +7062,10 @@ function updatePoolInterval(poolId, intervalMinutes) {
     // 풀 설정 저장
     savePoolSettings();
     
-    // 간격 목록 다시 렌더링
+    // 간격 목록 다시 렌더링 (전체 주기 실시간 업데이트)
     renderPoolIntervalsList();
     
-    // 풀 목록도 업데이트
+    // 풀 목록도 업데이트 (전체 주기 포함)
     renderRotationPoolsList();
 }
 
@@ -7639,6 +7693,14 @@ async function sendMessageWithPoolSystem(checkedBoxes) {
                     error: error.message
                 });
             }
+        }
+        
+        // 그룹간 전송텀 적용 (마지막 그룹이 아니면 대기)
+        const isLastGroup = checkedBoxes.indexOf(checkbox) === checkedBoxes.length - 1;
+        if (!isLastGroup) {
+            const groupInterval = parseInt(document.getElementById('groupInterval')?.value || 30);
+            console.log(`⏰ 그룹간 전송텀 대기: ${groupInterval}초`);
+            await new Promise(resolve => setTimeout(resolve, groupInterval * 1000));
         }
     }
     
