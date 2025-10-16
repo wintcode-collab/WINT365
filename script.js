@@ -2564,6 +2564,9 @@ function showMessageSelectionModal(account, savedMessages) {
                         font-size: 14px;
                         cursor: pointer;
                         font-weight: 600;
+                        position: relative;
+                        z-index: 10001;
+                        pointer-events: auto;
                     ">✅ 선택</button>
                     <button id="closeMessageModalBtn" style="
                         background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);
@@ -2574,6 +2577,9 @@ function showMessageSelectionModal(account, savedMessages) {
                         font-size: 14px;
                         cursor: pointer;
                         font-weight: 600;
+                        position: relative;
+                        z-index: 10001;
+                        pointer-events: auto;
                     ">❌ 닫기</button>
                 </div>
             </div>
@@ -2583,8 +2589,97 @@ function showMessageSelectionModal(account, savedMessages) {
     // 모달창 추가
     document.body.insertAdjacentHTML('beforeend', modalHTML);
     
-    // 이벤트 리스너 추가
-    setupMessageModalEvents(account.user_id);
+    // 이벤트 리스너 직접 추가 (즉시 실행)
+    let selectedMessageIndex = null;
+    
+    // 메시지 아이템 클릭 이벤트
+    document.querySelectorAll('.message-item').forEach((item, index) => {
+        item.addEventListener('click', function() {
+            console.log(`📝 메시지 아이템 ${index} 클릭됨`);
+            
+            // 기존 선택 해제
+            document.querySelectorAll('.message-item').forEach(el => {
+                el.style.borderColor = '#444';
+                el.style.background = 'linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%)';
+                const flexContainer = el.querySelector('div[style*="display: flex"]');
+                if (flexContainer) {
+                    const checkIcon = flexContainer.children[1];
+                    if (checkIcon) {
+                        checkIcon.textContent = '○';
+                    }
+                }
+            });
+            
+            // 새 선택 표시
+            this.style.borderColor = '#10B981';
+            this.style.background = 'linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%)';
+            
+            const flexContainer = this.querySelector('div[style*="display: flex"]');
+            if (flexContainer) {
+                const checkIcon = flexContainer.children[1];
+                if (checkIcon) {
+                    checkIcon.textContent = '●';
+                }
+            }
+            
+            selectedMessageIndex = index;
+            console.log(`📝 메시지 ${index} 선택됨, selectedMessageIndex:`, selectedMessageIndex);
+        });
+    });
+    
+    // 선택 버튼 클릭 이벤트
+    const selectBtn = document.getElementById('selectMessageBtn');
+    console.log('🔘 선택 버튼 요소:', selectBtn);
+    console.log('🔘 선택 버튼 스타일:', selectBtn ? window.getComputedStyle(selectBtn) : 'null');
+    
+    // 버튼이 실제로 클릭 가능한지 테스트
+    if (selectBtn) {
+        console.log('🔘 버튼 위치:', selectBtn.getBoundingClientRect());
+        console.log('🔘 버튼 포인터 이벤트:', window.getComputedStyle(selectBtn).pointerEvents);
+        
+        // 강제로 클릭 이벤트 테스트
+        setTimeout(() => {
+            console.log('🔘 3초 후 버튼 상태 확인:', selectBtn);
+            console.log('🔘 버튼이 화면에 보이는가:', selectBtn.offsetParent !== null);
+        }, 3000);
+    }
+    
+    selectBtn.addEventListener('click', function(e) {
+        console.log('🔘 선택 버튼 클릭됨!', e);
+        console.log('🔘 selectedMessageIndex:', selectedMessageIndex);
+        
+        if (selectedMessageIndex === null) {
+            alert('메시지를 선택해주세요.');
+            return;
+        }
+        
+        console.log(`✅ 메시지 ${selectedMessageIndex} 최종 선택 및 적용`);
+        
+        // 선택된 메시지 정보를 계정별 정보 영역에 바로 적용
+        updateSelectedMessageInfo(account.user_id, selectedMessageIndex);
+        
+        // 모달창 닫기
+        document.getElementById('messageSelectionModal').remove();
+        
+        console.log('✅ 메시지 선택 완료, 모달창 닫힘');
+    });
+    
+    // 닫기 버튼 클릭 이벤트
+    const closeBtn = document.getElementById('closeMessageModalBtn');
+    console.log('❌ 닫기 버튼 요소:', closeBtn);
+    console.log('❌ 닫기 버튼 스타일:', closeBtn ? window.getComputedStyle(closeBtn) : 'null');
+    
+    closeBtn.addEventListener('click', function(e) {
+        console.log('❌ 닫기 버튼 클릭됨!', e);
+        document.getElementById('messageSelectionModal').remove();
+    });
+    
+    // 배경 클릭으로 닫기
+    document.getElementById('messageSelectionModal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            this.remove();
+        }
+    });
 }
 
 // 메시지 모달 이벤트 설정
