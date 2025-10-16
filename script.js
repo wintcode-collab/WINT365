@@ -3488,14 +3488,18 @@ async function sendMessageToGroup() {
     if (window.multiAccountMode) {
         // 다중 계정 모드: 각 계정별로 선택된 메시지가 있는지 확인
         const accountMessageElements = document.querySelectorAll('.account-message-item');
+        console.log('🔍 계정별 메시지 요소들:', accountMessageElements);
+        
         hasValidMessage = Array.from(accountMessageElements).some(element => {
             const statusSpan = element.querySelector('span[data-account-id]');
+            console.log('🔍 상태 span:', statusSpan, '텍스트:', statusSpan?.textContent);
             return statusSpan && statusSpan.textContent.includes('저장된 메시지O');
         });
         
         console.log('🔍 다중 계정 모드 메시지 확인:', {
             accountMessageElements: accountMessageElements.length,
-            hasValidMessage: hasValidMessage
+            hasValidMessage: hasValidMessage,
+            multiAccountMode: window.multiAccountMode
         });
     } else {
         // 단일 계정 모드: 기존 로직
