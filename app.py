@@ -2770,7 +2770,8 @@ async def refresh_account_info_async(account_info):
             logger.info(f'🔗 텔레그램 클라이언트 연결 성공: {account_info["user_id"]}')
             
             if not await client.is_user_authorized():
-                return {'success': False, 'error': '계정이 인증되지 않았습니다.'}
+                logger.warning(f'⚠️ 계정 인증 실패: {account_info["user_id"]}')
+                return {'success': False, 'error': '계정이 인증되지 않았습니다. 세션이 만료되었을 수 있습니다.'}
             
             # 현재 사용자 정보 가져오기
             me = await client.get_me()

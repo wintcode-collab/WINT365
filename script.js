@@ -7675,12 +7675,50 @@ window.handleRefreshAccountsInModal = async function() {
             // 새로고침 방법 확인
             window.selectedMultiAccounts.forEach((account, index) => {
                 console.log(`📋 계정 ${index + 1}: ${account.first_name} - 새로고침 방법: ${account.refresh_method || 'unknown'}`);
+                console.log(`🔍 계정 ${index + 1} 상세 정보:`, {
+                    user_id: account.user_id,
+                    first_name: account.first_name,
+                    last_name: account.last_name,
+                    username: account.username,
+                    phone_number: account.phone_number,
+                    refresh_method: account.refresh_method,
+                    refresh_source: account.refresh_source,
+                    last_updated: account.last_updated,
+                    has_session_data: !!account.session_data
+                });
                 if (account.refresh_error) {
                     console.log(`❌ 오류: ${account.refresh_error}`);
                 }
             });
             
             if (result.successCount > 0) {
+                // 실패한 계정이 있는지 확인
+                const failedAccounts = window.selectedMultiAccounts.filter(acc => 
+                    acc.refresh_method === 'telegram_api_failed' || acc.refresh_method === 'no_session_file'
+                );
+                
+                if (failedAccounts.length > 0) {
+                    // 실패한 계정들의 이름을 수동으로 업데이트할 수 있도록 제안
+                    const failedNames = failedAccounts.map(acc => acc.first_name).join(', ');
+                    
+                    const newName = prompt(
+                        `⚠️ 일부 계정의 세션이 만료되었습니다.\n\n실패한 계정: ${failedNames}\n\n현재 닉네임을 직접 입력해주세요:`,
+                        failedAccounts[0].first_name
+                    );
+                    
+                    if (newName && newName.trim() !== failedAccounts[0].first_name) {
+                        // 수동으로 이름 업데이트
+                        failedAccounts[0].first_name = newName.trim();
+                        failedAccounts[0].refresh_method = 'manual_update';
+                        failedAccounts[0].last_updated = new Date().toISOString();
+                        
+                        // Firebase에 수동 업데이트 저장
+                        await saveAccountInfoToFirebase(failedAccounts[0]);
+                        
+                        alert(`✅ 계정 이름이 "${newName}"으로 수동 업데이트되었습니다!`);
+                    }
+                }
+                
                 // 성공 메시지
                 alert(`✅ 계정 정보 새로고침 완료!\n성공: ${result.successCount}개\n전체: ${result.totalCount}개`);
                 
