@@ -3724,26 +3724,8 @@ async function sendMessageToGroup() {
                 // 메시지 정보 가져오기 (다중계정 모드: 원본 메시지 객체 사용)
                 let mediaInfo = accountElement.dataset.mediaInfo ? JSON.parse(accountElement.dataset.mediaInfo) : null;
                 
-                // dataset.mediaInfo가 없으면 다른 방법으로 시도
                 if (!mediaInfo) {
-                    console.log(`🔍 계정 ${account.user_id}의 dataset.mediaInfo가 없습니다. 다른 방법으로 시도...`);
-                    
-                    // statusSpan에서 메시지 정보 확인
-                    const statusSpan = accountElement.querySelector('span[data-account-id]');
-                    if (statusSpan && statusSpan.textContent !== '- 저장된 메시지를 선택하세요') {
-                        // 메시지가 선택된 상태이므로 기본 미디어 정보 생성
-                        const messageText = statusSpan.textContent.replace(/^- /, '').trim();
-                        mediaInfo = {
-                            text: messageText,
-                            has_custom_emoji: false,
-                            original_message_object: null
-                        };
-                        console.log(`🔍 기본 미디어 정보 생성:`, mediaInfo);
-                    }
-                }
-                
-                if (!mediaInfo) {
-                    console.error(`❌ 계정 ${account.user_id}의 미디어 정보를 찾을 수 없습니다.`);
+                    console.error(`❌ 계정 ${account.user_id}의 미디어 정보가 없습니다. 원본 메시지 객체가 필요합니다.`);
                     failCount++;
                     continue;
                 }
