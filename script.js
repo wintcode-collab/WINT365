@@ -5068,40 +5068,54 @@ function loadAutoSendSettings() {
             console.log('✅ 설정 없음 - 풀 시스템 비활성화 상태로 설정');
         }
         
-        // 풀 시스템 활성화 상태에 따라 UI 업데이트
-        const enablePoolsCheckbox = document.getElementById('enableRotationPools');
-        const poolsSettings = document.getElementById('rotationPoolsSettings');
-        const repeatSendSettings = document.getElementById('repeatSendSettings');
-        
-        if (enablePoolsCheckbox) {
-            enablePoolsCheckbox.checked = window.rotationPoolsEnabled;
-            
-            if (window.rotationPoolsEnabled) {
-                if (poolsSettings) poolsSettings.style.display = 'block';
-                // 반복전송 설정은 표시하되, 반복전송 간격만 숨김 (최대 반복횟수는 유지)
-                if (repeatSendSettings) repeatSendSettings.style.display = 'block';
-                const repeatInterval = document.getElementById('repeatInterval');
-                if (repeatInterval) {
-                    const repeatIntervalRow = repeatInterval.closest('.setting-row');
-                    if (repeatIntervalRow) {
-                        repeatIntervalRow.style.display = 'none';
-                    }
-                }
-                console.log('✅ 풀 시스템 활성화 상태 복원됨 - 그룹간 간격은 표시');
-            } else {
-                if (poolsSettings) poolsSettings.style.display = 'none';
-                if (repeatSendSettings) repeatSendSettings.style.display = 'block';
-                // 반복전송 간격 다시 표시
-                const repeatInterval = document.getElementById('repeatInterval');
-                if (repeatInterval) {
-                    const repeatIntervalRow = repeatInterval.closest('.setting-row');
-                    if (repeatIntervalRow) {
-                        repeatIntervalRow.style.display = 'block';
-                    }
-                }
-                console.log('✅ 풀 시스템 비활성화 상태 복원됨 - 모든 설정 표시');
-            }
+    // 풀 시스템 활성화 상태에 따라 UI 업데이트
+    const enablePoolsCheckbox = document.getElementById('enableRotationPools');
+    const poolsSettings = document.getElementById('rotationPoolsSettings');
+    const repeatSendSettings = document.getElementById('repeatSendSettings');
+    
+    if (enablePoolsCheckbox) {
+        // 초기 상태는 항상 비활성화로 설정
+        if (window.rotationPoolsEnabled === undefined) {
+            window.rotationPoolsEnabled = false;
         }
+        enablePoolsCheckbox.checked = window.rotationPoolsEnabled;
+        
+        if (window.rotationPoolsEnabled) {
+            if (poolsSettings) poolsSettings.style.display = 'block';
+            // 반복전송 설정은 표시하되, 반복전송 간격만 숨김 (최대 반복횟수는 유지)
+            if (repeatSendSettings) repeatSendSettings.style.display = 'block';
+            const repeatInterval = document.getElementById('repeatInterval');
+            if (repeatInterval) {
+                const repeatIntervalRow = repeatInterval.closest('.setting-row');
+                if (repeatIntervalRow) {
+                    repeatIntervalRow.style.display = 'none';
+                }
+                // 라벨도 숨기기
+                const repeatIntervalLabel = repeatInterval.closest('.setting-row')?.querySelector('label');
+                if (repeatIntervalLabel) {
+                    repeatIntervalLabel.style.display = 'none';
+                }
+            }
+            console.log('✅ 풀 시스템 활성화 상태 복원됨 - 반복전송 간격 숨김');
+        } else {
+            if (poolsSettings) poolsSettings.style.display = 'none';
+            if (repeatSendSettings) repeatSendSettings.style.display = 'block';
+            // 반복전송 간격 다시 표시
+            const repeatInterval = document.getElementById('repeatInterval');
+            if (repeatInterval) {
+                const repeatIntervalRow = repeatInterval.closest('.setting-row');
+                if (repeatIntervalRow) {
+                    repeatIntervalRow.style.display = 'block';
+                }
+                // 라벨도 다시 표시
+                const repeatIntervalLabel = repeatInterval.closest('.setting-row')?.querySelector('label');
+                if (repeatIntervalLabel) {
+                    repeatIntervalLabel.style.display = 'block';
+                }
+            }
+            console.log('✅ 풀 시스템 비활성화 상태 복원됨 - 모든 설정 표시');
+        }
+    }
     } catch (error) {
         console.error('자동전송 설정 로드 실패:', error);
     }
@@ -5130,13 +5144,14 @@ function saveAutoSendSettings() {
         }
     };
     
-    // 풀 시스템이 활성화되어 있으면 반복전송 설정만 무의미한 값으로 설정 (그룹간 간격은 유지)
+    // 풀 시스템이 활성화되어 있으면 반복전송 간격만 무의미한 값으로 설정 (나머지는 유지)
     if (window.rotationPoolsEnabled) {
-        console.log('✅ 풀 시스템 활성화됨 - 반복전송 설정만 무의미한 값으로 설정');
+        console.log('✅ 풀 시스템 활성화됨 - 반복전송 간격만 무의미한 값으로 설정');
         // 그룹간 전송간격은 풀 시스템에서도 여전히 필요하므로 유지
         // settings.groupInterval = parseInt(groupInterval); // 유지
         settings.repeatInterval = 0; // 무의미한 값으로 설정 (풀별 간격이 우선)
-        settings.maxRepeats = 0; // 무의미한 값으로 설정
+        // maxRepeats는 여전히 필요하므로 유지
+        // settings.maxRepeats = parseInt(maxRepeats); // 유지
         settings.messageThreshold = 0; // 무의미한 값으로 설정
         settings.enableMessageCheck = false; // 무의미한 값으로 설정
         settings.accountRotation = {}; // 무의미한 값으로 설정
@@ -6339,7 +6354,7 @@ let selectedRotationAccounts = []; // 사용자가 선택한 로테이션 계정
 window.rotationPools = {}; // 로테이션 풀 관리
 window.groupPoolMapping = {}; // 그룹별 풀 매핑
 window.poolRotationIndex = {}; // 풀별 로테이션 인덱스
-window.rotationPoolsEnabled = false; // 풀 시스템 활성화 여부
+window.rotationPoolsEnabled = false; // 풀 시스템 활성화 여부 (기본값: 비활성화)
 
 // 로테이션 풀 시스템 초기화
 async function initRotationPools() {
@@ -6365,6 +6380,11 @@ async function initRotationPools() {
                 const repeatIntervalRow = repeatInterval.closest('.setting-row');
                 if (repeatIntervalRow) {
                     repeatIntervalRow.style.display = 'none';
+                }
+                // 추가로 반복전송 간격 라벨도 숨기기
+                const repeatIntervalLabel = repeatInterval.closest('.setting-row')?.querySelector('label');
+                if (repeatIntervalLabel) {
+                    repeatIntervalLabel.style.display = 'none';
                 }
             }
             console.log('✅ 로테이션 풀 시스템 활성화 - 반복전송 간격만 숨김');
@@ -7687,13 +7707,19 @@ async function sendMessageWithPoolSystem(checkedBoxes) {
                 
                 // 풀별 간격 대기 (마지막 계정이 아니면 대기)
                 const isLastAccount = accounts.indexOf(account) === accounts.length - 1;
+                console.log(`🔍 계정 ${account.first_name} - 마지막 계정 여부: ${isLastAccount}`);
+                
                 if (!isLastAccount) {
                     const pool = window.rotationPools[account.poolId];
+                    console.log(`🔍 풀 정보:`, pool);
+                    
                     if (pool && pool.rotationInterval) {
                         const intervalMinutes = pool.rotationInterval;
                         const intervalSeconds = intervalMinutes * 60;
                         console.log(`⏰ 풀별 간격 대기: ${intervalMinutes}분 (${intervalSeconds}초)`);
                         await new Promise(resolve => setTimeout(resolve, intervalSeconds * 1000));
+                    } else {
+                        console.log(`⚠️ 풀별 간격 설정이 없음 - poolId: ${account.poolId}, rotationInterval: ${pool?.rotationInterval}`);
                     }
                 }
             } catch (error) {
