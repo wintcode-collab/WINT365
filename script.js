@@ -2847,6 +2847,13 @@ function updateSelectedMessageInfo(accountId, messageIndex) {
             statusSpan.innerHTML = `- ${content}`;
             statusSpan.style.color = '#10B981';
             
+            // dataset.mediaInfo 설정 (전송을 위해 필요)
+            const accountElement = statusSpan.closest('.account-message-setting');
+            if (accountElement) {
+                accountElement.dataset.mediaInfo = JSON.stringify(message);
+                console.log(`💾 계정 ${accountId}의 dataset.mediaInfo 설정 완료`);
+            }
+            
             console.log(`✅ 계정 ${accountId}의 메시지 정보 업데이트 완료`);
         }
     })
