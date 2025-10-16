@@ -1483,26 +1483,34 @@ def load_accounts():
         
         # 모든 계정에 대해 최신 정보 자동 업데이트
         valid_accounts = []
+        expired_accounts = []
         
         for account in all_accounts:
             user_id = account.get('user_id')
             if user_id:
                 # 자동으로 최신 정보 업데이트 시도
                 updated_account = auto_update_account_info(account)
-                if updated_account:
+                if updated_account and updated_account.get('update_source') == 'auto_load':
+                    # 성공적으로 업데이트됨
                     valid_accounts.append(updated_account)
                     logger.info(f'✅ 계정 정보 업데이트 성공: {user_id} ({updated_account.get("first_name", "")})')
                 else:
-                    # 업데이트 실패해도 기존 정보 유지
-                    valid_accounts.append(account)
-                    logger.warning(f'⚠️ 계정 정보 업데이트 실패, 기존 정보 유지: {user_id} ({account.get("first_name", "")})')
+                    # 업데이트 실패 = 세션 만료
+                    expired_accounts.append(user_id)
+                    logger.warning(f'⚠️ 세션 만료됨, 계정 삭제: {user_id} ({account.get("first_name", "")})')
         
-        logger.info(f'✅ 계정 목록 로딩 성공: {len(valid_accounts)}개 계정 (자동 업데이트 완료)')
+        # 만료된 계정이 있으면 Firebase에서 삭제
+        if expired_accounts:
+            logger.info(f'🗑️ 만료된 계정 삭제: {expired_accounts}')
+            for user_id in expired_accounts:
+                delete_account_from_firebase(user_id)
+        
+        logger.info(f'✅ 계정 목록 로딩 성공: {len(valid_accounts)}개 유효 계정, {len(expired_accounts)}개 만료 계정 삭제')
         
         return jsonify({
             'success': True,
             'accounts': valid_accounts,
-            'message': f'{len(valid_accounts)}개의 연동된 계정을 찾았습니다. (최신 정보로 자동 업데이트됨)'
+            'message': f'{len(valid_accounts)}개의 연동된 계정을 찾았습니다. ({len(expired_accounts)}개 만료 계정 삭제됨)'
         })
         
     except Exception as e:
