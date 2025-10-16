@@ -3739,6 +3739,13 @@ async function sendMessageToGroup() {
                             mediaInfo: mediaInfo
                         };
                         
+                        // 메시지가 비어있는 경우 처리
+                        if (!messageText || messageText.trim() === '') {
+                            console.error(`❌ 계정 ${account.user_id}의 메시지가 비어있습니다.`);
+                            failCount++;
+                            continue;
+                        }
+                        
                         // 커스텀 이모지가 있는 경우 원본 메시지 객체 전체를 전송
                         if (mediaInfo && mediaInfo.has_custom_emoji) {
                             sendData.original_message_object = mediaInfo.original_message_object || mediaInfo.raw_message_data || mediaInfo;
@@ -3758,6 +3765,10 @@ async function sendMessageToGroup() {
                         }
                         
                         console.log('📤 서버로 전송할 데이터:', sendData);
+                        console.log('📤 메시지 텍스트:', messageText);
+                        console.log('📤 미디어 정보:', mediaInfo);
+                        console.log('📤 계정 ID:', account.user_id);
+                        console.log('📤 그룹 ID:', groupId);
                         
                         const sendResponse = await fetch('/api/telegram/send-message', {
                             method: 'POST',
