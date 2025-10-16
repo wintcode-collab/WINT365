@@ -3475,6 +3475,24 @@ async function refreshGroups() {
     }
 }
 
+// 특정 계정이 선택한 그룹들 가져오기
+function getAccountGroupsForAccount(accountId) {
+    const checkedBoxes = document.querySelectorAll('.group-checkbox:checked');
+    const accountGroups = [];
+    
+    checkedBoxes.forEach(checkbox => {
+        const groupId = checkbox.dataset.groupId;
+        const groupAccountId = checkbox.dataset.accountId;
+        
+        // 해당 계정의 그룹인지 확인
+        if (groupAccountId === accountId && groupId && groupId !== 'undefined') {
+            accountGroups.push(groupId);
+        }
+    });
+    
+    return accountGroups;
+}
+
 // 선택된 그룹들에 메시지 전송
 async function sendMessageToGroup() {
     console.log('📤 선택된 그룹들에 메시지 전송');
@@ -3487,7 +3505,7 @@ async function sendMessageToGroup() {
     
     if (window.multiAccountMode) {
         // 다중 계정 모드: 각 계정별로 선택된 메시지가 있는지 확인
-        const accountMessageElements = document.querySelectorAll('.account-message-item');
+        const accountMessageElements = document.querySelectorAll('.account-message-setting');
         console.log('🔍 계정별 메시지 요소들:', accountMessageElements);
         
         hasValidMessage = Array.from(accountMessageElements).some(element => {
@@ -3501,6 +3519,11 @@ async function sendMessageToGroup() {
             hasValidMessage: hasValidMessage,
             multiAccountMode: window.multiAccountMode
         });
+        
+        // 다중 계정 모드에서는 최소 하나의 계정에 메시지가 선택되어 있으면 OK
+        if (hasValidMessage) {
+            console.log('✅ 다중 계정 모드: 메시지 선택 확인됨');
+        }
     } else {
         // 단일 계정 모드: 기존 로직
         const hasSavedMessage = window.selectedMediaInfo && window.selectedMediaInfo.raw_message_data;
@@ -3540,27 +3563,37 @@ async function sendMessageToGroup() {
     let messageData = null;
     
     if (window.multiAccountMode) {
-        // 다중 계정 모드: 각 계정별 메시지 정보 수집
+        // 다중 계정 모드: 각 계정별 메시지 정보 수집 (그룹이 있는 계정만)
         const accountMessages = [];
-        const accountMessageElements = document.querySelectorAll('.account-message-item');
+        const accountMessageElements = document.querySelectorAll('.account-message-setting');
         
         accountMessageElements.forEach(element => {
             const accountId = element.querySelector('span[data-account-id]')?.getAttribute('data-account-id');
             const statusSpan = element.querySelector('span[data-account-id]');
             
             if (accountId && statusSpan && statusSpan.textContent.includes('저장된 메시지O')) {
-                // 계정별로 선택된 메시지 정보를 저장 (실제로는 서버에서 가져와야 함)
-                accountMessages.push({
-                    accountId: accountId,
-                    hasMessage: true
-                });
+                // 해당 계정이 선택한 그룹이 있는지 확인
+                const accountGroups = getAccountGroupsForAccount(accountId);
+                console.log(`🔍 계정 ${accountId}의 선택된 그룹:`, accountGroups);
+                
+                if (accountGroups.length > 0) {
+                    // 그룹이 있는 계정만 메시지 전송 대상에 포함
+                    accountMessages.push({
+                        accountId: accountId,
+                        hasMessage: true,
+                        selectedGroups: accountGroups
+                    });
+                    console.log(`✅ 계정 ${accountId}: 메시지 + 그룹 ${accountGroups.length}개 - 전송 대상`);
+                } else {
+                    console.log(`⏭️ 계정 ${accountId}: 메시지는 있지만 그룹 없음 - 전송 제외`);
+                }
             }
         });
         
         console.log('🔍 다중 계정 모드 메시지 데이터:', accountMessages);
         
         if (accountMessages.length === 0) {
-            alert('전송할 메시지를 선택해주세요.');
+            alert('전송할 메시지를 선택하고, 해당 계정이 선택한 그룹이 있는지 확인해주세요.');
             return;
         }
         
