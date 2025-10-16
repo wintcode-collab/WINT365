@@ -3723,8 +3723,19 @@ async function sendMessageToGroup() {
                 
                 // 메시지 정보 가져오기 (다중계정 모드: 각 계정별 메시지)
                 const messagePreview = accountElement.querySelector('.message-preview');
-                const messageText = messagePreview ? messagePreview.textContent.trim() : '';
+                let messageText = messagePreview ? messagePreview.textContent.trim() : '';
                 const mediaInfo = accountElement.dataset.mediaInfo ? JSON.parse(accountElement.dataset.mediaInfo) : null;
+                
+                // messagePreview가 없으면 statusSpan에서 메시지 추출
+                if (!messageText || messageText.trim() === '') {
+                    const statusSpan = accountElement.querySelector('span[data-account-id]');
+                    if (statusSpan && statusSpan.textContent !== '- 저장된 메시지를 선택하세요') {
+                        const statusText = statusSpan.textContent;
+                        // "- " 제거하고 메시지 추출
+                        messageText = statusText.replace(/^- /, '').trim();
+                        console.log(`🔍 statusSpan에서 메시지 추출: ${messageText}`);
+                    }
+                }
                 
                 console.log(`🔍 계정 ${account.user_id} 메시지 정보:`, {
                     messagePreview: !!messagePreview,
