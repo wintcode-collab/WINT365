@@ -2597,6 +2597,27 @@ function showMessageSelectionModal(account, savedMessages) {
         item.addEventListener('click', function() {
             console.log(`📝 메시지 아이템 ${index} 클릭됨`);
             
+            // 이미 선택된 메시지를 다시 클릭하면 선택 해제
+            if (selectedMessageIndex === index) {
+                console.log(`📝 메시지 ${index} 선택 해제`);
+                
+                // 선택 해제
+                this.style.borderColor = '#444';
+                this.style.background = 'linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%)';
+                
+                const flexContainer = this.querySelector('div[style*="display: flex"]');
+                if (flexContainer) {
+                    const checkIcon = flexContainer.children[1];
+                    if (checkIcon) {
+                        checkIcon.textContent = '○';
+                    }
+                }
+                
+                selectedMessageIndex = null;
+                console.log('📝 선택 해제됨, selectedMessageIndex:', selectedMessageIndex);
+                return;
+            }
+            
             // 기존 선택 해제
             document.querySelectorAll('.message-item').forEach(el => {
                 el.style.borderColor = '#444';
