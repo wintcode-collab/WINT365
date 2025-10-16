@@ -5048,16 +5048,16 @@ function loadAutoSendSettings() {
             
             // 풀 시스템이 비활성화되어 있을 때만 나머지 자동전송 설정 로드
             if (!window.rotationPoolsEnabled) {
-                const repeatInterval = document.getElementById('repeatInterval');
-                const maxRepeats = document.getElementById('maxRepeats');
-                const messageThreshold = document.getElementById('messageThreshold');
-                const enableMessageCheck = document.getElementById('enableMessageCheck');
-                
-                if (repeatInterval) repeatInterval.value = settings.repeatInterval || 30;
-                if (maxRepeats) maxRepeats.value = settings.maxRepeats || 10;
-                if (messageThreshold) messageThreshold.value = settings.messageThreshold || 5;
-                if (enableMessageCheck) enableMessageCheck.checked = settings.enableMessageCheck !== false;
-                
+            const repeatInterval = document.getElementById('repeatInterval');
+            const maxRepeats = document.getElementById('maxRepeats');
+            const messageThreshold = document.getElementById('messageThreshold');
+            const enableMessageCheck = document.getElementById('enableMessageCheck');
+            
+            if (repeatInterval) repeatInterval.value = settings.repeatInterval || 30;
+            if (maxRepeats) maxRepeats.value = settings.maxRepeats || 10;
+            if (messageThreshold) messageThreshold.value = settings.messageThreshold || 5;
+            if (enableMessageCheck) enableMessageCheck.checked = settings.enableMessageCheck !== false;
+            
                 console.log('✅ 기존 자동전송 설정 로드됨:', settings);
             } else {
                 console.log('✅ 풀 시스템 활성화됨 - 그룹간 간격만 로드, 나머지 설정 무시');
@@ -7684,6 +7684,18 @@ async function sendMessageWithPoolSystem(checkedBoxes) {
             try {
                 const result = await sendMessageFromPoolAccount(account, groupId, groupTitle);
                 sendResults.push(result);
+                
+                // 풀별 간격 대기 (마지막 계정이 아니면 대기)
+                const isLastAccount = accounts.indexOf(account) === accounts.length - 1;
+                if (!isLastAccount) {
+                    const pool = window.rotationPools[account.poolId];
+                    if (pool && pool.rotationInterval) {
+                        const intervalMinutes = pool.rotationInterval;
+                        const intervalSeconds = intervalMinutes * 60;
+                        console.log(`⏰ 풀별 간격 대기: ${intervalMinutes}분 (${intervalSeconds}초)`);
+                        await new Promise(resolve => setTimeout(resolve, intervalSeconds * 1000));
+                    }
+                }
             } catch (error) {
                 console.error(`❌ 계정 ${account.first_name} 전송 실패:`, error);
                 sendResults.push({
