@@ -3686,71 +3686,53 @@ async function sendMessageToGroup() {
     }
     
     try {
-        let accounts = [];
+        // 현재 계정 정보 가져오기
+        const accountName = document.getElementById('selectedAccountName').textContent;
+        const accountPhone = document.getElementById('selectedAccountPhone').textContent;
         
-        if (window.multiAccountMode && messageData.multiAccountMode) {
-            // 다중 계정 모드: 수동 전송 비활성화
-            console.log('❌ 다중 계정 모드에서는 수동 전송이 비활성화되어 있습니다.');
-            alert('다중 계정 모드에서는 수동 전송이 비활성화되어 있습니다.\n자동 전송을 사용하거나 단일 계정 모드로 전환해주세요.');
-            return;
-        } else {
-            // 단일 계정 모드: 기존 로직
-            const accountName = document.getElementById('selectedAccountName').textContent;
-            const accountPhone = document.getElementById('selectedAccountPhone').textContent;
-            
-            // 계정 목록에서 해당 계정 찾기
-            const response = await fetch('/api/telegram/load-accounts', {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                }
-            });
-            
-            const result = await response.json();
-            if (!response.ok || !result.success || !result.accounts) {
-                throw new Error(result.error || '계정 목록 로딩 실패');
+        // 계정 목록에서 해당 계정 찾기
+        const response = await fetch('/api/telegram/load-accounts', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
             }
-            
-            const account = result.accounts.find(acc => 
-                `${acc.first_name} ${acc.last_name || ''}`.trim() === accountName.trim()
-            );
-            
-            if (!account) {
-                throw new Error('계정을 찾을 수 없습니다.');
-            }
-            
-            accounts = [{
-                ...account,
-                selectedGroups: validGroupIds
-            }];
+        });
+        
+        const result = await response.json();
+        if (!response.ok || !result.success || !result.accounts) {
+            throw new Error(result.error || '계정 목록 로딩 실패');
+        }
+        
+        const account = result.accounts.find(acc => 
+            `${acc.first_name} ${acc.last_name || ''}`.trim() === accountName.trim()
+        );
+        
+        if (!account) {
+            throw new Error('계정을 찾을 수 없습니다.');
         }
         
         // 선택된 그룹들에 메시지 전송
         let successCount = 0;
         let failCount = 0;
         
-        for (const account of accounts) {
-            console.log(`🔄 계정 ${account.first_name} 전송 시작`);
+        for (let i = 0; i < validGroupIds.length; i++) {
+            const groupId = validGroupIds[i];
             
-            for (let i = 0; i < account.selectedGroups.length; i++) {
-                const groupId = account.selectedGroups[i];
+            console.log(`🔍 그룹 ${i + 1} 전송 시도: ${groupId}`);
+            
+            try {
+                // 서버로 전송할 데이터 준비
+                const sendData = {
+                    userId: account.user_id,
+                    groupId: groupId,
+                    message: message,
+                    mediaInfo: mediaInfo
+                };
                 
-                console.log(`🔍 그룹 ${i + 1} 전송 시도: ${groupId}`);
-                
-                try {
-                    // 서버로 전송할 데이터 준비
-                    const sendData = {
-                        userId: account.user_id,
-                        groupId: groupId,
-                        message: messageData.message,
-                        mediaInfo: messageData.mediaInfo
-                    };
-                    
-                    // 커스텀 이모지가 있는 경우 원본 메시지 객체 전체를 전송
-                    if (messageData.mediaInfo && messageData.mediaInfo.has_custom_emoji) {
-                        // 원본 메시지 객체 전체를 그대로 전송
-                        sendData.original_message_object = messageData.mediaInfo.original_message_object || messageData.mediaInfo.raw_message_data || messageData.mediaInfo;
-                    }
+                // 커스텀 이모지가 있는 경우 원본 메시지 객체 전체를 전송
+                if (mediaInfo && mediaInfo.has_custom_emoji) {
+                    // 원본 메시지 객체 전체를 그대로 전송
+                    sendData.original_message_object = mediaInfo.original_message_object || mediaInfo.raw_message_data || mediaInfo;
                     sendData.is_original_message = true;
                     sendData.bypass_text_processing = true;
                     sendData.message = null; // 텍스트 처리를 우회
@@ -3765,8 +3747,8 @@ async function sendMessageToGroup() {
                 }
                 
                 // 원본 메시지 객체가 있는 경우 우선 사용
-                if (messageData.mediaInfo && messageData.mediaInfo.original_message_object) {
-                    sendData.original_message_object = messageData.mediaInfo.original_message_object;
+                if (mediaInfo && mediaInfo.original_message_object) {
+                    sendData.original_message_object = mediaInfo.original_message_object;
                     sendData.is_original_message = true;
                     sendData.bypass_text_processing = true;
                     sendData.message = null; // 텍스트 처리를 우회
@@ -3811,7 +3793,7 @@ async function sendMessageToGroup() {
                 }
                 
                 // 그룹 간 간격 적용
-                if (i < account.selectedGroups.length - 1) {
+                if (i < validGroupIds.length - 1) {
                     const groupInterval = getGroupInterval();
                     console.log(`⏰ 그룹간 대기: ${groupInterval}초`);
                     await new Promise(resolve => setTimeout(resolve, groupInterval * 1000));
