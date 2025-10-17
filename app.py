@@ -2612,8 +2612,13 @@ async def forward_channel_message():
                 logger.error(f'❌ 전달 함수 에러: {str(e)}')
                 return []
         
-        # 비동기 함수 실행
-        results = asyncio.run(forward_messages_async())
+        # 비동기 함수 실행 (Render 호환)
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            results = loop.run_until_complete(forward_messages_async())
+        finally:
+            loop.close()
         
         # 임시 파일 삭제
         try:
