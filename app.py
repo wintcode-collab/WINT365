@@ -3917,20 +3917,22 @@ def stop_auto_send():
         if not user_id and account_name:
             try:
                 # Firebase에서 계정 목록 조회하여 이름으로 userId 찾기
-                accounts_ref = db.reference('authenticated_accounts')
-                accounts_data = accounts_ref.get()
+                url = f"{FIREBASE_URL}/authenticated_accounts.json"
+                response = requests.get(url, timeout=10)
                 
-                if accounts_data:
-                    for acc_user_id, acc_data in accounts_data.items():
-                        if isinstance(acc_data, dict):
-                            first_name = acc_data.get('first_name', '')
-                            last_name = acc_data.get('last_name', '')
-                            full_name = f"{first_name} {last_name}".strip()
-                            
-                            if full_name == account_name:
-                                user_id = acc_user_id
-                                logger.info(f'계정명으로 userId 찾음: {account_name} -> {user_id}')
-                                break
+                if response.status_code == 200:
+                    accounts_data = response.json()
+                    if accounts_data:
+                        for acc_user_id, acc_data in accounts_data.items():
+                            if isinstance(acc_data, dict):
+                                first_name = acc_data.get('first_name', '')
+                                last_name = acc_data.get('last_name', '')
+                                full_name = f"{first_name} {last_name}".strip()
+                                
+                                if full_name == account_name:
+                                    user_id = acc_user_id
+                                    logger.info(f'계정명으로 userId 찾음: {account_name} -> {user_id}')
+                                    break
                 
                 if not user_id:
                     logger.warning(f'계정명으로 userId를 찾을 수 없음: {account_name}')

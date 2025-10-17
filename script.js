@@ -3569,7 +3569,9 @@ async function sendMessageToGroup() {
             if (hasValidMessage) {
                 // 풀시스템에서 전송 대상 계정들을 전달하여 자동전송 시작
                 console.log('🔄 풀시스템 자동전송 시작');
-                const autoSendSuccess = await startAutoSendWithGroups(validGroupIds, messageData, null, poolResult.targetAccounts);
+                
+                // 풀시스템에서는 메시지 정보를 계정별로 처리하므로 빈 메시지로 시작
+                const autoSendSuccess = await startAutoSendWithGroups(validGroupIds, '', null, poolResult.targetAccounts);
                 if (autoSendSuccess) {
                     console.log('✅ 풀시스템 자동전송 시작 성공');
                     alert('🤖 풀시스템 자동전송이 시작되었습니다!\n\n설정된 간격마다 자동으로 전송됩니다.\nPC를 종료해도 계속 작동합니다.');
@@ -6215,6 +6217,48 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo, targe
             // 풀시스템에서 전달받은 계정 사용
             account = targetAccounts[0]; // 첫 번째 계정을 대표로 사용
             console.log('🔄 풀시스템 계정 사용:', account);
+            
+            // 풀시스템 계정의 메시지 정보 가져오기 (여러 방법 시도)
+            let accountElement = document.querySelector(`.account-message-setting span[data-account-id="${account.user_id}"]`)?.closest('.account-message-setting');
+            console.log('🔍 풀시스템 계정 요소 찾기 (방법1):', accountElement);
+            
+            // 방법1이 실패하면 다른 방법 시도
+            if (!accountElement) {
+                accountElement = document.querySelector(`[data-account-id="${account.user_id}"]`)?.closest('.account-message-setting');
+                console.log('🔍 풀시스템 계정 요소 찾기 (방법2):', accountElement);
+            }
+            
+            // 방법2도 실패하면 모든 계정 요소에서 찾기
+            if (!accountElement) {
+                const allElements = document.querySelectorAll('.account-message-setting');
+                for (const element of allElements) {
+                    const span = element.querySelector(`span[data-account-id="${account.user_id}"]`);
+                    if (span) {
+                        accountElement = element;
+                        console.log('🔍 풀시스템 계정 요소 찾기 (방법3):', accountElement);
+                        break;
+                    }
+                }
+            }
+            
+            if (accountElement) {
+                const mediaInfoStr = accountElement.dataset.mediaInfo;
+                console.log('🔍 풀시스템 계정 mediaInfoStr:', mediaInfoStr);
+                
+                if (mediaInfoStr && mediaInfoStr !== 'null' && mediaInfoStr !== '') {
+                    try {
+                        const accountMediaInfo = JSON.parse(mediaInfoStr);
+                        mediaInfo = accountMediaInfo;
+                        console.log('📝 풀시스템 계정 메시지 정보:', mediaInfo);
+                    } catch (e) {
+                        console.warn('풀시스템 계정 메시지 정보 파싱 실패:', e);
+                    }
+                } else {
+                    console.log('⚠️ 풀시스템 계정에 메시지 정보가 없음');
+                }
+            } else {
+                console.log('⚠️ 풀시스템 계정 요소를 찾을 수 없음');
+            }
         } else {
             // 기존 단일 계정 로직
             const accountName = document.getElementById('selectedAccountName').textContent;
