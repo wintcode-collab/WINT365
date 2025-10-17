@@ -6692,7 +6692,11 @@ function showManagePoolsModal() {
     let message = '생성된 로테이션 풀:\n\n';
     Object.values(window.rotationPools).forEach(pool => {
         const intervalMinutes = pool.rotationInterval || 15;
-        const totalCycleMinutes = intervalMinutes * pool.accounts.length;
+        const groupIntervalSeconds = getGroupInterval();
+        const groupIntervalMinutes = groupIntervalSeconds / 60;
+        
+        // 실제 전체주기 = (풀별 간격 + 그룹간 전송 시간) × 계정 수
+        const totalCycleMinutes = (intervalMinutes + groupIntervalMinutes) * pool.accounts.length;
         const totalCycleHours = Math.floor(totalCycleMinutes / 60);
         const remainingMinutes = totalCycleMinutes % 60;
         
@@ -6755,7 +6759,11 @@ function showDeletePoolModal() {
     // 풀 목록 생성
     Object.values(window.rotationPools).forEach(pool => {
         const intervalMinutes = pool.rotationInterval || 15;
-        const totalCycleMinutes = intervalMinutes * pool.accounts.length;
+        const groupIntervalSeconds = getGroupInterval();
+        const groupIntervalMinutes = groupIntervalSeconds / 60;
+        
+        // 실제 전체주기 = (풀별 간격 + 그룹간 전송 시간) × 계정 수
+        const totalCycleMinutes = (intervalMinutes + groupIntervalMinutes) * pool.accounts.length;
         const totalCycleHours = Math.floor(totalCycleMinutes / 60);
         const remainingMinutes = totalCycleMinutes % 60;
         
@@ -6980,7 +6988,11 @@ function renderPoolIntervalsList() {
     pools.forEach(pool => {
         const intervalMinutes = pool.rotationInterval || 15; // 기본 15분
         const accountCount = pool.accounts.length;
-        const totalCycleMinutes = intervalMinutes * accountCount;
+        const groupIntervalSeconds = getGroupInterval();
+        const groupIntervalMinutes = groupIntervalSeconds / 60;
+        
+        // 실제 전체주기 = (풀별 간격 + 그룹간 전송 시간) × 계정 수
+        const totalCycleMinutes = (intervalMinutes + groupIntervalMinutes) * accountCount;
         const totalCycleHours = Math.floor(totalCycleMinutes / 60);
         const remainingMinutes = totalCycleMinutes % 60;
         
@@ -7140,7 +7152,11 @@ function renderRotationPoolsList() {
     const poolList = Object.values(window.rotationPools).map(pool => {
         const accountNames = pool.accounts.map(acc => acc.first_name).join(', ');
         const intervalMinutes = pool.rotationInterval || 15;
-        const totalCycleMinutes = intervalMinutes * pool.accounts.length;
+        const groupIntervalSeconds = getGroupInterval();
+        const groupIntervalMinutes = groupIntervalSeconds / 60;
+        
+        // 실제 전체주기 = (풀별 간격 + 그룹간 전송 시간) × 계정 수
+        const totalCycleMinutes = (intervalMinutes + groupIntervalMinutes) * pool.accounts.length;
         const totalCycleHours = Math.floor(totalCycleMinutes / 60);
         const remainingMinutes = totalCycleMinutes % 60;
         
