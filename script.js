@@ -3544,6 +3544,10 @@ async function sendMessageToGroup() {
     // 선택된 그룹들 확인 (먼저 선언)
     const checkedBoxes = document.querySelectorAll('.group-checkbox:checked');
     
+    // 그룹 ID들 미리 추출 (풀시스템에서 사용하기 위해 먼저 선언)
+    const selectedGroupIds = Array.from(checkedBoxes).map(checkbox => checkbox.dataset.groupId);
+    const validGroupIds = selectedGroupIds.filter(id => id && id !== 'undefined');
+    
     // 메시지 확인 (다중 계정 모드, 풀 시스템, 단일 계정 모드 구분)
     let hasValidMessage = false;
     
@@ -3607,9 +3611,6 @@ async function sendMessageToGroup() {
         return;
     }
     
-    // 그룹 ID들 미리 추출
-    const selectedGroupIds = Array.from(checkedBoxes).map(checkbox => checkbox.dataset.groupId);
-    const validGroupIds = selectedGroupIds.filter(id => id && id !== 'undefined');
     if (validGroupIds.length === 0) {
         alert('선택된 그룹의 ID를 찾을 수 없습니다. 페이지를 새로고침하고 다시 시도해주세요.');
         return;
