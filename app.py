@@ -2518,7 +2518,7 @@ def save_auto_send_status_to_firebase(user_id, status_data):
 
 @app.route('/api/telegram/forward-channel-message', methods=['POST'])
 @cross_origin(origins=ALLOWED_ORIGINS, methods=['POST','OPTIONS'], allow_headers=['Content-Type','Authorization'], max_age=86400)
-async def forward_channel_message():
+def forward_channel_message():
     """채널 메시지를 그룹으로 전달"""
     try:
         data = request.get_json()
