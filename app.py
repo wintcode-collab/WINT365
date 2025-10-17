@@ -4456,7 +4456,7 @@ def get_channel_messages():
                 
                 # 채널 메시지 가져오기
                 messages = []
-                logger.info(f'📥 채널 메시지 반복 조회 시작: 모든 메시지')
+                logger.info(f'📥 채널 메시지 반복 조회 시작: 모든 메시지 (텍스트 + 미디어)')
                 
                 try:
                     message_count = 0

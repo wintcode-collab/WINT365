@@ -9398,8 +9398,7 @@ async function loadChannelMessagesForMultiAccount(channelId) {
     try {
         console.log('📤 서버로 전송할 데이터:', {
             userId: selectedAccountId,
-            channelUsername: channelId,
-            limit: 50
+            channelUsername: channelId
         });
         
         // 텔레그램 채널 ID는 음수여야 함 (예: -1001234567890)
@@ -9423,6 +9422,10 @@ async function loadChannelMessagesForMultiAccount(channelId) {
         
         const result = await response.json();
         console.log('📥 채널 메시지 불러오기 결과:', result);
+        console.log('📥 받은 메시지 개수:', result.messages ? result.messages.length : 0);
+        if (result.messages && result.messages.length > 0) {
+            console.log('📥 첫 번째 메시지 샘플:', result.messages[0]);
+        }
         
         if (result.success && result.messages) {
             displayChannelMessagesForMultiAccount(result.messages, window.selectedChannelTitle);
@@ -9469,9 +9472,9 @@ function displayChannelMessagesForMultiAccount(messages, channelTitle) {
     
     messages.forEach((message, index) => {
         const messageDate = new Date(message.date).toLocaleString('ko-KR');
-        const messagePreview = message.text.length > 100 ? 
+        const messagePreview = message.text && message.text.length > 100 ? 
             message.text.substring(0, 100) + '...' : 
-            message.text;
+            (message.text || '');
         
         // 미디어 타입에 따른 아이콘 및 표시
         let mediaIcon = '';
