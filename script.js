@@ -4790,20 +4790,42 @@ function applyChannelMessageToSelectedAccount() {
         console.log(`🔍 선택자 "${selector}" 결과:`, elements.length, '개');
         
         if (elements.length > 0) {
-            for (const element of elements) {
-                console.log(`🔍 요소:`, element.dataset.accountId, element);
-                if (element.dataset.accountId === selectedAccountId) {
-                    accountMessageSetting = element;
-                    break;
-                }
+        for (const element of elements) {
+            console.log(`🔍 요소:`, element.dataset.accountId, element.className, element);
+            console.log(`🔍 요소 태그명:`, element.tagName);
+            console.log(`🔍 요소 전체 속성:`, element.attributes);
+            if (element.dataset.accountId === selectedAccountId) {
+                accountMessageSetting = element;
+                break;
             }
+        }
         }
         
         if (accountMessageSetting) break;
     }
     
     if (accountMessageSetting) {
-        const statusSpan = accountMessageSetting.querySelector('span[data-account-id]');
+        console.log('🔍 찾은 계정 메시지 설정 요소:', accountMessageSetting);
+        console.log('🔍 요소의 HTML:', accountMessageSetting.outerHTML);
+        
+        // 여러 방법으로 상태 스팬 찾기
+        let statusSpan = accountMessageSetting.querySelector('span[data-account-id]');
+        
+        if (!statusSpan) {
+            // 다른 선택자로 시도
+            statusSpan = accountMessageSetting.querySelector('span');
+            console.log('🔍 span 선택자로 찾은 요소:', statusSpan);
+        }
+        
+        if (!statusSpan) {
+            // 직접 텍스트 노드 찾기
+            const textNodes = Array.from(accountMessageSetting.childNodes).filter(node => node.nodeType === Node.TEXT_NODE);
+            console.log('🔍 텍스트 노드들:', textNodes);
+            
+            // 또는 모든 자식 요소 확인
+            const allChildren = accountMessageSetting.querySelectorAll('*');
+            console.log('🔍 모든 자식 요소들:', allChildren);
+        }
         
         if (statusSpan) {
             // 상태 업데이트
@@ -4818,16 +4840,48 @@ function applyChannelMessageToSelectedAccount() {
                 channel_title: window.selectedChannelMessage.channelTitle,
                 channel_id: window.selectedChannelMessage.channelId,
                 message_id: window.selectedChannelMessage.messageId,
-                is_channel_forward: true
+                is_channel_forward: true,
+                media_type: window.selectedChannelMessage.messageData.media_type,
+                media_info: window.selectedChannelMessage.messageData.media_info
             });
             
             console.log(`✅ 계정 ${selectedAccountId}에 채널 메시지 적용됨`);
+            
+            // 메인 화면의 계정별 메시지 설정도 업데이트
+            updateMainAccountMessageDisplay(selectedAccountId);
         } else {
             console.error('❌ 계정 상태 스팬을 찾을 수 없습니다');
+            console.error('❌ 요소의 모든 자식:', accountMessageSetting.children);
+            console.error('❌ 요소의 모든 노드:', accountMessageSetting.childNodes);
         }
     } else {
         console.error('❌ 선택된 계정의 메시지 설정 요소를 찾을 수 없습니다');
         console.error('❌ 선택된 계정 ID:', selectedAccountId);
+    }
+}
+
+// 메인 화면의 계정별 메시지 설정 업데이트
+function updateMainAccountMessageDisplay(accountId) {
+    console.log('🖥️ 메인 화면 계정 메시지 표시 업데이트:', accountId);
+    
+    // 메인 화면에서 해당 계정의 메시지 설정 요소 찾기
+    const mainAccountSetting = document.querySelector(`[data-account-id="${accountId}"]`);
+    
+    if (mainAccountSetting) {
+        console.log('🔍 메인 화면 계정 설정 요소:', mainAccountSetting);
+        console.log('🔍 메인 화면 요소 HTML:', mainAccountSetting.outerHTML);
+        
+        // 메시지 상태 표시 업데이트
+        const statusSpan = mainAccountSetting.querySelector('span');
+        if (statusSpan) {
+            statusSpan.textContent = `📢 채널 메시지 선택됨 (${window.selectedChannelMessage.channelTitle})`;
+            statusSpan.style.color = '#3B82F6';
+            console.log('✅ 메인 화면 상태 업데이트 완료');
+        } else {
+            console.error('❌ 메인 화면에서 상태 스팬을 찾을 수 없습니다');
+        }
+    } else {
+        console.error('❌ 메인 화면에서 계정 설정 요소를 찾을 수 없습니다');
     }
 }
 
