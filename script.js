@@ -5027,26 +5027,14 @@ function loadAutoSendSettings() {
         }
         
         if (settings) {
-            // 풀 시스템 설정 로드
-            if (settings.rotationPools && settings.rotationPools.enabled) {
-                window.rotationPoolsEnabled = true;
-                window.rotationPools = settings.rotationPools.pools || {};
-                window.groupPoolMapping = settings.rotationPools.groupMapping || {};
-                window.poolRotationIndex = settings.rotationPools.rotationIndex || {};
-                const enablePoolsCheckbox = document.getElementById('enableRotationPools');
-                if (enablePoolsCheckbox) {
-                    enablePoolsCheckbox.checked = true;
-                }
-                console.log('✅ 풀 시스템 설정 로드됨:', settings.rotationPools);
-            } else {
-                // 풀 시스템 설정이 없거나 비활성화되어 있으면 명시적으로 false로 설정
-                window.rotationPoolsEnabled = false;
-                const enablePoolsCheckbox = document.getElementById('enableRotationPools');
-                if (enablePoolsCheckbox) {
-                    enablePoolsCheckbox.checked = false;
-                }
-                console.log('✅ 풀 시스템 비활성화 상태로 설정');
+            // 자동전송 모달이 열릴 때는 항상 풀 시스템을 비활성화 상태로 시작
+            // (사용자가 원하면 체크할 수 있음)
+            window.rotationPoolsEnabled = false;
+            const enablePoolsCheckbox = document.getElementById('enableRotationPools');
+            if (enablePoolsCheckbox) {
+                enablePoolsCheckbox.checked = false;
             }
+            console.log('✅ 자동전송 모달 열림 - 풀 시스템 비활성화로 초기화');
             
             // 그룹간 전송간격은 풀 시스템 활성화 여부와 관계없이 항상 로드
             const groupInterval = document.getElementById('groupInterval');
@@ -5395,9 +5383,15 @@ function updateAutoSendSettingsDisplay() {
             settingsTexts.push(`그룹간격 ${settings.groupInterval}초`);
             
             // 풀시스템 활성화 여부에 따라 다른 간격 표시
-            if (window.rotationPoolsEnabled && settings.rotationPools && settings.rotationPools.enabled) {
+            if (settings.rotationPools && settings.rotationPools.enabled) {
                 // 풀시스템이 활성화된 경우 - 풀별 간격 표시
-                settingsTexts.push(`풀별 간격`);
+                const pools = settings.rotationPools.pools || {};
+                const poolIntervals = Object.values(pools).map(pool => `${pool.name}: ${pool.rotationInterval}분`).join(', ');
+                if (poolIntervals) {
+                    settingsTexts.push(`풀별 간격 (${poolIntervals})`);
+                } else {
+                    settingsTexts.push(`풀별 간격`);
+                }
             } else {
                 // 풀시스템이 비활성화된 경우 - 반복 전송 간격 표시
                 settingsTexts.push(`반복간격 ${settings.repeatInterval}분`);
