@@ -6370,8 +6370,20 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo, targe
                 original_message_object: autoSendData.original_message_object,
                 is_original_message: autoSendData.is_original_message,
                 bypass_text_processing: autoSendData.bypass_text_processing,
-                send_as_original: autoSendData.send_as_original
+                send_as_original: autoSendData.send_as_original,
+                has_custom_emoji: mediaInfo.has_custom_emoji,
+                custom_emoji_entities: mediaInfo.custom_emoji_entities
             });
+            
+            // 원본 메시지 객체 상세 정보 로깅
+            if (autoSendData.original_message_object) {
+                console.log('📤 원본 메시지 객체 상세:', {
+                    id: autoSendData.original_message_object.id,
+                    text: autoSendData.original_message_object.text,
+                    entities: autoSendData.original_message_object.entities,
+                    has_custom_emoji: autoSendData.original_message_object.has_custom_emoji
+                });
+            }
         }
         
         const autoSendResponse = await fetch(`${getApiBaseUrl()}/api/auto-send/start`, {

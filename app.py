@@ -2053,9 +2053,6 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                         # InputPeerSelf import
                         from telethon.tl.types import InputPeerSelf
                         
-                        # InputPeerSelf import
-                        from telethon.tl.types import InputPeerSelf
-                        
                         # 원본 메시지를 직접 전달 (완전히 원본 그대로)
                         forwarded_messages = await client.forward_messages(
                             entity=group_entity,
@@ -2072,12 +2069,41 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                         
                     except Exception as e:
                         logger.error(f'❌ 원본 메시지 직접 전달 실패: {e}')
-                        logger.info('📤 백업: 원본 텍스트 전송')
+                        logger.info('📤 백업: 원본 텍스트와 엔티티로 전송')
                         
-                        # 백업: 원본 텍스트 전송
+                        # 백업: 원본 텍스트와 엔티티로 전송
                         if original_text:
-                            sent_message = await client.send_message(group_entity, original_text)
-                            logger.info(f'✅ 백업 성공: 원본 텍스트 전송 완료: {sent_message.id}')
+                            # 원본 엔티티 정보 가져오기
+                            original_entities = original_obj.get('entities', [])
+                            logger.info(f'📤 백업: 원본 엔티티 {len(original_entities)}개 사용')
+                            
+                            if original_entities:
+                                # 엔티티 정보를 텔레그램 형식으로 변환
+                                from telethon.tl.types import MessageEntityCustomEmoji
+                                telegram_entities = []
+                                
+                                for entity in original_entities:
+                                    if entity.get('type') == 'CUSTOM_EMOJI':
+                                        telegram_entities.append(MessageEntityCustomEmoji(
+                                            offset=entity['offset'],
+                                            length=entity['length'],
+                                            document_id=entity['document_id']
+                                        ))
+                                        logger.info(f'📤 백업: 커스텀 이모지 엔티티 추가: offset={entity["offset"]}, length={entity["length"]}, document_id={entity["document_id"]}')
+                                
+                                # 엔티티와 함께 전송
+                                try:
+                                    sent_message = await client.send_message(group_entity, original_text, formatting_entities=telegram_entities)
+                                    logger.info(f'✅ 백업 성공: 원본 텍스트+엔티티 전송 완료: {sent_message.id}')
+                                except Exception as e2:
+                                    logger.error(f'❌ 엔티티 전송 실패: {e2}')
+                                    # 최종 백업: 단순 텍스트 전송
+                                    sent_message = await client.send_message(group_entity, original_text)
+                                    logger.info(f'✅ 최종 백업: 단순 텍스트 전송 완료: {sent_message.id}')
+                            else:
+                                # 엔티티가 없으면 단순 텍스트 전송
+                                sent_message = await client.send_message(group_entity, original_text)
+                                logger.info(f'✅ 백업 성공: 단순 텍스트 전송 완료: {sent_message.id}')
                         else:
                             logger.warning('⚠️ 원본 텍스트가 없어서 전송할 수 없습니다.')
                 
