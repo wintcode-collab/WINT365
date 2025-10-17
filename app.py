@@ -2533,73 +2533,103 @@ async def forward_channel_message():
         logger.info(f'📢 채널 메시지 전달 요청: 계정={user_id}, 채널={channel_username}, 메시지={message_id}, 그룹={len(group_ids)}개')
         
         # 계정 정보 가져오기
-        account = await get_account_from_firebase(user_id)
+        account = get_account_from_firebase(user_id)
         if not account:
             return jsonify({'success': False, 'error': '계정 정보를 찾을 수 없습니다'}), 404
         
-        # Telethon 클라이언트 생성
-        client = await create_telethon_client(account)
+        # 세션 데이터 복원
+        session_b64 = account.get('session_data')
+        if not session_b64:
+            return jsonify({'success': False, 'error': '세션 데이터가 없습니다'}), 400
+            
+        session_bytes = base64.b64decode(session_b64)
+        temp_session_file = f'temp_forward_{user_id}'
         
-        try:
-            # 채널 ID 처리 (음수로 변환)
-            if isinstance(channel_username, str) and channel_username.isdigit():
-                channel_id = int(f"-100{channel_username}")
-            else:
-                channel_id = channel_username
-            
-            logger.info(f'📢 전달할 채널 ID: {channel_id}')
-            
-            # 각 그룹으로 메시지 전달
-            results = []
-            for group_id in group_ids:
-                try:
-                    # 메시지 전달
-                    forwarded_messages = await client.forward_messages(
-                        entity=group_id,
-                        messages=message_id,
-                        from_peer=channel_id
-                    )
-                    
-                    if forwarded_messages:
-                        forwarded_message = forwarded_messages[0] if isinstance(forwarded_messages, list) else forwarded_messages
-                        logger.info(f'✅ 그룹 {group_id}로 메시지 전달 성공: {forwarded_message.id}')
-                        results.append({
-                            'group_id': group_id,
-                            'success': True,
-                            'message_id': forwarded_message.id
-                        })
-                    else:
-                        logger.warning(f'⚠️ 그룹 {group_id}로 전달 실패')
+        # 임시 세션 파일 생성
+        with open(f'{temp_session_file}.session', 'wb') as f:
+            f.write(session_bytes)
+        
+        # 비동기 전달 함수
+        async def forward_messages_async():
+            try:
+                # Telethon 클라이언트 생성
+                client = TelegramClient(temp_session_file, account['api_id'], account['api_hash'])
+                
+                # 연결
+                await client.connect()
+                
+                if not client.is_connected():
+                    logger.error('❌ 클라이언트 연결 실패')
+                    return []
+                
+                # 채널 ID 처리 (음수로 변환)
+                if isinstance(channel_username, str) and channel_username.isdigit():
+                    channel_id = int(f"-100{channel_username}")
+                else:
+                    channel_id = channel_username
+                
+                logger.info(f'📢 전달할 채널 ID: {channel_id}')
+                
+                # 각 그룹으로 메시지 전달
+                results = []
+                for group_id in group_ids:
+                    try:
+                        # 메시지 전달
+                        forwarded_messages = await client.forward_messages(
+                            entity=group_id,
+                            messages=message_id,
+                            from_peer=channel_id
+                        )
+                        
+                        if forwarded_messages:
+                            forwarded_message = forwarded_messages[0] if isinstance(forwarded_messages, list) else forwarded_messages
+                            logger.info(f'✅ 그룹 {group_id}로 메시지 전달 성공: {forwarded_message.id}')
+                            results.append({
+                                'group_id': group_id,
+                                'success': True,
+                                'message_id': forwarded_message.id
+                            })
+                        else:
+                            logger.warning(f'⚠️ 그룹 {group_id}로 전달 실패')
+                            results.append({
+                                'group_id': group_id,
+                                'success': False,
+                                'error': '전달 실패'
+                            })
+                            
+                    except Exception as e:
+                        logger.error(f'❌ 그룹 {group_id} 전달 에러: {str(e)}')
                         results.append({
                             'group_id': group_id,
                             'success': False,
-                            'error': '전달 실패'
+                            'error': str(e)
                         })
-                        
-                except Exception as e:
-                    logger.error(f'❌ 그룹 {group_id} 전달 에러: {str(e)}')
-                    results.append({
-                        'group_id': group_id,
-                        'success': False,
-                        'error': str(e)
-                    })
-            
-            await client.disconnect()
-            
-            success_count = sum(1 for r in results if r['success'])
-            logger.info(f'📢 전달 완료: {success_count}/{len(group_ids)}개 그룹 성공')
-            
-            return jsonify({
-                'success': True,
-                'results': results,
-                'success_count': success_count,
-                'total_count': len(group_ids)
-            })
-            
-        except Exception as e:
-            await client.disconnect()
-            logger.error(f'❌ 채널 메시지 전달 실패: {str(e)}')
-            return jsonify({'success': False, 'error': str(e)}), 500
+                
+                await client.disconnect()
+                return results
+                
+            except Exception as e:
+                logger.error(f'❌ 전달 함수 에러: {str(e)}')
+                return []
+        
+        # 비동기 함수 실행
+        results = await forward_messages_async()
+        
+        # 임시 파일 삭제
+        try:
+            os.remove(f'{temp_session_file}.session')
+        except:
+            pass
+        
+        success_count = sum(1 for r in results if r['success'])
+        logger.info(f'📢 전달 완료: {success_count}/{len(group_ids)}개 그룹 성공')
+        
+        return jsonify({
+            'success': True,
+            'results': results,
+            'success_count': success_count,
+            'total_count': len(group_ids)
+        })
             
     except Exception as e:
         logger.error(f'❌ 채널 메시지 전달 API 에러: {str(e)}')
