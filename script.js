@@ -8792,7 +8792,7 @@ async function sendMessageFromPoolAccount(account, groupId, groupTitle) {
     
     const forwardData = {
         userId: account.user_id,
-        channelUsername: mediaInfo.channel_id,
+        channelId: mediaInfo.channel_id,
         messageId: mediaInfo.message_id,
         groupIds: [groupId]
     };
