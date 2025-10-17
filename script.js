@@ -2256,10 +2256,10 @@ function showAccountSelectionModal(accounts) {
             ">
                 <div style="margin-bottom: 20px;">
                     <h3 style="margin: 0 0 10px 0; color: #10B981; text-align: center;">
-                        💾 저장된 메시지 선택
+                        📢 비공개 채널 선택
                     </h3>
                     <p style="margin: 0; color: #888; text-align: center; font-size: 14px;">
-                        계정을 클릭하여 선택하고, 한 번 더 클릭하여 메시지를 선택하세요
+                        계정을 클릭하여 선택하고, 해당 계정의 비공개 채널을 확인하세요
                     </p>
                 </div>
                 
@@ -2390,10 +2390,10 @@ function setupAccountMessageModalEvents() {
     });
 }
 
-// 계정별 메시지 모달 열기
+// 계정별 비공개 채널 모달 열기
 async function openAccountMessageModal(accountId) {
     try {
-        console.log(`💾 계정 ${accountId}의 메시지 모달 열기`);
+        console.log(`📢 계정 ${accountId}의 비공개 채널 모달 열기`);
         
         // 계정 정보 찾기
         const account = window.selectedMultiAccounts?.find(acc => acc.user_id === accountId);
@@ -2410,8 +2410,8 @@ async function openAccountMessageModal(accountId) {
         // 로딩 모달 표시
         showLoadingModal(account);
         
-        // 저장된 메시지 불러오기
-        const response = await fetch(`${getApiBaseUrl()}/api/telegram/saved-messages`, {
+        // 비공개 채널 불러오기
+        const response = await fetch('/api/telegram/get-private-channels', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -2429,13 +2429,13 @@ async function openAccountMessageModal(accountId) {
             loadingModal.remove();
         }
         
-        if (!response.ok || !result.success || !result.saved_messages || result.saved_messages.length === 0) {
-            alert('저장된 메시지가 없습니다.');
+        if (!response.ok || !result.success || !result.channels || result.channels.length === 0) {
+            alert('비공개 채널이 없습니다.');
             return;
         }
         
         // 모달창 생성 및 표시
-        showMessageSelectionModal(account, result.saved_messages);
+        showChannelSelectionModal(account, result.channels);
         
     } catch (error) {
         console.error(`❌ 계정 ${accountId} 메시지 모달 열기 실패:`, error);
@@ -2480,7 +2480,7 @@ function showLoadingModal(account) {
                     📱 ${account.first_name || ''} ${account.last_name || ''}
                 </h3>
                 <p style="margin: 0; color: #888; font-size: 14px;">
-                    저장된 메시지를 불러오는 중...
+                    비공개 채널을 불러오는 중...
                 </p>
             </div>
         </div>
@@ -2489,8 +2489,8 @@ function showLoadingModal(account) {
     document.body.insertAdjacentHTML('beforeend', loadingHTML);
 }
 
-// 메시지 선택 모달창 표시
-function showMessageSelectionModal(account, savedMessages) {
+// 채널 선택 모달창 표시
+function showChannelSelectionModal(account, channels) {
     // 기존 모달이 있으면 제거
     const existingModal = document.getElementById('messageSelectionModal');
     if (existingModal) {
@@ -2524,16 +2524,16 @@ function showMessageSelectionModal(account, savedMessages) {
             ">
                 <div style="margin-bottom: 20px;">
                     <h3 style="margin: 0 0 10px 0; color: #10B981; text-align: center;">
-                        📱 ${account.first_name || ''} ${account.last_name || ''} - 저장된 메시지 선택
+                        📱 ${account.first_name || ''} ${account.last_name || ''} - 비공개 채널 선택
                     </h3>
                     <p style="margin: 0; color: #888; text-align: center; font-size: 14px;">
-                        사용할 메시지를 선택하세요
+                        전달할 메시지를 선택할 채널을 클릭하세요
                     </p>
                 </div>
                 
-                <div id="savedMessagesList" style="margin-bottom: 20px;">
-                    ${savedMessages.map((message, index) => `
-                        <div class="message-item" data-message-index="${index}" style="
+                <div id="channelsList" style="margin-bottom: 20px;">
+                    ${channels.map((channel, index) => `
+                        <div class="channel-item" data-channel-id="${channel.id}" style="
                             padding: 15px;
                             margin-bottom: 10px;
                             background: linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%);
@@ -2541,7 +2541,7 @@ function showMessageSelectionModal(account, savedMessages) {
                             border-radius: 8px;
                             cursor: pointer;
                             transition: all 0.2s ease;
-                        ">
+                        " onclick="selectChannelForMessages('${channel.id}', '${channel.title.replace(/'/g, "\\'")}')">
                             <div style="display: flex; align-items: flex-start; gap: 12px;">
                                 <div style="flex: 1;">
                                     ${message.text ? `
@@ -4333,6 +4333,115 @@ function displayPrivateChannelsForAccount(channels) {
             `).join('')}
         </div>
     `;
+}
+
+// 다중 계정용 채널 선택 모달 표시
+function showChannelSelectionModal(account, channels) {
+    // 기존 모달이 있으면 제거
+    const existingModal = document.getElementById('messageSelectionModal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    // 모달창 HTML 생성
+    const modalHTML = `
+        <div id="messageSelectionModal" style="
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        ">
+            <div style="
+                background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
+                border: 2px solid #10B981;
+                border-radius: 12px;
+                padding: 20px;
+                max-width: 600px;
+                width: 90%;
+                max-height: 80vh;
+                overflow-y: auto;
+                box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+            ">
+                <div style="margin-bottom: 20px;">
+                    <h3 style="margin: 0 0 10px 0; color: #10B981; text-align: center;">
+                        📱 ${account.first_name || ''} ${account.last_name || ''} - 비공개 채널 선택
+                    </h3>
+                    <p style="margin: 0; color: #888; text-align: center; font-size: 14px;">
+                        전달할 메시지를 선택할 채널을 클릭하세요
+                    </p>
+                </div>
+                
+                <div id="channelsList" style="margin-bottom: 20px;">
+                    ${channels.map((channel, index) => `
+                        <div class="channel-item" data-channel-id="${channel.id}" style="
+                            padding: 15px;
+                            margin-bottom: 10px;
+                            background: linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%);
+                            border: 1px solid #444;
+                            border-radius: 8px;
+                            cursor: pointer;
+                            transition: all 0.2s ease;
+                        " onclick="selectChannelForMessages('${channel.id}', '${channel.title.replace(/'/g, "\\'")}')">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div style="flex: 1;">
+                                    <div style="color: #10B981; font-weight: 600; margin-bottom: 5px;">${channel.title}</div>
+                                    <div style="color: #ccc; font-size: 12px;">
+                                        ID: ${channel.id} | 👥 ${channel.participants_count}명
+                                    </div>
+                                </div>
+                                <div style="text-align: right;">
+                                    <button style="
+                                        background: #10B981;
+                                        color: white;
+                                        border: none;
+                                        padding: 8px 16px;
+                                        border-radius: 6px;
+                                        font-size: 12px;
+                                        cursor: pointer;
+                                        font-weight: 600;
+                                    ">📥 메시지 선택</button>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+                
+                <div style="text-align: center;">
+                    <button id="closeChannelModalBtn" style="
+                        background: #6c757d;
+                        color: white;
+                        border: none;
+                        padding: 10px 20px;
+                        border-radius: 6px;
+                        font-size: 14px;
+                        cursor: pointer;
+                        font-weight: 600;
+                    ">❌ 닫기</button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // 모달창 추가
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    
+    // 닫기 버튼 이벤트
+    document.getElementById('closeChannelModalBtn').addEventListener('click', function() {
+        document.getElementById('messageSelectionModal').remove();
+    });
+    
+    // 배경 클릭으로 닫기
+    document.getElementById('messageSelectionModal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            this.remove();
+        }
+    });
 }
 
 // 비공개 채널 목록 불러오기
