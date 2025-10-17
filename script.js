@@ -7720,7 +7720,13 @@ async function checkPoolSystemMessages(checkedBoxes) {
                 const accountElement = document.querySelector(`.account-message-setting span[data-account-id="${account.user_id}"]`)?.closest('.account-message-setting');
                 if (accountElement) {
                     const statusSpan = accountElement.querySelector('span[data-account-id]');
-                    if (statusSpan && statusSpan.textContent !== '- 저장된 메시지를 선택하세요') {
+                    const mediaInfo = accountElement.dataset.mediaInfo;
+                    
+                    // 메시지 확인: statusSpan 텍스트 또는 dataset.mediaInfo 존재 여부
+                    const hasMessage = (statusSpan && statusSpan.textContent !== '- 저장된 메시지를 선택하세요') || 
+                                     (mediaInfo && mediaInfo !== 'null' && mediaInfo !== '');
+                    
+                    if (hasMessage) {
                         groupHasMessages = true;
                         poolAccounts.push({
                             ...account,
@@ -7728,8 +7734,9 @@ async function checkPoolSystemMessages(checkedBoxes) {
                             poolName: pool.name
                         });
                         console.log(`✅ 계정 ${account.first_name} (${account.user_id}) 메시지 확인됨`);
+                        console.log(`📝 메시지 정보: statusSpan="${statusSpan?.textContent}", mediaInfo=${mediaInfo ? '있음' : '없음'}`);
                     } else {
-                        console.log(`❌ 계정 ${account.first_name} (${account.user_id}) 메시지 없음: ${statusSpan?.textContent}`);
+                        console.log(`❌ 계정 ${account.first_name} (${account.user_id}) 메시지 없음: statusSpan="${statusSpan?.textContent}", mediaInfo=${mediaInfo ? '있음' : '없음'}`);
                     }
                 } else {
                     console.log(`❌ 계정 ${account.first_name} (${account.user_id}) 메시지 설정 요소 없음`);
@@ -7830,7 +7837,13 @@ async function sendMessageFromPoolAccount(account, groupId, groupTitle) {
     }
     
     const statusSpan = accountElement.querySelector('span[data-account-id]');
-    if (!statusSpan || statusSpan.textContent === '- 저장된 메시지를 선택하세요') {
+    const mediaInfo = accountElement.dataset.mediaInfo;
+    
+    // 메시지 확인: statusSpan 텍스트 또는 dataset.mediaInfo 존재 여부
+    const hasMessage = (statusSpan && statusSpan.textContent !== '- 저장된 메시지를 선택하세요') || 
+                     (mediaInfo && mediaInfo !== 'null' && mediaInfo !== '');
+    
+    if (!hasMessage) {
         throw new Error('메시지가 선택되지 않았습니다.');
     }
     
