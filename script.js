@@ -6012,23 +6012,53 @@ async function stopAutoSend() {
         if (window.rotationPoolsEnabled && window.groupPoolMapping) {
             console.log('🔄 풀시스템 자동전송 중지 시도');
             
-            // 풀시스템에서 실행 중인 계정들 찾기
-            const runningAccounts = [];
-            for (const [groupId, poolIds] of Object.entries(window.groupPoolMapping)) {
-                for (const poolId of poolIds) {
-                    const pool = window.rotationPools[poolId];
-                    if (pool && pool.accounts) {
-                        runningAccounts.push(...pool.accounts);
+            // 자동전송 시작 시 저장된 활성 계정 정보 우선 사용
+            if (window.autoSendActiveAccount) {
+                userId = window.autoSendActiveAccount.userId;
+                accountName = window.autoSendActiveAccount.accountName;
+                console.log('🔥 자동전송 시작 시 저장된 활성 계정 사용:', accountName, userId);
+            } else {
+                // 저장된 활성 계정이 없으면 마지막으로 선택된 계정 정보 사용
+                const lastSelectedAccount = localStorage.getItem('lastSelectedAccount');
+                if (lastSelectedAccount) {
+                    userId = lastSelectedAccount;
+                    console.log('🔥 마지막 선택된 계정 ID 사용:', userId);
+                    
+                    // 계정명도 마지막 선택된 계정에서 가져오기
+                    try {
+                        const accResp = await fetch(`${getApiBaseUrl()}/api/telegram/load-accounts`);
+                        const accData = await accResp.json();
+                        const accounts = accData.accounts || accData || [];
+                        const foundAccount = accounts.find(acc => String(acc.user_id) === userId);
+                        if (foundAccount) {
+                            accountName = `${foundAccount.first_name} ${foundAccount.last_name || ''}`.trim();
+                            console.log('🔥 마지막 선택된 계정명 사용:', accountName);
+                        }
+                    } catch (error) {
+                        console.warn('⚠️ 계정명 조회 실패:', error);
                     }
                 }
-            }
-            
-            if (runningAccounts.length > 0) {
-                // 첫 번째 계정을 대표로 사용
-                const representativeAccount = runningAccounts[0];
-                accountName = `${representativeAccount.first_name} ${representativeAccount.last_name || ''}`.trim();
-                userId = String(representativeAccount.user_id);
-                console.log('🔄 풀시스템 대표 계정:', accountName, userId);
+                
+                // 마지막 선택된 계정이 없으면 풀시스템 계정 사용
+                if (!userId) {
+                    const runningAccounts = [];
+                    for (const [groupId, poolIds] of Object.entries(window.groupPoolMapping)) {
+                        for (const poolId of poolIds) {
+                            const pool = window.rotationPools[poolId];
+                            if (pool && pool.accounts) {
+                                runningAccounts.push(...pool.accounts);
+                            }
+                        }
+                    }
+                    
+                    if (runningAccounts.length > 0) {
+                        // 첫 번째 계정을 대표로 사용
+                        const representativeAccount = runningAccounts[0];
+                        accountName = `${representativeAccount.first_name} ${representativeAccount.last_name || ''}`.trim();
+                        userId = String(representativeAccount.user_id);
+                        console.log('🔄 풀시스템 대표 계정 사용:', accountName, userId);
+                    }
+                }
             }
         }
         
@@ -6077,6 +6107,12 @@ async function stopAutoSend() {
         });
         const result = await resp.json().catch(() => ({}));
         console.log('🛑 자동전송 중지 응답:', resp.status, result);
+        
+        // 자동전송 중지 성공 시 활성 계정 정보 정리
+        if (resp.ok && result.success) {
+            window.autoSendActiveAccount = null;
+            console.log('🔥 자동전송 활성 계정 정보 정리 완료');
+        }
     } catch (e) {
         console.error('❌ 자동전송 중지 에러:', e);
     }
@@ -6352,6 +6388,15 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo, targe
         
         if (autoSendResponse.ok && autoSendResult.success) {
             console.log('✅ 자동전송 시작 성공:', autoSendResult);
+            
+            // 자동전송에 사용된 계정 정보 저장 (중지 시 사용)
+            window.autoSendActiveAccount = {
+                userId: String(account.user_id),
+                accountName: `${account.first_name} ${account.last_name || ''}`.trim(),
+                timestamp: Date.now()
+            };
+            console.log('🔥 자동전송 활성 계정 정보 저장:', window.autoSendActiveAccount);
+            
             // 시작 확정 → 잠금 해제, 설정 저장 플래그 리셋, 바로 서버 상태 다시 받아 UI와 1:1 동기화
             window.autoSendSyncLocked = false;
             window.autoSendSettingsSaved = false; // 자동전송이 시작되면 설정 저장 플래그 리셋

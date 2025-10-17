@@ -3190,6 +3190,18 @@ def execute_auto_send_job(user_id, group_ids, message, media_info=None):
             logger.error(f'❌ 자동전송 실패: 설정 없음 - {user_id}')
             return False
         
+        # Firebase에서 저장된 자동전송 상태 조회 (media_info 포함)
+        status_data = get_auto_send_status_from_firebase(user_id)
+        if status_data:
+            # Firebase에 저장된 media_info가 있으면 우선 사용 (커스텀 이모지 원본 객체 포함)
+            if status_data.get('media_info'):
+                media_info = status_data.get('media_info')
+                logger.info(f'🔥 Firebase에서 저장된 media_info 사용: {media_info}')
+                # 메시지도 Firebase에서 가져온 것으로 업데이트
+                if status_data.get('message'):
+                    message = status_data.get('message')
+                    logger.info(f'🔥 Firebase에서 저장된 message 사용: {message}')
+        
         group_interval = settings.get('groupInterval', 30)  # 초 단위
         max_repeats = settings.get('maxRepeats', 10)
         
@@ -3845,6 +3857,23 @@ def start_auto_send():
         group_ids = data.get('group_ids', [])
         message = (data.get('message', '') or '').strip()
         media_info = data.get('media_info')
+        
+        # 커스텀 이모지 원본 메시지 객체 처리
+        original_message_object = data.get('original_message_object')
+        is_original_message = data.get('is_original_message', False)
+        bypass_text_processing = data.get('bypass_text_processing', False)
+        send_as_original = data.get('send_as_original', False)
+        
+        if original_message_object:
+            logger.info('🔥 자동전송 커스텀 이모지 원본 메시지 객체 감지')
+            logger.info(f'🔥 원본 메시지 객체: {original_message_object}')
+            # media_info에 원본 메시지 객체 추가
+            if not media_info:
+                media_info = {}
+            media_info['original_message_object'] = original_message_object
+            media_info['is_original_message'] = is_original_message
+            media_info['bypass_text_processing'] = bypass_text_processing
+            media_info['send_as_original'] = send_as_original
         
         logger.info(f'🚀 자동전송 시작 요청: account_name={account_name}, group_ids={group_ids}')
         
