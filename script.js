@@ -3358,7 +3358,11 @@ function renderGroupsList(groups) {
                     <div class="group-name">${group.title}</div>
                     <div class="group-info">
                         <div class="group-type">
-                            ${group.type === 'supergroup' ? '슈퍼그룹' : '채널'}
+                            ${group.type === 'supergroup' ? '슈퍼그룹' : 
+                              group.type === 'channel' ? '채널' : 
+                              group.type === 'private_group' ? '비공개 그룹' : 
+                              '그룹'}
+                            ${group.is_private ? ' (비공개)' : ''}
                         </div>
                     </div>
                 </label>

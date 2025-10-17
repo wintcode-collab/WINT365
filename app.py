@@ -369,11 +369,18 @@ def load_telegram_groups_with_session(account_info):
                         entity = dialog.entity
                         logger.info(f'🔍 대화 엔티티 타입: {type(entity)}')
                         
-                        # 그룹이나 채널인지 확인
+                        # 그룹이나 채널인지 확인 (모든 타입 포함)
                         is_group = hasattr(entity, 'megagroup') and entity.megagroup
                         is_channel = hasattr(entity, 'broadcast') and entity.broadcast
+                        is_private_group = hasattr(entity, 'megagroup') and not entity.megagroup and not hasattr(entity, 'broadcast')
                         
-                        if is_group or is_channel:
+                        # 추가 엔티티 타입 확인
+                        entity_type = type(entity).__name__
+                        logger.info(f'🔍 엔티티 타입: {entity_type}')
+                        
+                        # 모든 그룹 타입 감지 (공개/비공개 슈퍼그룹, 채널, 일반 그룹)
+                        if is_group or is_channel or is_private_group or entity_type in ['Channel', 'Chat']:
+                            logger.info(f'🔍 그룹 감지: {getattr(entity, "title", "Unknown")} - megagroup: {is_group}, broadcast: {is_channel}, private: {is_private_group}')
                             # 슈퍼그룹의 경우 채널 ID로 변환
                             group_id = entity.id
                             if is_group and entity.id < 0:
@@ -381,12 +388,31 @@ def load_telegram_groups_with_session(account_info):
                                 group_id = entity.id + 1000000000000
                                 logger.info(f'📤 슈퍼그룹 ID 변환: {entity.id} -> {group_id}')
                             
+                            # 그룹 타입 결정 (더 정확한 분류)
+                            if is_group:
+                                group_type = 'supergroup'
+                            elif is_channel:
+                                group_type = 'channel'
+                            elif is_private_group:
+                                group_type = 'private_group'
+                            elif entity_type == 'Chat':
+                                group_type = 'chat'
+                            elif entity_type == 'Channel':
+                                group_type = 'channel'
+                            else:
+                                group_type = 'unknown'
+                            
+                            # 비공개 여부 확인 (username이 없으면 비공개)
+                            is_private = not getattr(entity, 'username', None)
+                            
                             group_info = {
                                 'id': group_id,
                                 'title': getattr(entity, 'title', 'Unknown'),
-                                'type': 'supergroup' if is_group else 'channel',
+                                'type': group_type,
                                 'username': getattr(entity, 'username', ''),
-                                'description': getattr(entity, 'about', '')
+                                'description': getattr(entity, 'about', ''),
+                                'is_private': is_private,
+                                'entity_type': entity_type
                             }
                             groups.append(group_info)
                             logger.info(f'✅ 그룹 추가: {group_info["title"]} ({group_info["type"]}) - ID: {group_id}')
