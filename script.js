@@ -3395,30 +3395,16 @@ function setupTelegramGroupsEventListeners() {
         sendMessageBtn.addEventListener('click', sendMessageToGroup);
     }
     
-    // 채널 전달 버튼
-    const channelForwardBtn = document.getElementById('channelForwardBtn');
-    if (channelForwardBtn) {
-        channelForwardBtn.addEventListener('click', showChannelForwardModal);
-    }
-    
     // 메시지 지우기 버튼
     const clearMessageBtn = document.getElementById('clearMessageBtn');
     if (clearMessageBtn) {
         clearMessageBtn.addEventListener('click', clearMessage);
     }
     
-    // 저장된 메시지 버튼 (다중계정 모드에서는 채널 메시지 선택으로 변경)
+    // 저장된 메시지 버튼
     const savedMessagesBtn = document.getElementById('savedMessagesBtn');
     if (savedMessagesBtn) {
-        savedMessagesBtn.addEventListener('click', function() {
-            // 다중계정 모드인지 확인
-            const multiAccountMode = document.getElementById('multiAccountMessageInput').style.display !== 'none';
-            if (multiAccountMode) {
-                showChannelMessageSelectionModal();
-            } else {
-                showSavedMessages();
-            }
-        });
+        savedMessagesBtn.addEventListener('click', showSavedMessages);
     }
     
     // 저장된 메시지 모달 닫기 버튼
@@ -3546,356 +3532,6 @@ function getAccountGroupsForAccount(accountId) {
     
     console.log(`🔍 계정 ${accountId}의 최종 그룹:`, accountGroups);
     return accountGroups;
-}
-
-// 채널 메시지 선택 모달 표시 (다중계정 모드용)
-function showChannelMessageSelectionModal() {
-    console.log('📢 채널 메시지 선택 모달 표시 (다중계정 모드)');
-    
-    // 기존 저장된 메시지 모달을 재사용하되 내용을 변경
-    const modal = document.getElementById('savedMessagesModal');
-    if (!modal) {
-        console.error('❌ 저장된 메시지 모달을 찾을 수 없습니다');
-        return;
-    }
-    
-    // 모달 헤더 변경
-    const header = modal.querySelector('.saved-messages-header h3');
-    if (header) {
-        header.textContent = '📢 채널 메시지 선택';
-    }
-    
-    // 모달 내용 변경
-    const content = modal.querySelector('.saved-messages-list');
-    if (content) {
-        content.innerHTML = `
-            <div class="channel-selection-form">
-                <div class="form-group">
-                    <label for="channelUsernameSelect">채널 선택:</label>
-                    <input type="text" id="channelUsernameSelect" class="form-control" placeholder="@channel_username 또는 https://t.me/channel_username">
-                    <small class="text-muted">⚠️ 비공개 채널만 선택 가능합니다. 공개 채널, 개인 유저, 그룹은 선택할 수 없습니다.</small>
-                </div>
-                <div class="form-group">
-                    <button id="loadChannelMessagesBtn" class="btn btn-primary">📥 채널 메시지 불러오기</button>
-                </div>
-                <div id="channelMessagesList" class="channel-messages-list" style="display: none;">
-                    <!-- 채널 메시지 목록이 여기에 표시됩니다 -->
-                </div>
-            </div>
-        `;
-    }
-    
-    // 모달 표시
-    modal.style.display = 'block';
-    
-    // 이벤트 리스너 추가
-    const loadBtn = document.getElementById('loadChannelMessagesBtn');
-    if (loadBtn) {
-        loadBtn.onclick = loadChannelMessagesForSelection;
-    }
-}
-
-// 채널 메시지 불러오기 (선택용)
-async function loadChannelMessagesForSelection() {
-    console.log('📥 채널 메시지 불러오기 (선택용)');
-    
-    const channelUsername = document.getElementById('channelUsernameSelect').value.trim();
-    const selectedAccountId = localStorage.getItem('lastSelectedAccount');
-    
-    if (!channelUsername) {
-        alert('채널 사용자명을 입력해주세요.');
-        return;
-    }
-    
-    if (!selectedAccountId) {
-        alert('계정을 먼저 선택해주세요.');
-        return;
-    }
-    
-    const loadBtn = document.getElementById('loadChannelMessagesBtn');
-    const messagesList = document.getElementById('channelMessagesList');
-    
-    try {
-        loadBtn.textContent = '⏳ 불러오는 중...';
-        loadBtn.disabled = true;
-        
-        const response = await fetch('/api/telegram/get-channel-messages', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                userId: selectedAccountId,
-                channelUsername: channelUsername,
-                limit: 50
-            })
-        });
-        
-        const result = await response.json();
-        console.log('📥 채널 메시지 불러오기 결과:', result);
-        
-        if (result.success && result.messages) {
-            displayChannelMessagesForSelection(result.messages, channelUsername);
-            messagesList.style.display = 'block';
-        } else {
-            alert(`❌ 채널 메시지 불러오기 실패: ${result.error || '알 수 없는 오류'}`);
-        }
-        
-    } catch (error) {
-        console.error('❌ 채널 메시지 불러오기 에러:', error);
-        alert(`❌ 채널 메시지 불러오기 중 오류가 발생했습니다: ${error.message}`);
-    } finally {
-        loadBtn.textContent = '📥 채널 메시지 불러오기';
-        loadBtn.disabled = false;
-    }
-}
-
-// 채널 메시지 목록 표시 (선택용)
-function displayChannelMessagesForSelection(messages, channelUsername) {
-    const messagesList = document.getElementById('channelMessagesList');
-    if (!messagesList) return;
-    
-    messagesList.innerHTML = `
-        <div class="channel-messages-header">
-            <h4>📢 ${channelUsername}의 최근 메시지</h4>
-            <p class="text-muted">전달할 메시지를 선택하세요</p>
-        </div>
-        <div class="channel-messages-items">
-            ${messages.map((message, index) => `
-                <div class="channel-message-item" data-message-id="${message.id}" data-channel="${channelUsername}">
-                    <div class="message-preview">
-                        <div class="message-text">${message.text.substring(0, 100)}${message.text.length > 100 ? '...' : ''}</div>
-                        <div class="message-meta">
-                            <span class="message-id">ID: ${message.id}</span>
-                            <span class="message-date">${new Date(message.date).toLocaleString()}</span>
-                            ${message.has_custom_emoji ? '<span class="custom-emoji-badge">🎨 커스텀 이모지</span>' : ''}
-                        </div>
-                    </div>
-                    <button class="select-message-btn" onclick="selectChannelMessage('${message.id}', '${channelUsername}', ${JSON.stringify(message).replace(/"/g, '&quot;')})">
-                        ✅ 선택
-                    </button>
-                </div>
-            `).join('')}
-        </div>
-    `;
-}
-
-// 채널 메시지 선택
-function selectChannelMessage(messageId, channelUsername, messageData) {
-    console.log('✅ 채널 메시지 선택:', { messageId, channelUsername, messageData });
-    
-    // 선택된 메시지 정보를 전역 변수에 저장
-    window.selectedChannelMessage = {
-        messageId: parseInt(messageId),
-        channelUsername: channelUsername,
-        messageData: JSON.parse(messageData.replace(/&quot;/g, '"'))
-    };
-    
-    // 모든 계정에 선택된 메시지 정보 적용
-    applyChannelMessageToAllAccounts();
-    
-    // 모달 닫기
-    const modal = document.getElementById('savedMessagesModal');
-    if (modal) {
-        modal.style.display = 'none';
-    }
-    
-    alert(`✅ 채널 메시지가 선택되었습니다!\n채널: ${channelUsername}\n메시지 ID: ${messageId}`);
-}
-
-// 선택된 채널 메시지를 모든 계정에 적용
-function applyChannelMessageToAllAccounts() {
-    if (!window.selectedChannelMessage) return;
-    
-    console.log('📢 선택된 채널 메시지를 모든 계정에 적용');
-    
-    // 모든 계정 메시지 설정 요소 찾기
-    const accountMessageSettings = document.querySelectorAll('.account-message-setting');
-    
-    accountMessageSettings.forEach(accountSetting => {
-        const accountId = accountSetting.dataset.accountId;
-        const statusSpan = accountSetting.querySelector('span[data-account-id]');
-        
-        if (statusSpan && accountId) {
-            // 상태 업데이트
-            statusSpan.textContent = `📢 채널 메시지 선택됨 (${window.selectedChannelMessage.channelUsername})`;
-            statusSpan.style.color = '#3B82F6';
-            
-            // 메시지 데이터 저장
-            accountSetting.dataset.mediaInfo = JSON.stringify({
-                text: window.selectedChannelMessage.messageData.text,
-                has_custom_emoji: window.selectedChannelMessage.messageData.has_custom_emoji,
-                original_message_object: window.selectedChannelMessage.messageData,
-                channel_username: window.selectedChannelMessage.channelUsername,
-                message_id: window.selectedChannelMessage.messageId,
-                is_channel_forward: true
-            });
-            
-            console.log(`✅ 계정 ${accountId}에 채널 메시지 적용됨`);
-        }
-    });
-}
-
-// 채널 전달 모달 표시
-function showChannelForwardModal() {
-    console.log('📢 채널 메시지 전달 모달 표시');
-    
-    // 모달 HTML 생성
-    const modalHtml = `
-        <div id="channelForwardModal" class="modal" style="display: block;">
-            <div class="modal-content" style="max-width: 600px;">
-                <div class="modal-header">
-                    <h3>📢 채널 메시지 전달</h3>
-                    <span class="close" onclick="closeChannelForwardModal()">&times;</span>
-                </div>
-                <div class="modal-body">
-                    <div class="form-group">
-                        <label for="channelUsername">채널 사용자명 (@username 또는 채널 링크):</label>
-                        <input type="text" id="channelUsername" class="form-control" placeholder="@channel_username 또는 https://t.me/channel_username">
-                        <small class="text-muted">⚠️ 비공개 채널만 선택 가능합니다. 공개 채널, 개인 유저, 그룹은 선택할 수 없습니다.</small>
-                    </div>
-                    <div class="form-group">
-                        <label for="messageId">메시지 ID:</label>
-                        <input type="number" id="messageId" class="form-control" placeholder="전달할 메시지의 ID 번호">
-                        <small class="text-muted">채널에서 메시지를 우클릭 → "메시지 링크 복사" → URL에서 마지막 숫자가 메시지 ID입니다</small>
-                    </div>
-                    <div class="form-group">
-                        <label>전달할 그룹 선택:</label>
-                        <div id="channelForwardGroups" class="group-list" style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 10px;">
-                            <!-- 그룹 목록이 여기에 동적으로 추가됩니다 -->
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" onclick="closeChannelForwardModal()">취소</button>
-                    <button type="button" class="btn btn-primary" onclick="forwardChannelMessage()">📤 전달하기</button>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    // 기존 모달이 있으면 제거
-    const existingModal = document.getElementById('channelForwardModal');
-    if (existingModal) {
-        existingModal.remove();
-    }
-    
-    // 모달 추가
-    document.body.insertAdjacentHTML('beforeend', modalHtml);
-    
-    // 그룹 목록 로드
-    loadChannelForwardGroups();
-}
-
-// 채널 전달 모달 닫기
-function closeChannelForwardModal() {
-    const modal = document.getElementById('channelForwardModal');
-    if (modal) {
-        modal.remove();
-    }
-}
-
-// 채널 전달용 그룹 목록 로드
-function loadChannelForwardGroups() {
-    const groupsContainer = document.getElementById('channelForwardGroups');
-    if (!groupsContainer) return;
-    
-    groupsContainer.innerHTML = '';
-    
-    // 현재 선택된 계정의 그룹들 가져오기
-    const selectedAccountId = localStorage.getItem('lastSelectedAccount');
-    if (!selectedAccountId) {
-        groupsContainer.innerHTML = '<p class="text-muted">계정을 먼저 선택해주세요.</p>';
-        return;
-    }
-    
-    const accountGroups = getAccountGroups(selectedAccountId);
-    if (!accountGroups || accountGroups.length === 0) {
-        groupsContainer.innerHTML = '<p class="text-muted">이 계정에 연결된 그룹이 없습니다.</p>';
-        return;
-    }
-    
-    // 그룹 체크박스 생성
-    accountGroups.forEach(group => {
-        const groupDiv = document.createElement('div');
-        groupDiv.className = 'form-check';
-        groupDiv.innerHTML = `
-            <input class="form-check-input channel-forward-group-checkbox" type="checkbox" value="${group.id}" id="channelForwardGroup_${group.id}">
-            <label class="form-check-label" for="channelForwardGroup_${group.id}">
-                ${group.title} (${group.id})
-            </label>
-        `;
-        groupsContainer.appendChild(groupDiv);
-    });
-}
-
-// 채널 메시지 전달 실행
-async function forwardChannelMessage() {
-    console.log('📤 채널 메시지 전달 시작');
-    
-    const channelUsername = document.getElementById('channelUsername').value.trim();
-    const messageId = document.getElementById('messageId').value.trim();
-    const selectedAccountId = localStorage.getItem('lastSelectedAccount');
-    
-    if (!channelUsername) {
-        alert('채널 사용자명을 입력해주세요.');
-        return;
-    }
-    
-    if (!messageId) {
-        alert('메시지 ID를 입력해주세요.');
-        return;
-    }
-    
-    if (!selectedAccountId) {
-        alert('계정을 먼저 선택해주세요.');
-        return;
-    }
-    
-    // 선택된 그룹들 가져오기
-    const checkedBoxes = document.querySelectorAll('.channel-forward-group-checkbox:checked');
-    if (checkedBoxes.length === 0) {
-        alert('전달할 그룹을 최소 1개 이상 선택해주세요.');
-        return;
-    }
-    
-    const groupIds = Array.from(checkedBoxes).map(cb => cb.value);
-    
-    console.log('📤 전달 정보:', {
-        channelUsername,
-        messageId,
-        groupIds,
-        accountId: selectedAccountId
-    });
-    
-    try {
-        const response = await fetch('/api/telegram/forward-channel-message', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                userId: selectedAccountId,
-                channelUsername: channelUsername,
-                messageId: parseInt(messageId),
-                groupIds: groupIds
-            })
-        });
-        
-        const result = await response.json();
-        console.log('📤 채널 메시지 전달 결과:', result);
-        
-        if (result.success) {
-            alert(`✅ 전달 완료!\n성공: ${result.success_count}개 그룹\n실패: ${result.total_count - result.success_count}개 그룹`);
-            closeChannelForwardModal();
-        } else {
-            alert(`❌ 전달 실패: ${result.error}`);
-        }
-        
-    } catch (error) {
-        console.error('❌ 채널 메시지 전달 에러:', error);
-        alert(`❌ 전달 중 오류가 발생했습니다: ${error.message}`);
-    }
 }
 
 // 선택된 그룹들에 메시지 전송
@@ -4528,41 +4164,339 @@ function clearMessage() {
     console.log('🗑️ 미디어 정보 초기화');
 }
 
-// 저장된 메시지 표시
+// 저장된 메시지 표시 (비공개 채널 목록으로 변경)
 async function showSavedMessages() {
-    console.log('💾 텔레그램 저장된 메시지 표시');
+    console.log('💾 비공개 채널 목록 표시');
     
-    // 다중 계정 모드인지 확인
-    if (window.multiAccountMode && window.selectedMultiAccounts && window.selectedMultiAccounts.length > 1) {
-        console.log('🔄 다중 계정 모드 - 계정 선택 모달 열기');
-        showAccountSelectionModal(window.selectedMultiAccounts);
+    const modal = document.getElementById('savedMessagesModal');
+    if (!modal) {
+        console.error('❌ 저장된 메시지 모달을 찾을 수 없습니다');
         return;
     }
     
-    // 단일 계정 모드 - 기존 모달 열기
-    const modal = document.getElementById('savedMessagesModal');
-    if (!modal) return;
+    // 모달 헤더 변경
+    const header = modal.querySelector('.saved-messages-header h3');
+    if (header) {
+        header.textContent = '📢 비공개 채널 선택';
+    }
     
-    // 모달 표시
-    modal.style.display = 'flex';
-    
-    // 로딩 표시
-    const messagesList = document.getElementById('savedMessagesList');
-    if (messagesList) {
-        messagesList.innerHTML = `
-            <div style="text-align: center; color: #888; padding: 20px;">
-                텔레그램 저장된 메시지를 불러오는 중...
+    // 모달 내용 변경
+    const content = modal.querySelector('.saved-messages-list');
+    if (content) {
+        content.innerHTML = `
+            <div class="private-channels-container">
+                <div class="channels-loading" id="channelsLoading" style="text-align: center; padding: 20px;">
+                    <p>📥 비공개 채널 목록을 불러오는 중...</p>
+                    <button id="loadPrivateChannelsBtn" class="btn btn-primary">🔄 비공개 채널 불러오기</button>
+                </div>
+                <div id="privateChannelsList" class="private-channels-list" style="display: none;">
+                    <!-- 비공개 채널 목록이 여기에 표시됩니다 -->
+                </div>
             </div>
         `;
     }
     
-    // 텔레그램 저장된 메시지 로드
-    await loadTelegramSavedMessages();
+    // 모달 표시
+    modal.style.display = 'flex';
+    
+    // 이벤트 리스너 추가
+    const loadBtn = document.getElementById('loadPrivateChannelsBtn');
+    if (loadBtn) {
+        loadBtn.onclick = loadPrivateChannels;
+    }
     
     // 모달 배경 클릭 시 닫기
     modal.addEventListener('click', (e) => {
         if (e.target === modal) {
             closeSavedMessages();
+        }
+    });
+}
+
+// 비공개 채널 목록 불러오기
+async function loadPrivateChannels() {
+    console.log('📥 비공개 채널 목록 불러오기');
+    
+    const selectedAccountId = localStorage.getItem('lastSelectedAccount');
+    if (!selectedAccountId) {
+        alert('계정을 먼저 선택해주세요.');
+        return;
+    }
+    
+    const loadingDiv = document.getElementById('channelsLoading');
+    const channelsList = document.getElementById('privateChannelsList');
+    const loadBtn = document.getElementById('loadPrivateChannelsBtn');
+    
+    try {
+        loadBtn.textContent = '⏳ 불러오는 중...';
+        loadBtn.disabled = true;
+        
+        const response = await fetch('/api/telegram/get-private-channels', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                userId: selectedAccountId
+            })
+        });
+        
+        const result = await response.json();
+        console.log('📥 비공개 채널 목록 불러오기 결과:', result);
+        
+        if (result.success && result.channels) {
+            displayPrivateChannels(result.channels);
+            loadingDiv.style.display = 'none';
+            channelsList.style.display = 'block';
+        } else {
+            alert(`❌ 비공개 채널 목록 불러오기 실패: ${result.error || '알 수 없는 오류'}`);
+        }
+        
+    } catch (error) {
+        console.error('❌ 비공개 채널 목록 불러오기 에러:', error);
+        alert(`❌ 비공개 채널 목록 불러오기 중 오류가 발생했습니다: ${error.message}`);
+    } finally {
+        loadBtn.textContent = '🔄 비공개 채널 불러오기';
+        loadBtn.disabled = false;
+    }
+}
+
+// 비공개 채널 목록 표시
+function displayPrivateChannels(channels) {
+    const channelsList = document.getElementById('privateChannelsList');
+    if (!channelsList) return;
+    
+    if (channels.length === 0) {
+        channelsList.innerHTML = `
+            <div class="no-channels-message" style="text-align: center; padding: 40px; color: #666;">
+                <h4>📭 비공개 채널이 없습니다</h4>
+                <p>이 계정이 참여한 비공개 채널이 없습니다.</p>
+                <p>비공개 채널에 참여한 후 다시 시도해주세요.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    channelsList.innerHTML = `
+        <div class="channels-header">
+            <h4>📢 비공개 채널 목록 (${channels.length}개)</h4>
+            <p class="text-muted">전달할 메시지를 선택할 채널을 클릭하세요</p>
+        </div>
+        <div class="channels-items">
+            ${channels.map(channel => `
+                <div class="channel-item" onclick="selectChannelForMessages('${channel.id}', '${channel.title.replace(/'/g, "\\'")}')">
+                    <div class="channel-info">
+                        <div class="channel-title">${channel.title}</div>
+                        <div class="channel-meta">
+                            <span class="channel-id">ID: ${channel.id}</span>
+                            <span class="channel-participants">👥 ${channel.participants_count}명</span>
+                        </div>
+                    </div>
+                    <div class="channel-action">
+                        <button class="select-channel-btn">📥 메시지 선택</button>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
+// 채널 선택하여 메시지 목록 보기
+function selectChannelForMessages(channelId, channelTitle) {
+    console.log('📢 채널 선택:', { channelId, channelTitle });
+    
+    // 채널 ID를 전역 변수에 저장
+    window.selectedChannelId = channelId;
+    window.selectedChannelTitle = channelTitle;
+    
+    // 메시지 목록 모달로 전환
+    showChannelMessagesModal(channelId, channelTitle);
+}
+
+// 채널 메시지 목록 모달 표시
+function showChannelMessagesModal(channelId, channelTitle) {
+    console.log('📢 채널 메시지 목록 모달 표시:', { channelId, channelTitle });
+    
+    const modal = document.getElementById('savedMessagesModal');
+    if (!modal) return;
+    
+    // 모달 헤더 변경
+    const header = modal.querySelector('.saved-messages-header h3');
+    if (header) {
+        header.textContent = `📢 ${channelTitle} - 메시지 선택`;
+    }
+    
+    // 모달 내용 변경
+    const content = modal.querySelector('.saved-messages-list');
+    if (content) {
+        content.innerHTML = `
+            <div class="channel-messages-container">
+                <div class="channel-info-header" style="padding: 15px; background: #f8f9fa; border-radius: 8px; margin-bottom: 15px;">
+                    <h5 style="margin: 0; color: #495057;">📢 ${channelTitle}</h5>
+                    <p style="margin: 5px 0 0 0; color: #6c757d; font-size: 14px;">채널 ID: ${channelId}</p>
+                </div>
+                <div class="messages-loading" id="messagesLoading" style="text-align: center; padding: 20px;">
+                    <p>📥 채널 메시지를 불러오는 중...</p>
+                    <button id="loadChannelMessagesBtn" class="btn btn-primary">📥 메시지 불러오기</button>
+                </div>
+                <div id="channelMessagesList" class="channel-messages-list" style="display: none;">
+                    <!-- 채널 메시지 목록이 여기에 표시됩니다 -->
+                </div>
+            </div>
+        `;
+    }
+    
+    // 이벤트 리스너 추가
+    const loadBtn = document.getElementById('loadChannelMessagesBtn');
+    if (loadBtn) {
+        loadBtn.onclick = () => loadChannelMessages(channelId);
+    }
+}
+
+// 채널 메시지 불러오기
+async function loadChannelMessages(channelId) {
+    console.log('📥 채널 메시지 불러오기:', channelId);
+    
+    const selectedAccountId = localStorage.getItem('lastSelectedAccount');
+    if (!selectedAccountId) {
+        alert('계정을 먼저 선택해주세요.');
+        return;
+    }
+    
+    const loadingDiv = document.getElementById('messagesLoading');
+    const messagesList = document.getElementById('channelMessagesList');
+    const loadBtn = document.getElementById('loadChannelMessagesBtn');
+    
+    try {
+        loadBtn.textContent = '⏳ 불러오는 중...';
+        loadBtn.disabled = true;
+        
+        const response = await fetch('/api/telegram/get-channel-messages', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                userId: selectedAccountId,
+                channelUsername: channelId, // 채널 ID를 사용
+                limit: 50
+            })
+        });
+        
+        const result = await response.json();
+        console.log('📥 채널 메시지 불러오기 결과:', result);
+        
+        if (result.success && result.messages) {
+            displayChannelMessages(result.messages, window.selectedChannelTitle);
+            loadingDiv.style.display = 'none';
+            messagesList.style.display = 'block';
+        } else {
+            alert(`❌ 채널 메시지 불러오기 실패: ${result.error || '알 수 없는 오류'}`);
+        }
+        
+    } catch (error) {
+        console.error('❌ 채널 메시지 불러오기 에러:', error);
+        alert(`❌ 채널 메시지 불러오기 중 오류가 발생했습니다: ${error.message}`);
+    } finally {
+        loadBtn.textContent = '📥 메시지 불러오기';
+        loadBtn.disabled = false;
+    }
+}
+
+// 채널 메시지 목록 표시
+function displayChannelMessages(messages, channelTitle) {
+    const messagesList = document.getElementById('channelMessagesList');
+    if (!messagesList) return;
+    
+    if (messages.length === 0) {
+        messagesList.innerHTML = `
+            <div class="no-messages-message" style="text-align: center; padding: 40px; color: #666;">
+                <h4>📭 메시지가 없습니다</h4>
+                <p>이 채널에 텍스트 메시지가 없습니다.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    messagesList.innerHTML = `
+        <div class="messages-header">
+            <h4>📢 ${channelTitle}의 최근 메시지 (${messages.length}개)</h4>
+            <p class="text-muted">전달할 메시지를 선택하세요</p>
+        </div>
+        <div class="messages-items">
+            ${messages.map((message, index) => `
+                <div class="message-item" onclick="selectChannelMessage('${message.id}', '${channelTitle.replace(/'/g, "\\'")}', ${JSON.stringify(message).replace(/"/g, '&quot;')})">
+                    <div class="message-preview">
+                        <div class="message-text">${message.text.substring(0, 100)}${message.text.length > 100 ? '...' : ''}</div>
+                        <div class="message-meta">
+                            <span class="message-id">ID: ${message.id}</span>
+                            <span class="message-date">${new Date(message.date).toLocaleString()}</span>
+                            ${message.has_custom_emoji ? '<span class="custom-emoji-badge">🎨 커스텀 이모지</span>' : ''}
+                        </div>
+                    </div>
+                    <div class="message-action">
+                        <button class="select-message-btn">✅ 선택</button>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
+// 채널 메시지 선택
+function selectChannelMessage(messageId, channelTitle, messageData) {
+    console.log('✅ 채널 메시지 선택:', { messageId, channelTitle, messageData });
+    
+    // 선택된 메시지 정보를 전역 변수에 저장
+    window.selectedChannelMessage = {
+        messageId: parseInt(messageId),
+        channelTitle: channelTitle,
+        channelId: window.selectedChannelId,
+        messageData: JSON.parse(messageData.replace(/&quot;/g, '"'))
+    };
+    
+    // 모든 계정에 선택된 메시지 정보 적용
+    applyChannelMessageToAllAccounts();
+    
+    // 모달 닫기
+    const modal = document.getElementById('savedMessagesModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+    
+    alert(`✅ 채널 메시지가 선택되었습니다!\n채널: ${channelTitle}\n메시지 ID: ${messageId}`);
+}
+
+// 선택된 채널 메시지를 모든 계정에 적용
+function applyChannelMessageToAllAccounts() {
+    if (!window.selectedChannelMessage) return;
+    
+    console.log('📢 선택된 채널 메시지를 모든 계정에 적용');
+    
+    // 모든 계정 메시지 설정 요소 찾기
+    const accountMessageSettings = document.querySelectorAll('.account-message-setting');
+    
+    accountMessageSettings.forEach(accountSetting => {
+        const accountId = accountSetting.dataset.accountId;
+        const statusSpan = accountSetting.querySelector('span[data-account-id]');
+        
+        if (statusSpan && accountId) {
+            // 상태 업데이트
+            statusSpan.textContent = `📢 채널 메시지 선택됨 (${window.selectedChannelMessage.channelTitle})`;
+            statusSpan.style.color = '#3B82F6';
+            
+            // 메시지 데이터 저장
+            accountSetting.dataset.mediaInfo = JSON.stringify({
+                text: window.selectedChannelMessage.messageData.text,
+                has_custom_emoji: window.selectedChannelMessage.messageData.has_custom_emoji,
+                original_message_object: window.selectedChannelMessage.messageData,
+                channel_title: window.selectedChannelMessage.channelTitle,
+                channel_id: window.selectedChannelMessage.channelId,
+                message_id: window.selectedChannelMessage.messageId,
+                is_channel_forward: true
+            });
+            
+            console.log(`✅ 계정 ${accountId}에 채널 메시지 적용됨`);
         }
     });
 }
@@ -6734,25 +6668,8 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo, targe
                 original_message_object: autoSendData.original_message_object,
                 is_original_message: autoSendData.is_original_message,
                 bypass_text_processing: autoSendData.bypass_text_processing,
-                send_as_original: autoSendData.send_as_original,
-                has_custom_emoji: mediaInfo.has_custom_emoji,
-                custom_emoji_entities: mediaInfo.custom_emoji_entities
+                send_as_original: autoSendData.send_as_original
             });
-            
-            // 원본 메시지 객체 상세 정보 로깅
-            if (autoSendData.original_message_object) {
-                console.log('📤 원본 메시지 객체 상세:', {
-                    id: autoSendData.original_message_object.id,
-                    text: autoSendData.original_message_object.text,
-                    entities: autoSendData.original_message_object.entities,
-                    has_custom_emoji: autoSendData.original_message_object.has_custom_emoji
-                });
-            }
-            
-            // 사용자에게 프리미엄 계정 여부 알림
-            console.log('⚠️ 커스텀 이모지가 포함된 메시지입니다.');
-            console.log('📱 프리미엄 계정: 원본 그대로 전송됩니다.');
-            console.log('📱 일반 계정: 커스텀 이모지가 텍스트로 변환되어 전송됩니다.');
         }
         
         const autoSendResponse = await fetch(`${getApiBaseUrl()}/api/auto-send/start`, {
@@ -8393,75 +8310,30 @@ async function sendMessageFromPoolAccount(account, groupId, groupTitle) {
     
     const mediaInfo = JSON.parse(mediaInfoStr);
     
-    // 채널 전달 방식인지 확인
-    if (mediaInfo.is_channel_forward) {
-        console.log('📢 채널 전달 방식으로 전송');
+    // 전송 데이터 구성
+    const sendData = {
+        userId: account.user_id,
+        groupId: groupId,
+        message: mediaInfo.has_custom_emoji ? null : mediaInfo.text,
+        mediaInfo: mediaInfo
+    };
+    
+    // 커스텀 이모지가 있는 경우 원본 메시지 객체 전체를 전송
+    if (mediaInfo.has_custom_emoji) {
+        // 원본 메시지 객체 전체를 그대로 전송
+        sendData.original_message_object = mediaInfo.original_message_object || mediaInfo.raw_message_data || mediaInfo;
+        sendData.is_original_message = true;
+        sendData.bypass_text_processing = true;
+        sendData.message = null; // 텍스트 처리를 우회
+        sendData.send_as_original = true; // 서버에서 원본 객체로 처리하라는 플래그
         
-        // 채널 전달 API 호출
-        const forwardData = {
-            userId: account.user_id,
-            channelUsername: mediaInfo.channel_username,
-            messageId: mediaInfo.message_id,
-            groupIds: [groupId]
-        };
-        
-        console.log('📢 채널 전달 데이터:', forwardData);
-        
-        const response = await fetch('/api/telegram/forward-channel-message', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(forwardData)
+        console.log('📤 풀시스템 커스텀 이모지 원본 객체 전체 전송:', {
+            original_message_object: sendData.original_message_object,
+            is_original_message: sendData.is_original_message,
+            bypass_text_processing: sendData.bypass_text_processing,
+            send_as_original: sendData.send_as_original
         });
-        
-        const result = await response.json();
-        console.log('📢 채널 전달 결과:', result);
-        
-        if (result.success) {
-            const groupResult = result.results.find(r => r.group_id === groupId);
-            if (groupResult && groupResult.success) {
-                return {
-                    success: true,
-                    account: account.first_name,
-                    group: groupTitle,
-                    message: '채널 메시지 전달 성공',
-                    forwarded_message_id: groupResult.forwarded_message_id
-                };
-            } else {
-                throw new Error(groupResult?.error || '채널 전달 실패');
-            }
-        } else {
-            throw new Error(result.error || '채널 전달 실패');
-        }
-    } else {
-        // 기존 방식 (저장된 메시지)
-        console.log('💾 저장된 메시지 방식으로 전송');
-        
-        // 전송 데이터 구성
-        const sendData = {
-            userId: account.user_id,
-            groupId: groupId,
-            message: mediaInfo.has_custom_emoji ? null : mediaInfo.text,
-            mediaInfo: mediaInfo
-        };
-        
-        // 커스텀 이모지가 있는 경우 원본 메시지 객체 전체를 전송
-        if (mediaInfo.has_custom_emoji) {
-            // 원본 메시지 객체 전체를 그대로 전송
-            sendData.original_message_object = mediaInfo.original_message_object || mediaInfo.raw_message_data || mediaInfo;
-            sendData.is_original_message = true;
-            sendData.bypass_text_processing = true;
-            sendData.message = null; // 텍스트 처리를 우회
-            sendData.send_as_original = true; // 서버에서 원본 객체로 처리하라는 플래그
-            
-            console.log('📤 풀시스템 커스텀 이모지 원본 객체 전체 전송:', {
-                original_message_object: sendData.original_message_object,
-                is_original_message: sendData.is_original_message,
-                bypass_text_processing: sendData.bypass_text_processing,
-                send_as_original: sendData.send_as_original
-            });
-        }
+    }
     
     console.log('📤 전송 데이터:', sendData);
     

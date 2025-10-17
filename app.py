@@ -1935,344 +1935,6 @@ def get_telegram_saved_messages_with_session(account_info):
         logger.error(f'❌ 에러 타입: {type(e)}')
         return None
 
-# 채널 메시지 가져오기 API
-@app.route('/api/telegram/get-channel-messages', methods=['POST'])
-@cross_origin(origins=ALLOWED_ORIGINS, methods=['POST','OPTIONS'], allow_headers=['Content-Type','Authorization'], max_age=86400)
-def get_channel_messages():
-    """특정 채널에서 메시지 가져오기"""
-    try:
-        data = request.get_json()
-        user_id = data.get('userId')
-        channel_username = data.get('channelUsername', '').strip()
-        limit = data.get('limit', 20)  # 기본 20개
-        
-        if not user_id:
-            return jsonify({
-                'success': False,
-                'error': '사용자 ID가 필요합니다.'
-            }), 400
-        
-        if not channel_username:
-            return jsonify({
-                'success': False,
-                'error': '채널 사용자명이 필요합니다.'
-            }), 400
-        
-        logger.info(f'📥 채널 메시지 가져오기 요청: {channel_username} (계정: {user_id})')
-        
-        # 계정 정보 조회
-        account_info = get_account_from_firebase(user_id)
-        if not account_info:
-            return jsonify({
-                'success': False,
-                'error': '인증된 계정 정보를 찾을 수 없습니다.'
-            }), 404
-        
-        # 비동기 함수로 채널 메시지 가져오기
-        async def get_messages_async():
-            try:
-                # 세션 데이터 복원
-                session_b64 = account_info.get('session_data')
-                if not session_b64:
-                    raise Exception('세션 데이터 없음')
-                
-                session_bytes = base64.b64decode(session_b64)
-                temp_session_file = f'temp_channel_{user_id}'
-                
-                # 임시 세션 파일 생성
-                with open(f'{temp_session_file}.session', 'wb') as f:
-                    f.write(session_bytes)
-                
-                # 클라이언트 생성
-                client = TelegramClient(temp_session_file, account_info['api_id'], account_info['api_hash'])
-                await client.connect()
-                
-                if not client.is_connected():
-                    raise Exception('클라이언트 연결 실패')
-                
-                # 채널 엔티티 가져오기
-                try:
-                    channel_entity = await client.get_entity(channel_username)
-                    
-                    # 채널인지 확인 (개인 유저나 그룹 제외)
-                    entity_type = str(type(channel_entity).__name__)
-                    if 'Channel' not in entity_type:
-                        raise Exception(f'채널이 아닙니다: {channel_username} (타입: {entity_type})')
-                    
-                    # 비공개 채널인지 확인
-                    if hasattr(channel_entity, 'megagroup') and channel_entity.megagroup:
-                        raise Exception(f'그룹입니다. 채널만 선택 가능합니다: {channel_username}')
-                    
-                    # 공개 채널인지 확인 (비공개 채널만 허용)
-                    if hasattr(channel_entity, 'username') and channel_entity.username:
-                        raise Exception(f'공개 채널입니다. 비공개 채널만 선택 가능합니다: {channel_username}')
-                    
-                    logger.info(f'📥 비공개 채널 엔티티 가져오기 성공: {channel_entity.title} (타입: {entity_type})')
-                except Exception as e:
-                    logger.error(f'❌ 채널 엔티티 가져오기 실패: {e}')
-                    raise Exception(f'채널을 찾을 수 없습니다: {channel_username}')
-                
-                # 채널 메시지 가져오기
-                messages = []
-                async for message in client.iter_messages(channel_entity, limit=limit):
-                    if message.text:  # 텍스트가 있는 메시지만
-                        message_data = {
-                            'id': message.id,
-                            'text': message.text,
-                            'date': message.date.isoformat(),
-                            'from_id': str(getattr(message, 'from_id', None)) if getattr(message, 'from_id', None) else None,
-                            'peer_id': str(getattr(message, 'peer_id', None)) if getattr(message, 'peer_id', None) else None,
-                            'has_custom_emoji': False,
-                            'custom_emoji_entities': [],
-                            'entities': []
-                        }
-                        
-                        # 커스텀 이모지 엔티티 처리
-                        if message.entities:
-                            for entity in message.entities:
-                                entity_class_name = str(entity.__class__)
-                                if 'CustomEmoji' in entity_class_name:
-                                    message_data['has_custom_emoji'] = True
-                                    message_data['custom_emoji_entities'].append({
-                                        'offset': entity.offset,
-                                        'length': entity.length,
-                                        'type': entity_class_name,
-                                        'document_id': getattr(entity, 'document_id', None)
-                                    })
-                                
-                                # 모든 엔티티 정보 저장
-                                message_data['entities'].append({
-                                    'offset': entity.offset,
-                                    'length': entity.length,
-                                    'type': entity_class_name,
-                                    'document_id': getattr(entity, 'document_id', None)
-                                })
-                        
-                        messages.append(message_data)
-                
-                await client.disconnect()
-                
-                # 임시 세션 파일 삭제
-                try:
-                    os.remove(f'{temp_session_file}.session')
-                except:
-                    pass
-                
-                logger.info(f'✅ 채널 메시지 가져오기 성공: {len(messages)}개')
-                return messages
-                
-            except Exception as e:
-                logger.error(f'❌ 채널 메시지 가져오기 실패: {e}')
-                raise e
-        
-        # 비동기 함수 실행
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            messages = loop.run_until_complete(get_messages_async())
-            return jsonify({
-                'success': True,
-                'messages': messages,
-                'channel_title': channel_username,
-                'count': len(messages)
-            })
-        finally:
-            loop.close()
-        
-    except Exception as e:
-        logger.error(f'❌ 채널 메시지 가져오기 API 에러: {e}')
-        return jsonify({
-            'success': False,
-            'error': f'채널 메시지 가져오기 실패: {str(e)}'
-        }), 500
-
-# 채널 메시지 전달 API
-@app.route('/api/telegram/forward-channel-message', methods=['POST'])
-@cross_origin(origins=ALLOWED_ORIGINS, methods=['POST','OPTIONS'], allow_headers=['Content-Type','Authorization'], max_age=86400)
-def forward_channel_message():
-    """채널 메시지를 그룹으로 전달"""
-    try:
-        data = request.get_json()
-        user_id = data.get('userId')
-        channel_username = data.get('channelUsername', '').strip()
-        message_id = data.get('messageId')
-        group_ids = data.get('groupIds', [])
-        
-        if not user_id:
-            return jsonify({
-                'success': False,
-                'error': '사용자 ID가 필요합니다.'
-            }), 400
-        
-        if not channel_username:
-            return jsonify({
-                'success': False,
-                'error': '채널 사용자명이 필요합니다.'
-            }), 400
-        
-        if not message_id:
-            return jsonify({
-                'success': False,
-                'error': '메시지 ID가 필요합니다.'
-            }), 400
-        
-        if not group_ids:
-            return jsonify({
-                'success': False,
-                'error': '전송할 그룹이 필요합니다.'
-            }), 400
-        
-        logger.info(f'📤 채널 메시지 전달 요청: {channel_username}#{message_id} -> {len(group_ids)}개 그룹 (계정: {user_id})')
-        
-        # 계정 정보 조회
-        account_info = get_account_from_firebase(user_id)
-        if not account_info:
-            return jsonify({
-                'success': False,
-                'error': '인증된 계정 정보를 찾을 수 없습니다.'
-            }), 404
-        
-        # 비동기 함수로 메시지 전달
-        async def forward_message_async():
-            try:
-                # 세션 데이터 복원
-                session_b64 = account_info.get('session_data')
-                if not session_b64:
-                    raise Exception('세션 데이터 없음')
-                
-                session_bytes = base64.b64decode(session_b64)
-                temp_session_file = f'temp_forward_{user_id}'
-                
-                # 임시 세션 파일 생성
-                with open(f'{temp_session_file}.session', 'wb') as f:
-                    f.write(session_bytes)
-                
-                # 클라이언트 생성
-                client = TelegramClient(temp_session_file, account_info['api_id'], account_info['api_hash'])
-                await client.connect()
-                
-                if not client.is_connected():
-                    raise Exception('클라이언트 연결 실패')
-                
-                # 채널 엔티티 가져오기
-                try:
-                    channel_entity = await client.get_entity(channel_username)
-                    
-                    # 채널인지 확인 (개인 유저나 그룹 제외)
-                    entity_type = str(type(channel_entity).__name__)
-                    if 'Channel' not in entity_type:
-                        raise Exception(f'채널이 아닙니다: {channel_username} (타입: {entity_type})')
-                    
-                    # 비공개 채널인지 확인
-                    if hasattr(channel_entity, 'megagroup') and channel_entity.megagroup:
-                        raise Exception(f'그룹입니다. 채널만 선택 가능합니다: {channel_username}')
-                    
-                    # 공개 채널인지 확인 (비공개 채널만 허용)
-                    if hasattr(channel_entity, 'username') and channel_entity.username:
-                        raise Exception(f'공개 채널입니다. 비공개 채널만 선택 가능합니다: {channel_username}')
-                    
-                    logger.info(f'📥 비공개 채널 엔티티 가져오기 성공: {channel_entity.title} (타입: {entity_type})')
-                except Exception as e:
-                    logger.error(f'❌ 채널 엔티티 가져오기 실패: {e}')
-                    raise Exception(f'채널을 찾을 수 없습니다: {channel_username}')
-                
-                # 전달 결과 저장
-                results = []
-                
-                # 각 그룹으로 메시지 전달
-                for group_id in group_ids:
-                    try:
-                        # 그룹 엔티티 가져오기
-                        group_entity = await client.get_entity(int(group_id))
-                        
-                        # 메시지 전달
-                        forwarded_messages = await client.forward_messages(
-                            entity=group_entity,
-                            messages=message_id,
-                            from_peer=channel_entity
-                        )
-                        
-                        results.append({
-                            'group_id': group_id,
-                            'success': True,
-                            'message': '전달 성공',
-                            'forwarded_message_id': forwarded_messages[0].id if forwarded_messages else None
-                        })
-                        
-                        logger.info(f'✅ 그룹 {group_id}로 메시지 전달 성공')
-                        
-                    except Exception as e:
-                        logger.error(f'❌ 그룹 {group_id}로 메시지 전달 실패: {e}')
-                        results.append({
-                            'group_id': group_id,
-                            'success': False,
-                            'error': str(e)
-                        })
-                
-                await client.disconnect()
-                
-                # 임시 세션 파일 삭제
-                try:
-                    os.remove(f'{temp_session_file}.session')
-                except:
-                    pass
-                
-                success_count = sum(1 for r in results if r['success'])
-                logger.info(f'✅ 채널 메시지 전달 완료: {success_count}/{len(group_ids)}개 그룹 성공')
-                
-                return {
-                    'success': True,
-                    'results': results,
-                    'success_count': success_count,
-                    'total_count': len(group_ids)
-                }
-                
-            except Exception as e:
-                logger.error(f'❌ 채널 메시지 전달 실패: {e}')
-                raise e
-        
-        # 비동기 함수 실행
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            result = loop.run_until_complete(forward_message_async())
-            return jsonify(result)
-        finally:
-            loop.close()
-        
-    except Exception as e:
-        logger.error(f'❌ 채널 메시지 전달 API 에러: {e}')
-        return jsonify({
-            'success': False,
-            'error': f'채널 메시지 전달 실패: {str(e)}'
-        }), 500
-
-def convert_custom_emojis_to_text(text, entities):
-    """커스텀 이모지를 일반 텍스트로 변환"""
-    try:
-        if not entities:
-            return text
-        
-        # 엔티티를 오프셋 기준으로 정렬
-        sorted_entities = sorted(entities, key=lambda x: x.get('offset', 0), reverse=True)
-        
-        converted_text = text
-        
-        for entity in sorted_entities:
-            if entity.get('type') == 'CUSTOM_EMOJI':
-                offset = entity.get('offset', 0)
-                length = entity.get('length', 0)
-                document_id = entity.get('document_id', '')
-                
-                # 커스텀 이모지 부분을 일반 텍스트로 교체
-                emoji_text = f"[커스텀이모지:{document_id}]"
-                converted_text = converted_text[:offset] + emoji_text + converted_text[offset + length:]
-        
-        return converted_text
-    except Exception as e:
-        logger.error(f'❌ 커스텀 이모지 변환 실패: {e}')
-        return text
-
 def send_message_to_telegram_group(account_info, group_id, message, media_info=None):
     """텔레그램 그룹에 메시지 전송"""
     try:
@@ -2380,88 +2042,42 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                     logger.info(f'📤 원본 텍스트: {original_text}')
                     logger.info(f'📤 원본 메시지 ID: {original_message_id}')
                     
-                    # 계정의 프리미엄 상태 확인
-                    me = await client.get_me()
-                    is_premium = getattr(me, 'premium', False)
-                    logger.info(f'📤 계정 프리미엄 상태: {is_premium}')
-                    
-                    # 🚀 최종 해결책: 원본 메시지 직접 전달 (프리미엄 계정만)
-                    if is_premium:
-                        try:
-                            logger.info('📤 🚀 프리미엄 계정: 원본 메시지 직접 전달')
-                            
-                            # 자신의 저장된 메시지에서 원본 메시지를 직접 전달
-                            logger.info(f'📤 자신의 저장된 메시지에서 전달: {me.id}')
-                            
-                            # InputPeerSelf import
-                            from telethon.tl.types import InputPeerSelf
-                            
-                            # 원본 메시지를 직접 전달 (완전히 원본 그대로)
-                            forwarded_messages = await client.forward_messages(
-                                entity=group_entity,
-                                messages=original_message_id,
-                                from_peer=InputPeerSelf()
-                            )
+                    # 🚀 최종 해결책: 원본 메시지 직접 전달
+                    try:
+                        logger.info('📤 🚀 최종 해결책: 원본 메시지 직접 전달')
                         
-                            if forwarded_messages:
-                                forwarded_message = forwarded_messages[0] if isinstance(forwarded_messages, list) else forwarded_messages
-                                logger.info(f'✅ 🎉 프리미엄 계정 원본 메시지 직접 전달 성공! 완전히 원본 그대로: {forwarded_message.id}')
-                            else:
-                                logger.error('❌ 전달된 메시지가 없음')
-                                raise Exception("전달된 메시지가 없음")
-                            
-                        except Exception as e:
-                            logger.error(f'❌ 프리미엄 계정 원본 메시지 직접 전달 실패: {e}')
-                            logger.info('📤 백업: 원본 텍스트와 엔티티로 전송')
-                            
-                            # 백업: 원본 텍스트와 엔티티로 전송
-                            if original_text:
-                                # 원본 엔티티 정보 가져오기
-                                original_entities = original_obj.get('entities', [])
-                                logger.info(f'📤 백업: 원본 엔티티 {len(original_entities)}개 사용')
-                                
-                                if original_entities:
-                                    # 엔티티 정보를 텔레그램 형식으로 변환
-                                    from telethon.tl.types import MessageEntityCustomEmoji
-                                    telegram_entities = []
-                                    
-                                    for entity in original_entities:
-                                        if entity.get('type') == 'CUSTOM_EMOJI':
-                                            telegram_entities.append(MessageEntityCustomEmoji(
-                                                offset=entity['offset'],
-                                                length=entity['length'],
-                                                document_id=entity['document_id']
-                                            ))
-                                            logger.info(f'📤 백업: 커스텀 이모지 엔티티 추가: offset={entity["offset"]}, length={entity["length"]}, document_id={entity["document_id"]}')
-                                    
-                                    # 엔티티와 함께 전송
-                                    try:
-                                        sent_message = await client.send_message(group_entity, original_text, formatting_entities=telegram_entities)
-                                        logger.info(f'✅ 백업 성공: 원본 텍스트+엔티티 전송 완료: {sent_message.id}')
-                                    except Exception as e2:
-                                        logger.error(f'❌ 엔티티 전송 실패: {e2}')
-                                        # 최종 백업: 단순 텍스트 전송
-                                        sent_message = await client.send_message(group_entity, original_text)
-                                        logger.info(f'✅ 최종 백업: 단순 텍스트 전송 완료: {sent_message.id}')
-                                else:
-                                    # 엔티티가 없으면 단순 텍스트 전송
-                                    sent_message = await client.send_message(group_entity, original_text)
-                                    logger.info(f'✅ 백업 성공: 단순 텍스트 전송 완료: {sent_message.id}')
-                            else:
-                                logger.warning('⚠️ 원본 텍스트가 없어서 전송할 수 없습니다.')
-                    
-                    else:
-                        # 프리미엄이 아닌 계정: 커스텀 이모지를 일반 텍스트로 변환
-                        logger.info('📤 ⚠️ 프리미엄이 아닌 계정: 커스텀 이모지를 일반 텍스트로 변환')
+                        # 자신의 저장된 메시지에서 원본 메시지를 직접 전달
+                        me = await client.get_me()
+                        logger.info(f'📤 자신의 저장된 메시지에서 전달: {me.id}')
                         
+                        # InputPeerSelf import
+                        from telethon.tl.types import InputPeerSelf
+                        
+                        # InputPeerSelf import
+                        from telethon.tl.types import InputPeerSelf
+                        
+                        # 원본 메시지를 직접 전달 (완전히 원본 그대로)
+                        forwarded_messages = await client.forward_messages(
+                            entity=group_entity,
+                            messages=original_message_id,
+                            from_peer=InputPeerSelf()
+                        )
+                        
+                        if forwarded_messages:
+                            forwarded_message = forwarded_messages[0] if isinstance(forwarded_messages, list) else forwarded_messages
+                            logger.info(f'✅ 🎉 원본 메시지 직접 전달 성공! 완전히 원본 그대로: {forwarded_message.id}')
+                        else:
+                            logger.error('❌ 전달된 메시지가 없음')
+                            raise Exception("전달된 메시지가 없음")
+                        
+                    except Exception as e:
+                        logger.error(f'❌ 원본 메시지 직접 전달 실패: {e}')
+                        logger.info('📤 백업: 원본 텍스트 전송')
+                        
+                        # 백업: 원본 텍스트 전송
                         if original_text:
-                            # 커스텀 이모지를 일반 텍스트로 변환
-                            converted_text = convert_custom_emojis_to_text(original_text, original_obj.get('entities', []))
-                            logger.info(f'📤 변환된 텍스트: {converted_text}')
-                            
-                            # 변환된 텍스트로 전송
-                            sent_message = await client.send_message(group_entity, converted_text)
-                            logger.info(f'✅ 프리미엄이 아닌 계정 텍스트 전송 완료: {sent_message.id}')
+                            sent_message = await client.send_message(group_entity, original_text)
+                            logger.info(f'✅ 백업 성공: 원본 텍스트 전송 완료: {sent_message.id}')
                         else:
                             logger.warning('⚠️ 원본 텍스트가 없어서 전송할 수 없습니다.')
                 
@@ -4620,5 +4236,259 @@ if __name__ == '__main__':
     # 워치독 시작
     threading.Thread(target=auto_resume_watchdog_loop, daemon=True).start()
     
+# 비공개 채널 목록 가져오기 API
+@app.route('/api/telegram/get-private-channels', methods=['POST'])
+@cross_origin(origins=ALLOWED_ORIGINS, methods=['POST','OPTIONS'], allow_headers=['Content-Type','Authorization'], max_age=86400)
+def get_private_channels():
+    """계정이 참여한 비공개 채널 목록 가져오기"""
+    try:
+        data = request.get_json()
+        user_id = data.get('userId')
+        
+        if not user_id:
+            return jsonify({
+                'success': False,
+                'error': '사용자 ID가 필요합니다.'
+            }), 400
+        
+        logger.info(f'📥 비공개 채널 목록 가져오기 요청 (계정: {user_id})')
+        
+        # 계정 정보 조회
+        account_info = get_account_from_firebase(user_id)
+        if not account_info:
+            return jsonify({
+                'success': False,
+                'error': '인증된 계정 정보를 찾을 수 없습니다.'
+            }), 404
+        
+        # 비동기 함수로 비공개 채널 목록 가져오기
+        async def get_channels_async():
+            try:
+                # 세션 데이터 복원
+                session_b64 = account_info.get('session_data')
+                if not session_b64:
+                    raise Exception('세션 데이터 없음')
+                
+                session_bytes = base64.b64decode(session_b64)
+                temp_session_file = f'temp_channels_{user_id}'
+                
+                # 임시 세션 파일 생성
+                with open(f'{temp_session_file}.session', 'wb') as f:
+                    f.write(session_bytes)
+                
+                # 클라이언트 생성
+                client = TelegramClient(temp_session_file, account_info['api_id'], account_info['api_hash'])
+                await client.connect()
+                
+                if not client.is_connected():
+                    raise Exception('클라이언트 연결 실패')
+                
+                # 다이얼로그 가져오기 (채널만 필터링)
+                channels = []
+                async for dialog in client.iter_dialogs():
+                    entity = dialog.entity
+                    
+                    # 채널인지 확인
+                    entity_type = str(type(entity).__name__)
+                    if 'Channel' not in entity_type:
+                        continue
+                    
+                    # 메가그룹 제외 (그룹이 아닌 채널만)
+                    if hasattr(entity, 'megagroup') and entity.megagroup:
+                        continue
+                    
+                    # 공개 채널 제외 (비공개 채널만)
+                    if hasattr(entity, 'username') and entity.username:
+                        continue
+                    
+                    # 비공개 채널 정보 수집
+                    channel_info = {
+                        'id': entity.id,
+                        'title': entity.title,
+                        'type': entity_type,
+                        'participants_count': getattr(entity, 'participants_count', 0),
+                        'access_hash': str(entity.access_hash) if hasattr(entity, 'access_hash') else None
+                    }
+                    
+                    channels.append(channel_info)
+                
+                await client.disconnect()
+                
+                # 임시 세션 파일 삭제
+                try:
+                    os.remove(f'{temp_session_file}.session')
+                except:
+                    pass
+                
+                logger.info(f'✅ 비공개 채널 목록 가져오기 성공: {len(channels)}개')
+                return channels
+                
+            except Exception as e:
+                logger.error(f'❌ 비공개 채널 목록 가져오기 실패: {e}')
+                raise e
+        
+        # 비동기 함수 실행
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            channels = loop.run_until_complete(get_channels_async())
+            return jsonify({
+                'success': True,
+                'channels': channels,
+                'count': len(channels)
+            })
+        finally:
+            loop.close()
+        
+    except Exception as e:
+        logger.error(f'❌ 비공개 채널 목록 가져오기 API 에러: {e}')
+        return jsonify({
+            'success': False,
+            'error': f'비공개 채널 목록 가져오기 실패: {str(e)}'
+        }), 500
+
+# 채널 메시지 가져오기 API
+@app.route('/api/telegram/get-channel-messages', methods=['POST'])
+@cross_origin(origins=ALLOWED_ORIGINS, methods=['POST','OPTIONS'], allow_headers=['Content-Type','Authorization'], max_age=86400)
+def get_channel_messages():
+    """특정 채널에서 메시지 가져오기"""
+    try:
+        data = request.get_json()
+        user_id = data.get('userId')
+        channel_username = data.get('channelUsername', '').strip()
+        limit = data.get('limit', 20)  # 기본 20개
+        
+        if not user_id:
+            return jsonify({
+                'success': False,
+                'error': '사용자 ID가 필요합니다.'
+            }), 400
+        
+        if not channel_username:
+            return jsonify({
+                'success': False,
+                'error': '채널 사용자명이 필요합니다.'
+            }), 400
+        
+        logger.info(f'📥 채널 메시지 가져오기 요청: {channel_username} (계정: {user_id})')
+        
+        # 계정 정보 조회
+        account_info = get_account_from_firebase(user_id)
+        if not account_info:
+            return jsonify({
+                'success': False,
+                'error': '인증된 계정 정보를 찾을 수 없습니다.'
+            }), 404
+        
+        # 비동기 함수로 채널 메시지 가져오기
+        async def get_messages_async():
+            try:
+                # 세션 데이터 복원
+                session_b64 = account_info.get('session_data')
+                if not session_b64:
+                    raise Exception('세션 데이터 없음')
+                
+                session_bytes = base64.b64decode(session_b64)
+                temp_session_file = f'temp_channel_{user_id}'
+                
+                # 임시 세션 파일 생성
+                with open(f'{temp_session_file}.session', 'wb') as f:
+                    f.write(session_bytes)
+                
+                # 클라이언트 생성
+                client = TelegramClient(temp_session_file, account_info['api_id'], account_info['api_hash'])
+                await client.connect()
+                
+                if not client.is_connected():
+                    raise Exception('클라이언트 연결 실패')
+                
+                # 채널 엔티티 가져오기 (ID 또는 사용자명 모두 지원)
+                try:
+                    if channel_username.isdigit() or channel_username.startswith('-'):
+                        # 숫자 ID인 경우
+                        channel_entity = await client.get_entity(int(channel_username))
+                    else:
+                        # 사용자명인 경우
+                        channel_entity = await client.get_entity(channel_username)
+                    
+                    logger.info(f'📥 채널 엔티티 가져오기 성공: {channel_entity.title}')
+                except Exception as e:
+                    logger.error(f'❌ 채널 엔티티 가져오기 실패: {e}')
+                    raise Exception(f'채널을 찾을 수 없습니다: {channel_username}')
+                
+                # 채널 메시지 가져오기
+                messages = []
+                async for message in client.iter_messages(channel_entity, limit=limit):
+                    if message.text:  # 텍스트가 있는 메시지만
+                        message_data = {
+                            'id': message.id,
+                            'text': message.text,
+                            'date': message.date.isoformat(),
+                            'from_id': str(getattr(message, 'from_id', None)) if getattr(message, 'from_id', None) else None,
+                            'peer_id': str(getattr(message, 'peer_id', None)) if getattr(message, 'peer_id', None) else None,
+                            'has_custom_emoji': False,
+                            'custom_emoji_entities': [],
+                            'entities': []
+                        }
+                        
+                        # 커스텀 이모지 엔티티 처리
+                        if message.entities:
+                            for entity in message.entities:
+                                entity_class_name = str(entity.__class__)
+                                if 'CustomEmoji' in entity_class_name:
+                                    message_data['has_custom_emoji'] = True
+                                    message_data['custom_emoji_entities'].append({
+                                        'offset': entity.offset,
+                                        'length': entity.length,
+                                        'type': entity_class_name,
+                                        'document_id': getattr(entity, 'document_id', None)
+                                    })
+                                
+                                # 모든 엔티티 정보 저장
+                                message_data['entities'].append({
+                                    'offset': entity.offset,
+                                    'length': entity.length,
+                                    'type': entity_class_name,
+                                    'document_id': getattr(entity, 'document_id', None)
+                                })
+                        
+                        messages.append(message_data)
+                
+                await client.disconnect()
+                
+                # 임시 세션 파일 삭제
+                try:
+                    os.remove(f'{temp_session_file}.session')
+                except:
+                    pass
+                
+                logger.info(f'✅ 채널 메시지 가져오기 성공: {len(messages)}개')
+                return messages
+                
+            except Exception as e:
+                logger.error(f'❌ 채널 메시지 가져오기 실패: {e}')
+                raise e
+        
+        # 비동기 함수 실행
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            messages = loop.run_until_complete(get_messages_async())
+            return jsonify({
+                'success': True,
+                'messages': messages,
+                'channel_title': channel_username,
+                'count': len(messages)
+            })
+        finally:
+            loop.close()
+        
+    except Exception as e:
+        logger.error(f'❌ 채널 메시지 가져오기 API 에러: {e}')
+        return jsonify({
+            'success': False,
+            'error': f'채널 메시지 가져오기 실패: {str(e)}'
+        }), 500
+
     # 서버 시작 (Render에서는 HTTP 사용)
     app.run(host='0.0.0.0', port=port, debug=False)
