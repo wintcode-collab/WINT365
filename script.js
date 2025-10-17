@@ -94,6 +94,11 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function initializeApp() {
+    // 자동전송 동기화 잠금 변수 초기화
+    window.autoSendSyncLocked = false;
+    window.autoSendSettingsSaved = false;
+    console.log('🔧 자동전송 동기화 변수 초기화 완료');
+    
     // 로컬 스토리지에서 설정 로드
     loadUserSettings();
     
@@ -5913,6 +5918,10 @@ function hideAutoSendSettingsModal() {
     if (modal) {
         modal.style.display = 'none';
     }
+    
+    // 자동전송 동기화 잠금 해제 (설정 모달이 닫힐 때)
+    window.autoSendSyncLocked = false;
+    console.log('🔓 자동전송 동기화 잠금 해제');
 }
 
 // 그룹간 전송간격 실시간 업데이트 설정
