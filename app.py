@@ -4460,20 +4460,56 @@ def get_channel_messages():
                 
                 try:
                     message_count = 0
-                    # limit을 제거하여 모든 메시지 가져오기
+                    # limit을 제거하여 모든 메시지 가져오기 (텍스트, 미디어 모두 포함)
                     async for message in client.iter_messages(channel_entity):
                         try:
-                            if message.text:  # 텍스트가 있는 메시지만
+                            # 텍스트가 있거나 미디어가 있는 모든 메시지 포함
+                            if message.text or message.media:
                                 message_data = {
                                     'id': message.id,
-                                    'text': message.text,
+                                    'text': message.text or '',
                                     'date': message.date.isoformat(),
                                     'from_id': str(getattr(message, 'from_id', None)) if getattr(message, 'from_id', None) else None,
                                     'peer_id': str(getattr(message, 'peer_id', None)) if getattr(message, 'peer_id', None) else None,
                                     'has_custom_emoji': False,
                                     'custom_emoji_entities': [],
-                                    'entities': []
+                                    'entities': [],
+                                    'media_type': None,
+                                    'media_info': None
                                 }
+                                
+                                # 미디어 타입 및 정보 처리
+                                if message.media:
+                                    media_class_name = str(type(message.media).__name__)
+                                    message_data['media_type'] = media_class_name
+                                    
+                                    # 미디어 정보 저장
+                                    if 'Photo' in media_class_name:
+                                        message_data['media_info'] = {
+                                            'type': 'photo',
+                                            'class': media_class_name
+                                        }
+                                    elif 'Document' in media_class_name:
+                                        message_data['media_info'] = {
+                                            'type': 'document',
+                                            'class': media_class_name,
+                                            'mime_type': getattr(message.media, 'mime_type', 'unknown')
+                                        }
+                                    elif 'Video' in media_class_name:
+                                        message_data['media_info'] = {
+                                            'type': 'video',
+                                            'class': media_class_name
+                                        }
+                                    elif 'Animation' in media_class_name:
+                                        message_data['media_info'] = {
+                                            'type': 'gif',
+                                            'class': media_class_name
+                                        }
+                                    else:
+                                        message_data['media_info'] = {
+                                            'type': 'other',
+                                            'class': media_class_name
+                                        }
                                 
                                 # 커스텀 이모지 엔티티 처리
                                 if message.entities:

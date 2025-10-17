@@ -9323,7 +9323,20 @@ function showChannelMessagesModalForMultiAccount(channelId, channelTitle) {
                     <!-- 채널 메시지 목록이 여기에 표시됩니다 -->
                 </div>
                 
-                <div style="text-align: center;">
+                <div style="text-align: center; display: flex; gap: 10px; justify-content: center;">
+                    <button id="confirmChannelMessageBtn" style="
+                        background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+                        color: white;
+                        border: none;
+                        padding: 10px 20px;
+                        border-radius: 6px;
+                        font-size: 14px;
+                        cursor: pointer;
+                        font-weight: 600;
+                        opacity: 0.5;
+                        pointer-events: none;
+                        transition: all 0.3s ease;
+                    ">✅ 확인</button>
                     <button id="closeChannelModalBtn" style="
                         background: #6c757d;
                         color: white;
@@ -9345,6 +9358,17 @@ function showChannelMessagesModalForMultiAccount(channelId, channelTitle) {
     // 닫기 버튼 이벤트
     document.getElementById('closeChannelModalBtn').addEventListener('click', function() {
         document.getElementById('messageSelectionModal').remove();
+    });
+    
+    // 확인 버튼 이벤트
+    document.getElementById('confirmChannelMessageBtn').addEventListener('click', function() {
+        if (window.selectedChannelMessageForMultiAccount) {
+            selectChannelMessageForMultiAccount(
+                window.selectedChannelMessageForMultiAccount.id,
+                channelTitle,
+                window.selectedChannelMessageForMultiAccount.data
+            );
+        }
     });
     
     // 배경 클릭으로 닫기
@@ -9449,33 +9473,52 @@ function displayChannelMessagesForMultiAccount(messages, channelTitle) {
             message.text.substring(0, 100) + '...' : 
             message.text;
         
+        // 미디어 타입에 따른 아이콘 및 표시
+        let mediaIcon = '';
+        let mediaTypeText = '';
+        if (message.media_type) {
+            if (message.media_info && message.media_info.type === 'photo') {
+                mediaIcon = '📷';
+                mediaTypeText = '사진';
+            } else if (message.media_info && message.media_info.type === 'video') {
+                mediaIcon = '🎥';
+                mediaTypeText = '영상';
+            } else if (message.media_info && message.media_info.type === 'gif') {
+                mediaIcon = '🎬';
+                mediaTypeText = 'GIF';
+            } else if (message.media_info && message.media_info.type === 'document') {
+                mediaIcon = '📄';
+                mediaTypeText = '문서';
+            } else {
+                mediaIcon = '📎';
+                mediaTypeText = '미디어';
+            }
+        }
+        
         messagesHTML += `
             <div class="channel-message-item" 
                  data-message-id="${message.id}"
                  data-message-data='${JSON.stringify(message).replace(/'/g, "\\'")}'
                  style="padding: 15px; border: 1px solid #444; border-radius: 8px; margin-bottom: 10px; cursor: pointer; transition: all 0.3s ease; background: linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%);">
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
-                    <span style="font-weight: 600; color: #10B981; font-size: 14px;">메시지 #${message.id}</span>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="font-weight: 600; color: #10B981; font-size: 14px;">메시지 #${message.id}</span>
+                        ${mediaIcon ? `<span style="background: #3B82F6; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px;">${mediaIcon} ${mediaTypeText}</span>` : ''}
+                    </div>
                     <span style="font-size: 12px; color: #ccc;">${messageDate}</span>
                 </div>
-                <div style="color: #fff; line-height: 1.4; font-size: 14px;">
-                    ${messagePreview}
-                </div>
+                ${message.text ? `
+                    <div style="color: #fff; line-height: 1.4; font-size: 14px; margin-bottom: 8px;">
+                        ${messagePreview}
+                    </div>
+                ` : ''}
                 ${message.has_custom_emoji ? '<div style="margin-top: 8px;"><span style="background: #FEF3C7; color: #92400E; padding: 2px 6px; border-radius: 4px; font-size: 11px;">🎨 커스텀 이모지 포함</span></div>' : ''}
+                ${!message.text && message.media_type ? '<div style="color: #888; font-size: 12px; font-style: italic;">텍스트 없음 - 미디어만 포함</div>' : ''}
             </div>
         `;
     });
     
     messagesHTML += `
-        </div>
-        <div style="text-align: center; margin-top: 20px; padding-top: 20px; border-top: 1px solid #444;">
-            <button id="confirmMessageSelectionBtn" 
-                    style="background: linear-gradient(135deg, #10B981 0%, #059669 100%); 
-                           color: white; border: none; padding: 12px 24px; border-radius: 8px; 
-                           font-size: 14px; font-weight: 600; cursor: pointer; 
-                           transition: all 0.3s ease; opacity: 0.5; pointer-events: none;">
-                ✅ 메시지 선택 확인
-            </button>
         </div>
     `;
     
@@ -9483,7 +9526,6 @@ function displayChannelMessagesForMultiAccount(messages, channelTitle) {
     
     // 메시지 아이템에 클릭 이벤트 추가
     const messageItems = messagesList.querySelectorAll('.channel-message-item');
-    const confirmBtn = document.getElementById('confirmMessageSelectionBtn');
     
     messageItems.forEach(item => {
         // 클릭 이벤트
@@ -9508,9 +9550,13 @@ function displayChannelMessagesForMultiAccount(messages, channelTitle) {
                 data: JSON.parse(this.dataset.messageData)
             };
             
-            // 확인 버튼 활성화
-            confirmBtn.style.opacity = '1';
-            confirmBtn.style.pointerEvents = 'auto';
+            // 확인 버튼 활성화 (모달 상단의 확인 버튼)
+            const modalConfirmBtn = document.getElementById('confirmChannelMessageBtn');
+            if (modalConfirmBtn) {
+                modalConfirmBtn.style.opacity = '1';
+                modalConfirmBtn.style.pointerEvents = 'auto';
+            }
+            
             
             console.log('📝 메시지 선택됨:', window.selectedChannelMessageForMultiAccount);
         });
@@ -9534,19 +9580,6 @@ function displayChannelMessagesForMultiAccount(messages, channelTitle) {
             }
         });
     });
-    
-    // 확인 버튼 이벤트
-    if (confirmBtn) {
-        confirmBtn.addEventListener('click', function() {
-            if (window.selectedChannelMessageForMultiAccount) {
-                selectChannelMessageForMultiAccount(
-                    window.selectedChannelMessageForMultiAccount.id,
-                    channelTitle,
-                    window.selectedChannelMessageForMultiAccount.data
-                );
-            }
-        });
-    }
 }
 
 // 다중 계정용 채널 메시지 선택
