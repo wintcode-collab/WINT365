@@ -9498,10 +9498,13 @@ function displayChannelMessagesForMultiAccount(messages, channelTitle) {
             }
         }
         
+        // 메시지 데이터를 안전하게 인코딩
+        const safeMessageData = encodeURIComponent(JSON.stringify(message));
+        
         messagesHTML += `
             <div class="channel-message-item" 
                  data-message-id="${message.id}"
-                 data-message-data='${JSON.stringify(message).replace(/'/g, "\\'")}'
+                 data-message-data="${safeMessageData}"
                  style="padding: 15px; border: 1px solid #444; border-radius: 8px; margin-bottom: 10px; cursor: pointer; transition: all 0.3s ease; background: linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%);">
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
                     <div style="display: flex; align-items: center; gap: 8px;">
@@ -9548,10 +9551,20 @@ function displayChannelMessagesForMultiAccount(messages, channelTitle) {
             this.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.15)';
             
             // 선택된 메시지 정보 저장
-            window.selectedChannelMessageForMultiAccount = {
-                id: this.dataset.messageId,
-                data: JSON.parse(this.dataset.messageData)
-            };
+            try {
+                const decodedData = decodeURIComponent(this.dataset.messageData);
+                const messageData = JSON.parse(decodedData);
+                window.selectedChannelMessageForMultiAccount = {
+                    id: this.dataset.messageId,
+                    data: messageData
+                };
+                console.log('✅ 메시지 데이터 파싱 성공:', messageData);
+            } catch (error) {
+                console.error('❌ 메시지 데이터 파싱 실패:', error);
+                console.error('❌ 파싱 시도한 데이터:', this.dataset.messageData);
+                alert('메시지 데이터를 처리하는 중 오류가 발생했습니다.');
+                return;
+            }
             
             // 확인 버튼 활성화 (모달 상단의 확인 버튼)
             const modalConfirmBtn = document.getElementById('confirmChannelMessageBtn');
