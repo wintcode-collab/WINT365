@@ -7189,12 +7189,24 @@ function renderGroupPoolMapping() {
         return;
     }
     
+    // 그룹별 풀설정에 등록된 그룹들을 그룹창에서 자동으로 체크
+    Object.keys(window.groupPoolMapping).forEach(groupId => {
+        const groupCheckbox = document.querySelector(`.group-checkbox[data-group-id="${groupId}"]`);
+        if (groupCheckbox && !groupCheckbox.checked) {
+            groupCheckbox.checked = true;
+            console.log(`✅ 그룹 ${groupId} 자동 체크됨 (풀설정에서 등록됨)`);
+        }
+    });
+    
     const mappingList = Object.entries(window.groupPoolMapping).map(([groupName, poolIds]) => {
         const poolNames = poolIds.map(poolId => window.rotationPools[poolId]?.name || poolId).join(', ');
         return `• ${groupName}: ${poolNames}`;
     }).join('<br>');
     
     mappingInfo.innerHTML = `✅ ${mappingCount}개 그룹 설정됨:<br>${mappingList}`;
+    
+    // 선택된 그룹 수 업데이트
+    updateSelectedGroupsCount();
 }
 
 // 풀 설정 저장
@@ -7607,6 +7619,18 @@ function saveGroupPoolMapping() {
     });
     
     console.log('💾 그룹별 풀 매핑 저장:', window.groupPoolMapping);
+    
+    // 그룹별 풀설정에 등록된 그룹들을 그룹창에서 자동으로 체크
+    Object.keys(window.groupPoolMapping).forEach(groupId => {
+        const groupCheckbox = document.querySelector(`.group-checkbox[data-group-id="${groupId}"]`);
+        if (groupCheckbox && !groupCheckbox.checked) {
+            groupCheckbox.checked = true;
+            console.log(`✅ 그룹 ${groupId} 자동 체크됨 (풀설정에서 등록됨)`);
+        }
+    });
+    
+    // 선택된 그룹 수 업데이트
+    updateSelectedGroupsCount();
     
     // UI 업데이트
     renderGroupPoolMapping();
