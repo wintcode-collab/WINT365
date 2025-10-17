@@ -6926,6 +6926,60 @@ async function restoreAutoSendStatusFor(userId) {
 // 자동전송 중지 API 호출
 async function stopAutoSend() {
     try {
+        console.log('🛑 자동전송 중지 요청 시작');
+        
+        // 새로운 풀 시스템에서는 모든 활성 계정들을 중지
+        if (window.rotationPoolsEnabled && window.groupPoolMapping) {
+            console.log('🔄 풀시스템 자동전송 중지 - 모든 활성 계정 중지');
+            
+            // 모든 활성 계정들 수집
+            const activeAccounts = [];
+            for (const [groupId, poolIds] of Object.entries(window.groupPoolMapping)) {
+                for (const poolId of poolIds) {
+                    const pool = window.rotationPools[poolId];
+                    if (pool && pool.accounts) {
+                        activeAccounts.push(...pool.accounts);
+                    }
+                }
+            }
+            
+            // 중복 제거
+            const uniqueAccounts = activeAccounts.filter((account, index, self) => 
+                index === self.findIndex(a => a.user_id === account.user_id)
+            );
+            
+            console.log(`🔄 중지할 계정들: ${uniqueAccounts.length}개`, uniqueAccounts.map(a => a.first_name));
+            
+            // 모든 계정에 대해 중지 요청
+            const stopPromises = uniqueAccounts.map(async (account) => {
+                try {
+                    const response = await fetch(`${getApiBaseUrl()}/api/auto-send/stop`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            userId: account.user_id
+                        })
+                    });
+                    
+                    const result = await response.json();
+                    console.log(`🛑 계정 ${account.first_name} 중지 결과:`, result);
+                    return result;
+                } catch (error) {
+                    console.error(`❌ 계정 ${account.first_name} 중지 실패:`, error);
+                    return { success: false, error: error.message };
+                }
+            });
+            
+            const stopResults = await Promise.all(stopPromises);
+            const successCount = stopResults.filter(r => r.success).length;
+            
+            console.log(`✅ 풀시스템 자동전송 중지 완료: ${successCount}/${uniqueAccounts.length} 성공`);
+            return;
+        }
+        
+        // 단일 계정 모드
         let accountName = document.getElementById('selectedAccountName')?.textContent?.trim();
         let userId = document.getElementById('selectedAccountUserId')?.textContent?.trim()
             || document.querySelector('.account-item.selected')?.dataset?.userId
@@ -6933,59 +6987,7 @@ async function stopAutoSend() {
             || window.selectedAccount?.user_id
             || '';
         
-        // 풀시스템에서 실행 중인 경우, 실제 계정 정보 가져오기
-        if (window.rotationPoolsEnabled && window.groupPoolMapping) {
-            console.log('🔄 풀시스템 자동전송 중지 시도');
-            
-            // 자동전송 시작 시 저장된 활성 계정 정보 우선 사용
-            if (window.autoSendActiveAccount) {
-                userId = window.autoSendActiveAccount.userId;
-                accountName = window.autoSendActiveAccount.accountName;
-                console.log('🔥 자동전송 시작 시 저장된 활성 계정 사용:', accountName, userId);
-            } else {
-                // 저장된 활성 계정이 없으면 마지막으로 선택된 계정 정보 사용
-                const lastSelectedAccount = localStorage.getItem('lastSelectedAccount');
-                if (lastSelectedAccount) {
-                    userId = lastSelectedAccount;
-                    console.log('🔥 마지막 선택된 계정 ID 사용:', userId);
-                    
-                    // 계정명도 마지막 선택된 계정에서 가져오기
-                    try {
-                        const accResp = await fetch(`${getApiBaseUrl()}/api/telegram/load-accounts`);
-                        const accData = await accResp.json();
-                        const accounts = accData.accounts || accData || [];
-                        const foundAccount = accounts.find(acc => String(acc.user_id) === userId);
-                        if (foundAccount) {
-                            accountName = `${foundAccount.first_name} ${foundAccount.last_name || ''}`.trim();
-                            console.log('🔥 마지막 선택된 계정명 사용:', accountName);
-                        }
-                    } catch (error) {
-                        console.warn('⚠️ 계정명 조회 실패:', error);
-                    }
-                }
-                
-                // 마지막 선택된 계정이 없으면 풀시스템 계정 사용
-                if (!userId) {
-                    const runningAccounts = [];
-                    for (const [groupId, poolIds] of Object.entries(window.groupPoolMapping)) {
-                        for (const poolId of poolIds) {
-                            const pool = window.rotationPools[poolId];
-                            if (pool && pool.accounts) {
-                                runningAccounts.push(...pool.accounts);
-                            }
-                        }
-                    }
-                    
-                    if (runningAccounts.length > 0) {
-                        // 첫 번째 계정을 대표로 사용
-                        const representativeAccount = runningAccounts[0];
-                        accountName = `${representativeAccount.first_name} ${representativeAccount.last_name || ''}`.trim();
-                        userId = String(representativeAccount.user_id);
-                        console.log('🔄 풀시스템 대표 계정 사용:', accountName, userId);
-                    }
-                }
-            }
-        }
+        console.log('🛑 단일 계정 자동전송 중지:', accountName, userId);
         
         // userId가 없으면 서버에서 계정 목록을 받아 매핑 (이름 → userId, 실패 시 전화번호로 매칭)
         if (!userId && accountName) {
