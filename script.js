@@ -2893,8 +2893,13 @@ function updateSelectedMessageInfo(accountId, messageIndex) {
                 messageId: message.message_id || message.id,
                 text: message.text?.substring(0, 50) + '...',
                 has_custom_emoji: message.has_custom_emoji,
-                raw_message_data: message.raw_message_data
+                raw_message_data: message.raw_message_data,
+                date: message.date,
+                from_id: message.from_id,
+                peer_id: message.peer_id
             });
+            
+            console.log(`💾 원본 메시지 객체 상세:`, message);
             
             // 간략한 정보만 표시
             let content = '';
@@ -5262,8 +5267,14 @@ function selectTelegramSavedMessage(messageIndex, savedMessages) {
             custom_emoji_entities: message.custom_emoji_entities,
             entities: message.entities,
             media_type: message.media_type,
-            raw_message_data: message.raw_message_data
+            raw_message_data: message.raw_message_data,
+            message_id: message.message_id || message.id,
+            date: message.date,
+            from_id: message.from_id,
+            peer_id: message.peer_id
         });
+        
+        console.log('💾 원본 메시지 객체 전체:', message);
         
         // 커스텀 이모지가 있는 경우 원본 데이터 확인
         if (message.has_custom_emoji) {
@@ -7184,6 +7195,8 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo, targe
                             console.log('📢 채널 제목:', accountMediaInfo.channel_title);
                             console.log('📢 저장된 메시지 여부:', isSavedMessage);
                             console.log('📢 채널 메시지 여부:', isChannelMessage);
+                            console.log('📢 계정 이름:', account.first_name);
+                            console.log('📢 메시지 텍스트 미리보기:', accountMediaInfo.text?.substring(0, 100) + '...');
                             console.log('📢 전체 메시지 데이터:', accountMediaInfo);
                             
                             const response = await fetch(`${getApiBaseUrl()}/api/telegram/forward-channel-message`, {

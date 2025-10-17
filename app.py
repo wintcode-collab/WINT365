@@ -2539,6 +2539,8 @@ def forward_channel_message():
         account = get_account_from_firebase(user_id)
         if not account:
             return jsonify({'success': False, 'error': '계정 정보를 찾을 수 없습니다'}), 404
+            
+        logger.info(f'📢 계정 정보: {account.get("first_name", "Unknown")} {account.get("last_name", "")}')
         
         # 세션 데이터 복원
         session_b64 = account.get('session_data')
@@ -2647,13 +2649,33 @@ def forward_channel_message():
                                 # 저장된 메시지 존재 여부 확인
                                 from telethon.tl.types import InputPeerSelf
                                 me = await client.get_me()
-                                test_message = await client.get_messages(me.id, ids=message_id)
-                                if test_message:
-                                    logger.info(f'📢 저장된 메시지 확인 성공: ID={message_id}, 실제 ID={test_message.id}')
-                                    if test_message.id != message_id:
-                                        logger.warning(f'⚠️ 저장된 메시지 ID 불일치: 요청={message_id}, 실제={test_message.id}')
+                                logger.info(f'📢 저장된 메시지 확인 시작: 계정={me.first_name}, 요청 메시지 ID={message_id}')
+                                
+                                # 저장된 메시지 목록 가져오기 (최근 100개)
+                                saved_messages = await client.get_messages(me.id, limit=100)
+                                logger.info(f'📢 저장된 메시지 총 개수: {len(saved_messages)}')
+                                
+                                # 요청한 메시지 ID가 있는지 확인
+                                target_message = None
+                                for msg in saved_messages:
+                                    if msg.id == message_id:
+                                        target_message = msg
+                                        break
+                                
+                                if target_message:
+                                    logger.info(f'📢 저장된 메시지 확인 성공: ID={message_id}, 실제 ID={target_message.id}')
+                                    logger.info(f'📢 메시지 텍스트 미리보기: {target_message.text[:100] if target_message.text else "None"}...')
                                 else:
                                     logger.error(f'❌ 저장된 메시지 ID {message_id}를 찾을 수 없습니다')
+                                    logger.error(f'❌ 사용 가능한 메시지 ID들: {[msg.id for msg in saved_messages[:10]]}')
+                                    
+                                # 기존 방식으로도 확인
+                                test_message = await client.get_messages(me.id, ids=message_id)
+                                if test_message:
+                                    logger.info(f'📢 get_messages로 확인 성공: ID={message_id}, 실제 ID={test_message.id}')
+                                else:
+                                    logger.error(f'❌ get_messages로도 메시지 ID {message_id}를 찾을 수 없습니다')
+                                    
                             except Exception as e:
                                 logger.error(f'❌ 저장된 메시지 확인 실패: {e}')
                             
