@@ -3548,6 +3548,9 @@ async function sendMessageToGroup() {
     const selectedGroupIds = Array.from(checkedBoxes).map(checkbox => checkbox.dataset.groupId);
     const validGroupIds = selectedGroupIds.filter(id => id && id !== 'undefined');
     
+    // 메시지 데이터 준비 (다중 계정 모드와 단일 계정 모드 구분)
+    let messageData = null;
+    
     // 메시지 확인 (다중 계정 모드, 풀 시스템, 단일 계정 모드 구분)
     let hasValidMessage = false;
     
@@ -3625,7 +3628,6 @@ async function sendMessageToGroup() {
     } catch (e) { console.warn('선택 그룹 저장 실패', e); }
     
     // 메시지 데이터 준비 (다중 계정 모드와 단일 계정 모드 구분)
-    let messageData = null;
     
     if (window.multiAccountMode) {
         // 다중 계정 모드: 각 계정별 메시지 정보 수집 (그룹이 있는 계정만)
