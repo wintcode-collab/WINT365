@@ -9378,6 +9378,14 @@ async function loadChannelMessagesForMultiAccount(channelId) {
             limit: 50
         });
         
+        // 텔레그램 채널 ID는 음수여야 함 (예: -1001234567890)
+        let telegramChannelId = channelId;
+        if (!channelId.startsWith('-')) {
+            // 양수 ID를 음수로 변환 (텔레그램 채널 ID 형식)
+            telegramChannelId = `-100${channelId}`;
+            console.log('🔄 채널 ID를 텔레그램 형식으로 변환:', channelId, '→', telegramChannelId);
+        }
+        
         const response = await fetch('/api/telegram/get-channel-messages', {
             method: 'POST',
             headers: {
@@ -9385,7 +9393,7 @@ async function loadChannelMessagesForMultiAccount(channelId) {
             },
             body: JSON.stringify({
                 userId: selectedAccountId,
-                channelUsername: channelId, // 채널 ID를 사용
+                channelUsername: telegramChannelId, // 변환된 채널 ID 사용
                 limit: 50
             })
         });

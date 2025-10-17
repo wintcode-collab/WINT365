@@ -4419,7 +4419,16 @@ def get_channel_messages():
                     try:
                         channel_id_int = int(channel_username)
                         logger.info(f'📥 숫자 ID로 채널 엔티티 조회: {channel_username}')
-                        channel_entity = await client.get_entity(channel_id_int)
+                        
+                        # 텔레그램 채널 ID는 음수여야 함
+                        if channel_id_int > 0:
+                            # 양수 ID를 음수로 변환 (텔레그램 채널 ID 형식)
+                            telegram_channel_id = int(f'-100{channel_id_int}')
+                            logger.info(f'🔄 채널 ID를 텔레그램 형식으로 변환: {channel_id_int} → {telegram_channel_id}')
+                            channel_entity = await client.get_entity(telegram_channel_id)
+                        else:
+                            channel_entity = await client.get_entity(channel_id_int)
+                            
                     except ValueError:
                         # 숫자가 아닌 경우 사용자명으로 처리
                         logger.info(f'📥 사용자명으로 채널 엔티티 조회: {channel_username}')
