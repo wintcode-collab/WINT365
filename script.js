@@ -7087,10 +7087,19 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo, targe
             console.log('🔍 풀시스템 계정 요소 찾기:', accountElement);
             
             if (accountElement) {
+                const statusSpan = accountElement.querySelector('span[data-account-id]');
                 const mediaInfoStr = accountElement.dataset.mediaInfo;
+                console.log('🔍 풀시스템 계정 statusSpan:', statusSpan?.textContent);
                 console.log('🔍 풀시스템 계정 mediaInfoStr:', mediaInfoStr);
+                console.log('🔍 풀시스템 계정 요소 HTML:', accountElement.outerHTML);
                 
-                if (mediaInfoStr && mediaInfoStr !== 'null' && mediaInfoStr !== '') {
+                // 메시지 확인: statusSpan 텍스트 또는 dataset.mediaInfo 존재 여부 (checkPoolSystemMessages와 동일)
+                const hasMessage = (statusSpan && statusSpan.textContent !== '- 저장된 메시지를 선택하세요') || 
+                                 (mediaInfoStr && mediaInfoStr !== 'null' && mediaInfoStr !== '');
+                
+                console.log('🔍 풀시스템 계정 hasMessage:', hasMessage);
+                
+                if (hasMessage && mediaInfoStr && mediaInfoStr !== 'null' && mediaInfoStr !== '') {
                     try {
                         const accountMediaInfo = JSON.parse(mediaInfoStr);
                         mediaInfo = accountMediaInfo;
@@ -7099,10 +7108,11 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo, targe
                         console.warn('풀시스템 계정 메시지 정보 파싱 실패:', e);
                     }
                 } else {
-                    console.log('⚠️ 풀시스템 계정에 메시지 정보가 없음');
+                    console.warn('⚠️ 풀시스템 계정에 메시지 정보가 없음');
+                    console.warn('⚠️ hasMessage:', hasMessage, 'mediaInfoStr:', mediaInfoStr);
                 }
             } else {
-                console.log('⚠️ 풀시스템 계정 요소를 찾을 수 없음');
+                console.warn('⚠️ 풀시스템 계정 요소를 찾을 수 없음');
             }
         } else {
             // 기존 단일 계정 로직
