@@ -2613,7 +2613,7 @@ async def forward_channel_message():
                 return []
         
         # 비동기 함수 실행
-        results = await forward_messages_async()
+        results = asyncio.run(forward_messages_async())
         
         # 임시 파일 삭제
         try:
