@@ -1271,6 +1271,29 @@ input:focus, button:focus, textarea:focus, select:focus {
     gap: 10px;
 }
 
+.right-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+.channel-forward-btn {
+    background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%);
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    min-width: 120px;
+}
+
+.channel-forward-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(59, 130, 246, 0.3);
+}
+
 /* 자동 전송 토글 스위치 */
 .message-input-header {
     display: flex;
