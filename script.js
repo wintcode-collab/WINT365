@@ -7717,7 +7717,7 @@ async function checkPoolSystemMessages(checkedBoxes) {
             
             for (const account of pool.accounts) {
                 // 해당 계정이 메시지를 가지고 있는지 확인
-                const accountElement = document.querySelector(`.account-message-setting[data-account-id="${account.user_id}"]`);
+                const accountElement = document.querySelector(`.account-message-setting span[data-account-id="${account.user_id}"]`)?.closest('.account-message-setting');
                 if (accountElement) {
                     const statusSpan = accountElement.querySelector('span[data-account-id]');
                     if (statusSpan && statusSpan.textContent !== '- 저장된 메시지를 선택하세요') {
@@ -7727,7 +7727,12 @@ async function checkPoolSystemMessages(checkedBoxes) {
                             poolId: poolId,
                             poolName: pool.name
                         });
+                        console.log(`✅ 계정 ${account.first_name} (${account.user_id}) 메시지 확인됨`);
+                    } else {
+                        console.log(`❌ 계정 ${account.first_name} (${account.user_id}) 메시지 없음: ${statusSpan?.textContent}`);
                     }
+                } else {
+                    console.log(`❌ 계정 ${account.first_name} (${account.user_id}) 메시지 설정 요소 없음`);
                 }
             }
         }
@@ -7819,7 +7824,7 @@ async function sendMessageFromPoolAccount(account, groupId, groupTitle) {
     console.log(`📤 풀 계정 ${account.first_name} (${account.poolName})으로 그룹 ${groupTitle} 전송`);
     
     // 계정의 메시지 정보 가져오기
-    const accountElement = document.querySelector(`.account-message-setting[data-account-id="${account.user_id}"]`);
+    const accountElement = document.querySelector(`.account-message-setting span[data-account-id="${account.user_id}"]`)?.closest('.account-message-setting');
     if (!accountElement) {
         throw new Error('계정 메시지 설정을 찾을 수 없습니다.');
     }
