@@ -4356,7 +4356,6 @@ def get_channel_messages():
         data = request.get_json()
         user_id = data.get('userId')
         channel_username = data.get('channelUsername', '').strip()
-        limit = data.get('limit', 20)  # 기본 20개
         
         if not user_id:
             return jsonify({
@@ -4457,11 +4456,12 @@ def get_channel_messages():
                 
                 # 채널 메시지 가져오기
                 messages = []
-                logger.info(f'📥 채널 메시지 반복 조회 시작: {limit}개')
+                logger.info(f'📥 채널 메시지 반복 조회 시작: 모든 메시지')
                 
                 try:
                     message_count = 0
-                    async for message in client.iter_messages(channel_entity, limit=limit):
+                    # limit을 제거하여 모든 메시지 가져오기
+                    async for message in client.iter_messages(channel_entity):
                         try:
                             if message.text:  # 텍스트가 있는 메시지만
                                 message_data = {
@@ -4502,7 +4502,7 @@ def get_channel_messages():
                                 messages.append(message_data)
                                 message_count += 1
                                 
-                                if message_count % 10 == 0:
+                                if message_count % 50 == 0:
                                     logger.info(f'📥 메시지 처리 중: {message_count}개')
                                     
                         except Exception as message_error:

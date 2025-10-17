@@ -9393,8 +9393,7 @@ async function loadChannelMessagesForMultiAccount(channelId) {
             },
             body: JSON.stringify({
                 userId: selectedAccountId,
-                channelUsername: telegramChannelId, // 변환된 채널 ID 사용
-                limit: 50
+                channelUsername: telegramChannelId // 변환된 채널 ID 사용 (limit 제거)
             })
         });
         
@@ -9417,48 +9416,137 @@ async function loadChannelMessagesForMultiAccount(channelId) {
 
 // 다중 계정용 채널 메시지 목록 표시
 function displayChannelMessagesForMultiAccount(messages, channelTitle) {
+    console.log('📋 다중 계정용 채널 메시지 표시:', messages.length, '개');
+    
     const messagesList = document.getElementById('channelMessagesList');
-    if (!messagesList) return;
+    if (!messagesList) {
+        console.error('❌ 메시지 목록 요소를 찾을 수 없습니다');
+        return;
+    }
     
     if (messages.length === 0) {
         messagesList.innerHTML = `
-            <div style="text-align: center; padding: 40px; color: #666;">
-                <h4>📭 메시지가 없습니다</h4>
-                <p>이 채널에 텍스트 메시지가 없습니다.</p>
+            <div style="text-align: center; color: #888; padding: 20px;">
+                <p>📭 메시지가 없습니다</p>
+                <p style="font-size: 12px; margin-top: 10px;">이 채널에는 텍스트 메시지가 없습니다.</p>
             </div>
         `;
         return;
     }
     
-    messagesList.innerHTML = `
+    // 메시지 목록 생성
+    let messagesHTML = `
         <div style="margin-bottom: 15px; padding: 10px; background: #f8f9fa; border-radius: 5px;">
-            <h4 style="margin: 0; color: #495057;">📢 ${channelTitle}의 최근 메시지 (${messages.length}개)</h4>
-            <p style="margin: 5px 0 0 0; color: #6c757d; font-size: 14px;">전달할 메시지를 선택하세요</p>
+            <h4 style="margin: 0; color: #495057;">📢 ${channelTitle}의 모든 메시지 (${messages.length}개)</h4>
+            <p style="margin: 5px 0 0 0; color: #6c757d; font-size: 14px;">전달할 메시지를 선택하고 확인 버튼을 누르세요</p>
         </div>
         <div class="messages-items">
-            ${messages.map((message, index) => `
-                <div class="message-item" onclick="selectChannelMessageForMultiAccount('${message.id}', '${channelTitle.replace(/'/g, "\\'")}', ${JSON.stringify(message).replace(/"/g, '&quot;')})" style="
-                    padding: 15px;
-                    margin-bottom: 10px;
-                    background: linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%);
-                    border: 1px solid #444;
-                    border-radius: 8px;
-                    cursor: pointer;
-                    transition: all 0.2s ease;
-                " onmouseover="this.style.borderColor='#10B981'" onmouseout="this.style.borderColor='#444'">
-                    <div style="margin-bottom: 10px;">
-                        <div style="color: #fff; line-height: 1.4;">
-                            ${message.text.substring(0, 100)}${message.text.length > 100 ? '...' : ''}
-                        </div>
-                    </div>
-                    <div style="color: #ccc; font-size: 12px;">
-                        ID: ${message.id} | ${new Date(message.date).toLocaleString()}
-                        ${message.has_custom_emoji ? ' | 🎨 커스텀 이모지' : ''}
-                    </div>
+    `;
+    
+    messages.forEach((message, index) => {
+        const messageDate = new Date(message.date).toLocaleString('ko-KR');
+        const messagePreview = message.text.length > 100 ? 
+            message.text.substring(0, 100) + '...' : 
+            message.text;
+        
+        messagesHTML += `
+            <div class="channel-message-item" 
+                 data-message-id="${message.id}"
+                 data-message-data='${JSON.stringify(message).replace(/'/g, "\\'")}'
+                 style="padding: 15px; border: 1px solid #444; border-radius: 8px; margin-bottom: 10px; cursor: pointer; transition: all 0.3s ease; background: linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%);">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+                    <span style="font-weight: 600; color: #10B981; font-size: 14px;">메시지 #${message.id}</span>
+                    <span style="font-size: 12px; color: #ccc;">${messageDate}</span>
                 </div>
-            `).join('')}
+                <div style="color: #fff; line-height: 1.4; font-size: 14px;">
+                    ${messagePreview}
+                </div>
+                ${message.has_custom_emoji ? '<div style="margin-top: 8px;"><span style="background: #FEF3C7; color: #92400E; padding: 2px 6px; border-radius: 4px; font-size: 11px;">🎨 커스텀 이모지 포함</span></div>' : ''}
+            </div>
+        `;
+    });
+    
+    messagesHTML += `
+        </div>
+        <div style="text-align: center; margin-top: 20px; padding-top: 20px; border-top: 1px solid #444;">
+            <button id="confirmMessageSelectionBtn" 
+                    style="background: linear-gradient(135deg, #10B981 0%, #059669 100%); 
+                           color: white; border: none; padding: 12px 24px; border-radius: 8px; 
+                           font-size: 14px; font-weight: 600; cursor: pointer; 
+                           transition: all 0.3s ease; opacity: 0.5; pointer-events: none;">
+                ✅ 메시지 선택 확인
+            </button>
         </div>
     `;
+    
+    messagesList.innerHTML = messagesHTML;
+    
+    // 메시지 아이템에 클릭 이벤트 추가
+    const messageItems = messagesList.querySelectorAll('.channel-message-item');
+    const confirmBtn = document.getElementById('confirmMessageSelectionBtn');
+    
+    messageItems.forEach(item => {
+        // 클릭 이벤트
+        item.addEventListener('click', function() {
+            // 모든 아이템에서 선택 상태 제거
+            messageItems.forEach(i => {
+                i.style.borderColor = '#444';
+                i.style.backgroundColor = 'linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%)';
+                i.style.transform = 'translateY(0)';
+                i.style.boxShadow = 'none';
+            });
+            
+            // 현재 아이템 선택 상태로 변경
+            this.style.borderColor = '#10B981';
+            this.style.backgroundColor = 'linear-gradient(135deg, #1F2937 0%, #374151 100%)';
+            this.style.transform = 'translateY(-2px)';
+            this.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.15)';
+            
+            // 선택된 메시지 정보 저장
+            window.selectedChannelMessageForMultiAccount = {
+                id: this.dataset.messageId,
+                data: JSON.parse(this.dataset.messageData)
+            };
+            
+            // 확인 버튼 활성화
+            confirmBtn.style.opacity = '1';
+            confirmBtn.style.pointerEvents = 'auto';
+            
+            console.log('📝 메시지 선택됨:', window.selectedChannelMessageForMultiAccount);
+        });
+        
+        // 호버 효과
+        item.addEventListener('mouseenter', function() {
+            if (!this.style.borderColor.includes('10B981')) { // 선택되지 않은 경우만
+                this.style.borderColor = '#10B981';
+                this.style.backgroundColor = 'linear-gradient(135deg, #374151 0%, #4B5563 100%)';
+                this.style.transform = 'translateY(-1px)';
+                this.style.boxShadow = '0 2px 8px rgba(16, 185, 129, 0.1)';
+            }
+        });
+        
+        item.addEventListener('mouseleave', function() {
+            if (!this.style.borderColor.includes('10B981')) { // 선택되지 않은 경우만
+                this.style.borderColor = '#444';
+                this.style.backgroundColor = 'linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%)';
+                this.style.transform = 'translateY(0)';
+                this.style.boxShadow = 'none';
+            }
+        });
+    });
+    
+    // 확인 버튼 이벤트
+    if (confirmBtn) {
+        confirmBtn.addEventListener('click', function() {
+            if (window.selectedChannelMessageForMultiAccount) {
+                selectChannelMessageForMultiAccount(
+                    window.selectedChannelMessageForMultiAccount.id,
+                    channelTitle,
+                    window.selectedChannelMessageForMultiAccount.data
+                );
+            }
+        });
+    }
 }
 
 // 다중 계정용 채널 메시지 선택
