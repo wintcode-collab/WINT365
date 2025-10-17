@@ -5027,13 +5027,26 @@ function loadAutoSendSettings() {
         }
         
         if (settings) {
-            // 자동전송 설정 모달이 열릴 때는 항상 풀 시스템을 비활성화 상태로 초기화
-            window.rotationPoolsEnabled = false;
-            const enablePoolsCheckbox = document.getElementById('enableRotationPools');
-            if (enablePoolsCheckbox) {
-                enablePoolsCheckbox.checked = false;
+            // 풀 시스템 설정 로드
+            if (settings.rotationPools && settings.rotationPools.enabled) {
+                window.rotationPoolsEnabled = true;
+                window.rotationPools = settings.rotationPools.pools || {};
+                window.groupPoolMapping = settings.rotationPools.groupMapping || {};
+                window.poolRotationIndex = settings.rotationPools.rotationIndex || {};
+                const enablePoolsCheckbox = document.getElementById('enableRotationPools');
+                if (enablePoolsCheckbox) {
+                    enablePoolsCheckbox.checked = true;
+                }
+                console.log('✅ 풀 시스템 설정 로드됨:', settings.rotationPools);
+            } else {
+                // 풀 시스템 설정이 없거나 비활성화되어 있으면 명시적으로 false로 설정
+                window.rotationPoolsEnabled = false;
+                const enablePoolsCheckbox = document.getElementById('enableRotationPools');
+                if (enablePoolsCheckbox) {
+                    enablePoolsCheckbox.checked = false;
+                }
+                console.log('✅ 풀 시스템 비활성화 상태로 설정');
             }
-            console.log('✅ 자동전송 모달 열림 - 풀 시스템 비활성화로 초기화');
             
             // 그룹간 전송간격은 풀 시스템 활성화 여부와 관계없이 항상 로드
             const groupInterval = document.getElementById('groupInterval');
@@ -5042,21 +5055,21 @@ function loadAutoSendSettings() {
                 console.log('✅ 그룹간 전송간격 로드됨:', settings.groupInterval);
             }
             
-            // 풀 시스템이 비활성화되어 있을 때만 나머지 자동전송 설정 로드
+            // 풀시스템이 비활성화되어 있을 때만 기본 자동전송 설정 로드
             if (!window.rotationPoolsEnabled) {
-            const repeatInterval = document.getElementById('repeatInterval');
-            const maxRepeats = document.getElementById('maxRepeats');
-            const messageThreshold = document.getElementById('messageThreshold');
-            const enableMessageCheck = document.getElementById('enableMessageCheck');
-            
-            if (repeatInterval) repeatInterval.value = settings.repeatInterval || 30;
-            if (maxRepeats) maxRepeats.value = settings.maxRepeats || 10;
-            if (messageThreshold) messageThreshold.value = settings.messageThreshold || 5;
-            if (enableMessageCheck) enableMessageCheck.checked = settings.enableMessageCheck !== false;
-            
-                console.log('✅ 기존 자동전송 설정 로드됨:', settings);
+                const repeatInterval = document.getElementById('repeatInterval');
+                const maxRepeats = document.getElementById('maxRepeats');
+                const messageThreshold = document.getElementById('messageThreshold');
+                const enableMessageCheck = document.getElementById('enableMessageCheck');
+                
+                if (repeatInterval) repeatInterval.value = settings.repeatInterval || 30;
+                if (maxRepeats) maxRepeats.value = settings.maxRepeats || 10;
+                if (messageThreshold) messageThreshold.value = settings.messageThreshold || 5;
+                if (enableMessageCheck) enableMessageCheck.checked = settings.enableMessageCheck !== false;
+                
+                console.log('✅ 기본 자동전송 설정 로드됨:', settings);
             } else {
-                console.log('✅ 풀 시스템 활성화됨 - 그룹간 간격만 로드, 나머지 설정 무시');
+                console.log('✅ 풀시스템 활성화됨 - 기본 자동전송 설정 무시');
             }
         } else {
             // 설정이 아예 없으면 풀 시스템 비활성화
@@ -5381,8 +5394,14 @@ function updateAutoSendSettingsDisplay() {
             // 그룹 간 전송 간격
             settingsTexts.push(`그룹간격 ${settings.groupInterval}초`);
             
-            // 반복 전송 간격
-            settingsTexts.push(`반복간격 ${settings.repeatInterval}분`);
+            // 풀시스템 활성화 여부에 따라 다른 간격 표시
+            if (window.rotationPoolsEnabled && settings.rotationPools && settings.rotationPools.enabled) {
+                // 풀시스템이 활성화된 경우 - 풀별 간격 표시
+                settingsTexts.push(`풀별 간격`);
+            } else {
+                // 풀시스템이 비활성화된 경우 - 반복 전송 간격 표시
+                settingsTexts.push(`반복간격 ${settings.repeatInterval}분`);
+            }
             
             // 최대 반복 횟수
             const maxRepeatsText = settings.maxRepeats === 0 ? '무제한' : `${settings.maxRepeats}회`;
