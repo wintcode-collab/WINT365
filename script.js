@@ -4718,7 +4718,7 @@ function displayChannelMessages(messages, channelTitle) {
         </div>
         <div class="messages-items">
             ${messages.map((message, index) => `
-                <div class="message-item" onclick="selectChannelMessage('${message.id}', '${channelTitle.replace(/'/g, "\\'")}', ${JSON.stringify(message).replace(/"/g, '&quot;')})">
+                <div class="message-item" onclick="selectChannelMessage('${message.id}', '${channelTitle.replace(/'/g, "\\'")}', ${JSON.stringify(message).replace(/"/g, '&quot;')}, '${channelId}')">
                     <div class="message-preview">
                         <div class="message-text">${message.text.substring(0, 100)}${message.text.length > 100 ? '...' : ''}</div>
                         <div class="message-meta">
@@ -4737,14 +4737,14 @@ function displayChannelMessages(messages, channelTitle) {
 }
 
 // 채널 메시지 선택
-function selectChannelMessage(messageId, channelTitle, messageData) {
-    console.log('✅ 채널 메시지 선택:', { messageId, channelTitle, messageData });
+function selectChannelMessage(messageId, channelTitle, messageData, channelId) {
+    console.log('✅ 채널 메시지 선택:', { messageId, channelTitle, messageData, channelId });
     
     // 선택된 메시지 정보를 전역 변수에 저장
     window.selectedChannelMessage = {
         messageId: parseInt(messageId),
         channelTitle: channelTitle,
-        channelId: window.selectedChannelId,
+        channelId: channelId, // 직접 전달받은 채널 ID 사용
         messageData: JSON.parse(messageData.replace(/&quot;/g, '"'))
     };
     
