@@ -3556,7 +3556,23 @@ async function sendMessageToGroup() {
         
         if (hasGroupPoolMapping) {
             // 그룹별 풀 매핑이 있으면 풀 시스템 사용
-            hasValidMessage = await checkPoolSystemMessages(checkedBoxes);
+            const poolResult = await checkPoolSystemMessages(checkedBoxes);
+            hasValidMessage = poolResult.hasValidMessages;
+            
+            if (hasValidMessage) {
+                // 풀시스템에서 전송 대상 계정들을 전달하여 자동전송 시작
+                console.log('🔄 풀시스템 자동전송 시작');
+                const autoSendSuccess = await startAutoSendWithGroups(validGroupIds, messageData, null, poolResult.targetAccounts);
+                if (autoSendSuccess) {
+                    console.log('✅ 풀시스템 자동전송 시작 성공');
+                    alert('🤖 풀시스템 자동전송이 시작되었습니다!\n\n설정된 간격마다 자동으로 전송됩니다.\nPC를 종료해도 계속 작동합니다.');
+                    return;
+                } else {
+                    console.log('❌ 풀시스템 자동전송 시작 실패');
+                    alert('❌ 풀시스템 자동전송 시작에 실패했습니다.\n\n자동전송 설정을 확인하고 다시 시도해주세요.');
+                    return;
+                }
+            }
         } else {
             // 그룹별 풀 매핑이 없으면 기본 다중 계정 모드로 전환
             console.log('⚠️ 그룹별 풀 매핑이 없음 - 기본 다중 계정 모드로 전환');
@@ -6186,37 +6202,45 @@ function getGroupInterval() {
 }
 
 // 자동전송 시작 함수
-async function startAutoSendWithGroups(selectedGroups, message, mediaInfo) {
+async function startAutoSendWithGroups(selectedGroups, message, mediaInfo, targetAccounts = null) {
     try {
-        console.log('🚀 자동전송 시작:', { selectedGroups, message, mediaInfo });
+        console.log('🚀 자동전송 시작:', { selectedGroups, message, mediaInfo, targetAccounts });
         
-        // 현재 계정 정보 가져오기
-        const accountName = document.getElementById('selectedAccountName').textContent;
-        const accountPhone = document.getElementById('selectedAccountPhone').textContent;
+        let account;
         
-        if (!accountName || accountName === '계정을 선택하세요') {
-            throw new Error('계정이 선택되지 않았습니다.');
-        }
-        
-        // 계정 목록에서 해당 계정 찾기
-        const response = await fetch('/api/telegram/load-accounts', {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
+        if (targetAccounts && targetAccounts.length > 0) {
+            // 풀시스템에서 전달받은 계정 사용
+            account = targetAccounts[0]; // 첫 번째 계정을 대표로 사용
+            console.log('🔄 풀시스템 계정 사용:', account);
+        } else {
+            // 기존 단일 계정 로직
+            const accountName = document.getElementById('selectedAccountName').textContent;
+            const accountPhone = document.getElementById('selectedAccountPhone').textContent;
+            
+            if (!accountName || accountName === '계정을 선택하세요') {
+                throw new Error('계정이 선택되지 않았습니다.');
             }
-        });
-        
-        const result = await response.json();
-        if (!response.ok || !result.success || !result.accounts) {
-            throw new Error(result.error || '계정 목록 로딩 실패');
-        }
-        
-        const account = result.accounts.find(acc => 
-            `${acc.first_name} ${acc.last_name || ''}`.trim() === accountName.trim()
-        );
-        
-        if (!account) {
-            throw new Error('계정을 찾을 수 없습니다.');
+            
+            // 계정 목록에서 해당 계정 찾기
+            const response = await fetch('/api/telegram/load-accounts', {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+            
+            const result = await response.json();
+            if (!response.ok || !result.success || !result.accounts) {
+                throw new Error(result.error || '계정 목록 로딩 실패');
+            }
+            
+            account = result.accounts.find(acc => 
+                `${acc.first_name} ${acc.last_name || ''}`.trim() === accountName.trim()
+            );
+            
+            if (!account) {
+                throw new Error('계정을 찾을 수 없습니다.');
+            }
         }
         
         // 자동전송 시작 API 호출 (CORS 우회)
@@ -7755,7 +7779,13 @@ async function checkPoolSystemMessages(checkedBoxes) {
     console.log('🔍 풀 시스템 메시지 확인 결과:', hasValidMessages ? '유효한 메시지 있음' : '유효한 메시지 없음');
     console.log('📋 그룹별 계정 정보:', groupMessages);
     
-    return hasValidMessages;
+    // 전송 대상 계정들 수집
+    const targetAccounts = [];
+    Object.values(groupMessages).forEach(group => {
+        targetAccounts.push(...group.accounts);
+    });
+    
+    return { hasValidMessages, targetAccounts, groupMessages };
 }
 
 // 풀 시스템으로 메시지 전송
