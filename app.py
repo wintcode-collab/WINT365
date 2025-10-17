@@ -2569,6 +2569,16 @@ def forward_channel_message():
                     channel_id = channel_username
                 
                 logger.info(f'📢 전달할 채널 ID: {channel_id}')
+                logger.info(f'📢 전달할 메시지 ID: {message_id}')
+                logger.info(f'📢 전달할 그룹들: {group_ids}')
+                
+                # 채널 엔티티 확인
+                try:
+                    channel_entity = await client.get_entity(channel_id)
+                    logger.info(f'📢 채널 엔티티 확인 성공: {channel_entity.title}')
+                except Exception as e:
+                    logger.error(f'❌ 채널 엔티티 확인 실패: {e}')
+                    return []
                 
                 # 각 그룹으로 메시지 전달
                 results = []

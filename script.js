@@ -7117,21 +7117,45 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo, targe
                             
                             if (response.ok) {
                                 const result = await response.json();
-                                console.log(`✅ 계정 ${account.first_name} 그룹 ${groupId} 전달 성공:`, result);
-                                sendResults.push({
-                                    success: true,
-                                    account: account.first_name,
-                                    group: groupId,
-                                    result: result
-                                });
+                                console.log(`📢 계정 ${account.first_name} 그룹 ${groupId} 전달 응답:`, result);
+                                
+                                // 실제 전달 성공 여부 확인
+                                if (result.success && result.results && result.results.length > 0) {
+                                    const groupResult = result.results.find(r => r.group_id == groupId);
+                                    if (groupResult && groupResult.success) {
+                                        console.log(`✅ 계정 ${account.first_name} 그룹 ${groupId} 실제 전달 성공:`, groupResult);
+                                        sendResults.push({
+                                            success: true,
+                                            account: account.first_name,
+                                            group: groupId,
+                                            result: groupResult
+                                        });
+                                    } else {
+                                        console.error(`❌ 계정 ${account.first_name} 그룹 ${groupId} 실제 전달 실패:`, groupResult);
+                                        sendResults.push({
+                                            success: false,
+                                            account: account.first_name,
+                                            group: groupId,
+                                            error: groupResult ? groupResult.error : '전달 실패'
+                                        });
+                                    }
+                                } else {
+                                    console.error(`❌ 계정 ${account.first_name} 그룹 ${groupId} API 응답 실패:`, result);
+                                    sendResults.push({
+                                        success: false,
+                                        account: account.first_name,
+                                        group: groupId,
+                                        error: result.error || 'API 응답 실패'
+                                    });
+                                }
                             } else {
                                 const errorData = await response.json();
-                                console.error(`❌ 계정 ${account.first_name} 그룹 ${groupId} 전달 실패:`, errorData);
+                                console.error(`❌ 계정 ${account.first_name} 그룹 ${groupId} HTTP 에러:`, errorData);
                                 sendResults.push({
                                     success: false,
                                     account: account.first_name,
                                     group: groupId,
-                                    error: errorData.error
+                                    error: errorData.error || `HTTP ${response.status}`
                                 });
                             }
                         } catch (error) {
