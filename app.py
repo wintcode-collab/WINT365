@@ -2615,9 +2615,9 @@ def forward_channel_message():
                         # 3. 슈퍼그룹을 채널로 변환하여 시도
                         if not group_entity:
                             try:
-                                channel_id = int(group_id) + 1000000000000
-                                group_entity = await client.get_entity(channel_id)
-                                logger.info(f'📢 채널 ID로 엔티티 찾기 성공: {channel_id}')
+                                supergroup_channel_id = int(group_id) + 1000000000000
+                                group_entity = await client.get_entity(supergroup_channel_id)
+                                logger.info(f'📢 채널 ID로 엔티티 찾기 성공: {supergroup_channel_id}')
                             except Exception as e:
                                 logger.error(f'❌ 채널 ID로 엔티티 찾기 실패: {e}')
                         
@@ -2690,8 +2690,7 @@ def forward_channel_message():
                             # 채널 메시지 전달 (기존 로직)
                             logger.info(f'📢 채널 메시지 전달: channel_id={channel_id}, message_id={message_id}')
                             try:
-                                # 채널 엔티티 확인
-                                channel_entity = await client.get_entity(channel_id)
+                                # 채널 엔티티 확인 (이미 위에서 확인했으므로 재사용)
                                 logger.info(f'📢 채널 엔티티 확인: {channel_entity.title} (ID: {channel_entity.id})')
                                 
                                 # 채널의 메시지 목록 가져오기 (최근 50개)
