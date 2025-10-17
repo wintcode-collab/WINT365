@@ -3620,11 +3620,11 @@ async function sendMessageToGroup() {
                 if (autoSendSuccess) {
                     console.log('✅ 풀시스템 자동전송 시작 성공');
                     alert('🤖 풀시스템 자동전송이 시작되었습니다!\n\n설정된 간격마다 자동으로 전송됩니다.\nPC를 종료해도 계속 작동합니다.');
-                    return;
+                    return true; // 성공적으로 종료
                 } else {
                     console.log('❌ 풀시스템 자동전송 시작 실패');
                     alert('❌ 풀시스템 자동전송 시작에 실패했습니다.\n\n자동전송 설정을 확인하고 다시 시도해주세요.');
-                    return;
+                    return false; // 실패로 종료
                 }
             }
         } else {
@@ -8797,7 +8797,7 @@ async function sendMessageFromPoolAccount(account, groupId, groupTitle) {
     
     const forwardData = {
         userId: account.user_id,
-        channelId: mediaInfo.channel_id,
+        channelUsername: mediaInfo.channel_id,
         messageId: mediaInfo.message_id,
         groupIds: [groupId]
     };
