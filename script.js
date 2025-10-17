@@ -8885,7 +8885,7 @@ async function executePoolAccountsSequentially(pool, selectedGroups) {
 // 계정이 모든 그룹에 순차적으로 전송
 async function sendAccountToAllGroups(account, selectedGroups, accountMediaInfo) {
     const results = [];
-    const groupInterval = getGroupSendInterval() * 1000; // 그룹 간격 (밀리초)
+    const groupInterval = getGroupInterval() * 1000; // 그룹 간격 (밀리초)
     
     console.log(`🔄 계정 ${account.first_name}이 ${selectedGroups.length}개 그룹에 전송 시작`);
     
