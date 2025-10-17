@@ -4972,13 +4972,6 @@ async function showAutoSendSettingsModal() {
     if (modal) {
         modal.style.display = 'flex';
         
-        // 로테이션 풀시스템 체크박스를 기본값(비활성화)으로 초기화
-        const enablePoolsCheckbox = document.getElementById('enableRotationPools');
-        if (enablePoolsCheckbox) {
-            enablePoolsCheckbox.checked = false;
-            window.rotationPoolsEnabled = false;
-        }
-        
         loadAutoSendSettings();
         
         // 계정 로테이션 기능 초기화
@@ -5034,18 +5027,13 @@ function loadAutoSendSettings() {
         }
         
         if (settings) {
-            // 풀 시스템 설정이 있으면 먼저 로드
-            if (settings.rotationPools && settings.rotationPools.enabled) {
-                window.rotationPoolsEnabled = true;
-                window.rotationPools = settings.rotationPools.pools || {};
-                window.groupPoolMapping = settings.rotationPools.groupMapping || {};
-                window.poolRotationIndex = settings.rotationPools.rotationIndex || {};
-                console.log('✅ 풀 시스템 설정 로드됨:', settings.rotationPools);
-            } else {
-                // 풀 시스템 설정이 없거나 비활성화되어 있으면 명시적으로 false로 설정
-                window.rotationPoolsEnabled = false;
-                console.log('✅ 풀 시스템 비활성화 상태로 설정');
+            // 자동전송 설정 모달이 열릴 때는 항상 풀 시스템을 비활성화 상태로 초기화
+            window.rotationPoolsEnabled = false;
+            const enablePoolsCheckbox = document.getElementById('enableRotationPools');
+            if (enablePoolsCheckbox) {
+                enablePoolsCheckbox.checked = false;
             }
+            console.log('✅ 자동전송 모달 열림 - 풀 시스템 비활성화로 초기화');
             
             // 그룹간 전송간격은 풀 시스템 활성화 여부와 관계없이 항상 로드
             const groupInterval = document.getElementById('groupInterval');
