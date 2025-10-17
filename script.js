@@ -2888,6 +2888,14 @@ function updateSelectedMessageInfo(accountId, messageIndex) {
         if (result.success && result.saved_messages && result.saved_messages[messageIndex]) {
             const message = result.saved_messages[messageIndex];
             
+            console.log(`💾 계정 ${accountId}의 선택된 메시지 상세 정보:`, {
+                messageIndex: messageIndex,
+                messageId: message.message_id || message.id,
+                text: message.text?.substring(0, 50) + '...',
+                has_custom_emoji: message.has_custom_emoji,
+                raw_message_data: message.raw_message_data
+            });
+            
             // 간략한 정보만 표시
             let content = '';
             
@@ -2908,18 +2916,30 @@ function updateSelectedMessageInfo(accountId, messageIndex) {
                 content += ` ${mediaEmoji}`;
             }
             
-            // 상태 표시
-            content += ' ✅';
+            // 상태 표시 (메시지 ID도 포함)
+            const messageId = message.message_id || message.id;
+            content += ` (ID:${messageId}) ✅`;
             
             // 계정 이름 옆에 간략하게 표시
             statusSpan.innerHTML = `- ${content}`;
             statusSpan.style.color = '#10B981';
             
-            // dataset.mediaInfo 설정 (전송을 위해 필요)
+            // dataset.mediaInfo 설정 (전송을 위해 필요) - 원본 메시지 객체 전체 저장
             const accountElement = statusSpan.closest('.account-message-setting');
             if (accountElement) {
-                accountElement.dataset.mediaInfo = JSON.stringify(message);
-                console.log(`💾 계정 ${accountId}의 dataset.mediaInfo 설정 완료`);
+                // 실제 선택한 메시지의 전체 정보를 저장
+                const messageInfo = {
+                    ...message,  // 원본 메시지의 모든 속성 포함
+                    selectedMessageIndex: messageIndex,  // 선택한 인덱스도 저장
+                    selectedMessageId: messageId  // 선택한 메시지 ID 명시적으로 저장
+                };
+                
+                accountElement.dataset.mediaInfo = JSON.stringify(messageInfo);
+                console.log(`💾 계정 ${accountId}의 dataset.mediaInfo 설정 완료:`, {
+                    selectedMessageIndex: messageIndex,
+                    selectedMessageId: messageId,
+                    originalMessageId: message.message_id || message.id
+                });
             }
             
             console.log(`✅ 계정 ${accountId}의 메시지 정보 업데이트 완료`);
@@ -3692,13 +3712,31 @@ async function sendMessageToGroup() {
                 console.log(`🔍 계정 ${accountId}의 선택된 그룹:`, accountGroups);
                 
                 if (accountGroups.length > 0) {
+                    // 선택된 메시지 정보 가져오기
+                    let selectedMessageInfo = null;
+                    if (element.dataset.mediaInfo) {
+                        try {
+                            selectedMessageInfo = JSON.parse(element.dataset.mediaInfo);
+                            console.log(`💾 계정 ${accountId}의 선택된 메시지 정보:`, {
+                                selectedMessageIndex: selectedMessageInfo?.selectedMessageIndex,
+                                selectedMessageId: selectedMessageInfo?.selectedMessageId,
+                                originalMessageId: selectedMessageInfo?.message_id,
+                                text: selectedMessageInfo?.text?.substring(0, 50) + '...'
+                            });
+                        } catch (error) {
+                            console.error(`❌ 계정 ${accountId}의 메시지 정보 파싱 실패:`, error);
+                        }
+                    }
+                    
                     // 그룹이 있는 계정만 메시지 전송 대상에 포함
                     accountMessages.push({
                         accountId: accountId,
                         hasMessage: true,
-                        selectedGroups: accountGroups
+                        selectedGroups: accountGroups,
+                        selectedMessageInfo: selectedMessageInfo  // 실제 선택된 메시지 정보 포함
                     });
                     console.log(`✅ 계정 ${accountId}: 메시지 + 그룹 ${accountGroups.length}개 - 전송 대상`);
+                    console.log(`💾 계정 ${accountId}의 메시지 ID:`, selectedMessageInfo?.message_id || '없음');
                 } else {
                     console.log(`⏭️ 계정 ${accountId}: 메시지는 있지만 그룹 없음 - 전송 제외`);
                 }
@@ -5262,6 +5300,7 @@ function selectTelegramSavedMessage(messageIndex, savedMessages) {
         
         // 미디어 정보 및 커스텀 이모지 정보 저장 (전역 변수에)
         // 원본 메시지 객체 전체를 그대로 보존
+        const actualMessageId = message.message_id || message.id;
         window.selectedMediaInfo = {
             media_type: message.media_type || null,
             media_path: message.media_path || null,
@@ -5272,9 +5311,17 @@ function selectTelegramSavedMessage(messageIndex, savedMessages) {
             raw_message_data: message.raw_message_data || message, // 원본 메시지 전체를 저장
             original_message_object: message.original_message_object || message.raw_message_data || message, // 원본 메시지 객체 저장
             text: message.text || '',
-            message_id: message.message_id || null,
+            message_id: actualMessageId,  // 실제 메시지 ID 사용
+            selectedMessageId: actualMessageId,  // 선택한 메시지 ID 명시적으로 저장
+            selectedMessageIndex: messageIndex,  // 선택한 인덱스도 저장
             date: message.date || null
         };
+        
+        console.log('💾 window.selectedMediaInfo 설정 완료:', {
+            selectedMessageIndex: messageIndex,
+            selectedMessageId: actualMessageId,
+            originalMessageId: message.message_id || message.id
+        });
         
         // 커스텀 이모지가 있는 경우 원본 객체 전체 보존
         if (message.has_custom_emoji) {
@@ -7098,16 +7145,20 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo, targe
                     // 각 그룹으로 전달
                     for (const groupId of selectedGroups) {
                         try {
+                            // 실제 선택한 메시지 ID 사용
+                            const actualMessageId = accountMediaInfo.selectedMessageId || accountMediaInfo.message_id || accountMediaInfo.id;
+                            
                             const forwardData = {
                                 userId: account.user_id,
                                 channelUsername: accountMediaInfo.channel_id,
-                                messageId: accountMediaInfo.message_id,
+                                messageId: actualMessageId,  // 실제 선택한 메시지 ID 사용
                                 groupIds: [groupId]
                             };
                             
                             console.log('📢 풀시스템 전달 데이터:', forwardData);
                             console.log('📢 채널 ID 상세:', accountMediaInfo.channel_id);
-                            console.log('📢 메시지 ID 상세:', accountMediaInfo.message_id);
+                            console.log('📢 선택한 메시지 ID:', actualMessageId);
+                            console.log('📢 원본 메시지 ID:', accountMediaInfo.message_id);
                             console.log('📢 채널 제목:', accountMediaInfo.channel_title);
                             console.log('📢 전체 메시지 데이터:', accountMediaInfo);
                             
