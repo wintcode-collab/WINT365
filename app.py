@@ -4373,8 +4373,12 @@ def get_channel_messages():
         logger.info(f'📥 채널 메시지 가져오기 요청: {channel_username} (계정: {user_id})')
         
         # 계정 정보 조회
+        logger.info(f'🔍 계정 정보 조회 시작: {user_id}')
         account_info = get_account_from_firebase(user_id)
+        logger.info(f'🔍 계정 정보 조회 결과: {account_info is not None}')
+        
         if not account_info:
+            logger.error(f'❌ 계정 정보를 찾을 수 없음: {user_id}')
             return jsonify({
                 'success': False,
                 'error': '인증된 계정 정보를 찾을 수 없습니다.'

@@ -2401,6 +2401,15 @@ async function openAccountMessageModal(accountId) {
             throw new Error('계정 정보를 찾을 수 없습니다.');
         }
         
+        // 마지막 선택 계정 저장
+        try {
+            localStorage.setItem('lastSelectedAccount', String(accountId));
+            console.log('💾 마지막 선택 계정 저장:', accountId);
+            console.log('💾 계정 정보:', account);
+        } catch (e) { 
+            console.warn('lastSelectedAccount 저장 실패', e); 
+        }
+        
         // 계정 선택 모달 닫기
         const accountModal = document.getElementById('accountSelectionModal');
         if (accountModal) {
@@ -4387,7 +4396,7 @@ function showChannelSelectionModal(account, channels) {
                             border-radius: 8px;
                             cursor: pointer;
                             transition: all 0.2s ease;
-                        " onclick="confirmChannelSelection('${channel.id}', '${channel.title.replace(/'/g, "\\'")}')">
+                        " onclick="selectChannelItem('${channel.id}', '${channel.title.replace(/'/g, "\\'")}')">
                             <div style="display: flex; justify-content: space-between; align-items: center;">
                                 <div style="flex: 1;">
                                     <div style="color: #10B981; font-weight: 600; margin-bottom: 5px;">${channel.title}</div>
@@ -4396,23 +4405,30 @@ function showChannelSelectionModal(account, channels) {
                                     </div>
                                 </div>
                                 <div style="text-align: right;">
-                                    <button style="
-                                        background: #10B981;
-                                        color: white;
-                                        border: none;
-                                        padding: 8px 16px;
-                                        border-radius: 6px;
+                                    <div class="channel-status" style="
+                                        color: #888;
                                         font-size: 12px;
-                                        cursor: pointer;
                                         font-weight: 600;
-                                    ">✅ 확인</button>
+                                    ">클릭하여 선택</div>
                                 </div>
                             </div>
                         </div>
                     `).join('')}
                 </div>
                 
-                <div style="text-align: center;">
+                <div style="text-align: center; display: flex; gap: 10px; justify-content: center;">
+                    <button id="confirmChannelBtn" style="
+                        background: #10B981;
+                        color: white;
+                        border: none;
+                        padding: 10px 20px;
+                        border-radius: 6px;
+                        font-size: 14px;
+                        cursor: pointer;
+                        font-weight: 600;
+                        opacity: 0.5;
+                        pointer-events: none;
+                    ">✅ 확인</button>
                     <button id="closeChannelModalBtn" style="
                         background: #6c757d;
                         color: white;
@@ -4430,6 +4446,16 @@ function showChannelSelectionModal(account, channels) {
     
     // 모달창 추가
     document.body.insertAdjacentHTML('beforeend', modalHTML);
+    
+    // 전역 변수 초기화
+    window.selectedChannelForMultiAccount = null;
+    
+    // 확인 버튼 이벤트
+    document.getElementById('confirmChannelBtn').addEventListener('click', function() {
+        if (window.selectedChannelForMultiAccount) {
+            confirmChannelSelection(window.selectedChannelForMultiAccount.id, window.selectedChannelForMultiAccount.title);
+        }
+    });
     
     // 닫기 버튼 이벤트
     document.getElementById('closeChannelModalBtn').addEventListener('click', function() {
@@ -9238,6 +9264,11 @@ function confirmChannelSelection(channelId, channelTitle) {
     
     // 채널 메시지 목록 모달로 전환
     showChannelMessagesModalForMultiAccount(channelId, channelTitle);
+    
+    // 자동으로 메시지 불러오기
+    setTimeout(() => {
+        loadChannelMessagesForMultiAccount(channelId);
+    }, 500);
 }
 
 // 다중 계정용 채널 메시지 목록 모달 표시
@@ -9346,6 +9377,8 @@ async function loadChannelMessagesForMultiAccount(channelId) {
     
     // 현재 선택된 계정 ID 가져오기 (다중 계정 모드에서는 마지막으로 선택된 계정 사용)
     const selectedAccountId = localStorage.getItem('lastSelectedAccount');
+    console.log('🔍 현재 선택된 계정 ID:', selectedAccountId);
+    
     if (!selectedAccountId) {
         alert('계정을 먼저 선택해주세요.');
         return;
@@ -9358,6 +9391,12 @@ async function loadChannelMessagesForMultiAccount(channelId) {
     try {
         loadBtn.textContent = '⏳ 불러오는 중...';
         loadBtn.disabled = true;
+        
+        console.log('📤 서버로 전송할 데이터:', {
+            userId: selectedAccountId,
+            channelUsername: channelId,
+            limit: 50
+        });
         
         const response = await fetch('/api/telegram/get-channel-messages', {
             method: 'POST',
@@ -9459,4 +9498,45 @@ function selectChannelMessageForMultiAccount(messageId, channelTitle, messageDat
     }
     
     alert(`✅ 채널 메시지가 선택되었습니다!\n채널: ${channelTitle}\n메시지 ID: ${messageId}`);
+}
+
+// 채널 아이템 선택 (다중 계정 모드용)
+function selectChannelItem(channelId, channelTitle) {
+    console.log('📢 채널 아이템 선택:', { channelId, channelTitle });
+    
+    // 모든 채널 아이템의 선택 상태 해제
+    document.querySelectorAll('.channel-item').forEach(item => {
+        item.style.borderColor = '#444';
+        item.style.background = 'linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%)';
+        const statusDiv = item.querySelector('.channel-status');
+        if (statusDiv) {
+            statusDiv.textContent = '클릭하여 선택';
+            statusDiv.style.color = '#888';
+        }
+    });
+    
+    // 선택된 채널 아이템 강조
+    const selectedItem = document.querySelector(`[data-channel-id="${channelId}"]`);
+    if (selectedItem) {
+        selectedItem.style.borderColor = '#10B981';
+        selectedItem.style.background = 'linear-gradient(135deg, #1F2937 0%, #374151 100%)';
+        const statusDiv = selectedItem.querySelector('.channel-status');
+        if (statusDiv) {
+            statusDiv.textContent = '✅ 선택됨';
+            statusDiv.style.color = '#10B981';
+        }
+    }
+    
+    // 전역 변수에 선택된 채널 저장
+    window.selectedChannelForMultiAccount = {
+        id: channelId,
+        title: channelTitle
+    };
+    
+    // 확인 버튼 활성화
+    const confirmBtn = document.getElementById('confirmChannelBtn');
+    if (confirmBtn) {
+        confirmBtn.style.opacity = '1';
+        confirmBtn.style.pointerEvents = 'auto';
+    }
 }
