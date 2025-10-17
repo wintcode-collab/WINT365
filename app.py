@@ -2526,11 +2526,14 @@ def forward_channel_message():
         channel_username = data.get('channelUsername')  # 채널 ID 또는 username
         message_id = data.get('messageId')
         group_ids = data.get('groupIds', [])
+        is_saved_message = data.get('isSavedMessage', False)  # 저장된 메시지 여부
+        is_channel_message = data.get('isChannelMessage', False)  # 채널 메시지 여부
         
         if not all([user_id, channel_username, message_id, group_ids]):
             return jsonify({'success': False, 'error': '필수 파라미터 누락'}), 400
         
-        logger.info(f'📢 채널 메시지 전달 요청: 계정={user_id}, 채널={channel_username}, 메시지={message_id}, 그룹={len(group_ids)}개')
+        logger.info(f'📢 메시지 전달 요청: 계정={user_id}, 채널={channel_username}, 메시지={message_id}, 그룹={len(group_ids)}개')
+        logger.info(f'📢 저장된 메시지 여부: {is_saved_message}, 채널 메시지 여부: {is_channel_message}')
         
         # 계정 정보 가져오기
         account = get_account_from_firebase(user_id)
@@ -2563,12 +2566,16 @@ def forward_channel_message():
                     return []
                 
                 # 채널 ID 처리 (음수로 변환)
+                logger.info(f'📢 원본 channelUsername: {channel_username} (타입: {type(channel_username)})')
+                
                 if isinstance(channel_username, str) and channel_username.isdigit():
                     channel_id = int(f"-100{channel_username}")
+                    logger.info(f'📢 채널 ID 변환: {channel_username} -> {channel_id}')
                 else:
                     channel_id = channel_username
+                    logger.info(f'📢 채널 ID 그대로 사용: {channel_id}')
                 
-                logger.info(f'📢 전달할 채널 ID: {channel_id}')
+                logger.info(f'📢 최종 채널 ID: {channel_id}')
                 logger.info(f'📢 전달할 메시지 ID: {message_id}')
                 logger.info(f'📢 전달할 그룹들: {group_ids}')
                 
@@ -2632,12 +2639,53 @@ def forward_channel_message():
                         
                         logger.info(f'📢 전달할 그룹: {group_entity.title} (ID: {group_entity.id})')
                         
-                        # 메시지 전달
-                        forwarded_messages = await client.forward_messages(
-                            entity=group_entity,
-                            messages=message_id,
-                            from_peer=channel_id
-                        )
+                        # 저장된 메시지와 채널 메시지 구분하여 처리
+                        if is_saved_message:
+                            # 저장된 메시지 전달 (InputPeerSelf 사용)
+                            logger.info(f'📢 저장된 메시지 전달: message_id={message_id}')
+                            try:
+                                # 저장된 메시지 존재 여부 확인
+                                from telethon.tl.types import InputPeerSelf
+                                me = await client.get_me()
+                                test_message = await client.get_messages(me.id, ids=message_id)
+                                if test_message:
+                                    logger.info(f'📢 저장된 메시지 확인 성공: ID={message_id}, 실제 ID={test_message.id}')
+                                    if test_message.id != message_id:
+                                        logger.warning(f'⚠️ 저장된 메시지 ID 불일치: 요청={message_id}, 실제={test_message.id}')
+                                else:
+                                    logger.error(f'❌ 저장된 메시지 ID {message_id}를 찾을 수 없습니다')
+                            except Exception as e:
+                                logger.error(f'❌ 저장된 메시지 확인 실패: {e}')
+                            
+                            # 저장된 메시지 전달
+                            logger.info(f'📢 저장된 메시지 전달 시작: from_peer=InputPeerSelf(), message_id={message_id}, to_entity={group_entity.id}')
+                            forwarded_messages = await client.forward_messages(
+                                entity=group_entity,
+                                messages=message_id,
+                                from_peer=InputPeerSelf()
+                            )
+                        else:
+                            # 채널 메시지 전달 (기존 로직)
+                            logger.info(f'📢 채널 메시지 전달: channel_id={channel_id}, message_id={message_id}')
+                            try:
+                                # 전달하려는 메시지가 실제로 존재하는지 확인
+                                test_message = await client.get_messages(channel_id, ids=message_id)
+                                if test_message:
+                                    logger.info(f'📢 전달할 메시지 확인 성공: ID={message_id}, 실제 ID={test_message.id}')
+                                    if test_message.id != message_id:
+                                        logger.warning(f'⚠️ 메시지 ID 불일치: 요청={message_id}, 실제={test_message.id}')
+                                else:
+                                    logger.error(f'❌ 메시지 ID {message_id}를 찾을 수 없습니다')
+                            except Exception as e:
+                                logger.error(f'❌ 메시지 확인 실패: {e}')
+                            
+                            # 메시지 전달
+                            logger.info(f'📢 메시지 전달 시작: from_peer={channel_id}, message_id={message_id}, to_entity={group_entity.id}')
+                            forwarded_messages = await client.forward_messages(
+                                entity=group_entity,
+                                messages=message_id,
+                                from_peer=channel_id
+                            )
                         
                         if forwarded_messages:
                             forwarded_message = forwarded_messages[0] if isinstance(forwarded_messages, list) else forwarded_messages

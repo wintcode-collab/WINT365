@@ -2927,18 +2927,22 @@ function updateSelectedMessageInfo(accountId, messageIndex) {
             // dataset.mediaInfo 설정 (전송을 위해 필요) - 원본 메시지 객체 전체 저장
             const accountElement = statusSpan.closest('.account-message-setting');
             if (accountElement) {
-                // 실제 선택한 메시지의 전체 정보를 저장
+                // 실제 선택한 메시지의 전체 정보를 저장 (저장된 메시지는 channel_id 제외)
                 const messageInfo = {
                     ...message,  // 원본 메시지의 모든 속성 포함
                     selectedMessageIndex: messageIndex,  // 선택한 인덱스도 저장
-                    selectedMessageId: messageId  // 선택한 메시지 ID 명시적으로 저장
+                    selectedMessageId: messageId,  // 선택한 메시지 ID 명시적으로 저장
+                    channel_id: null,  // 저장된 메시지는 channel_id를 null로 설정
+                    is_saved_message: true  // 저장된 메시지임을 명시
                 };
                 
                 accountElement.dataset.mediaInfo = JSON.stringify(messageInfo);
                 console.log(`💾 계정 ${accountId}의 dataset.mediaInfo 설정 완료:`, {
                     selectedMessageIndex: messageIndex,
                     selectedMessageId: messageId,
-                    originalMessageId: message.message_id || message.id
+                    originalMessageId: message.message_id || message.id,
+                    is_saved_message: true,
+                    channel_id: null
                 });
             }
             
@@ -5314,13 +5318,17 @@ function selectTelegramSavedMessage(messageIndex, savedMessages) {
             message_id: actualMessageId,  // 실제 메시지 ID 사용
             selectedMessageId: actualMessageId,  // 선택한 메시지 ID 명시적으로 저장
             selectedMessageIndex: messageIndex,  // 선택한 인덱스도 저장
+            channel_id: null,  // 저장된 메시지는 channel_id를 null로 설정
+            is_saved_message: true,  // 저장된 메시지임을 명시
             date: message.date || null
         };
         
         console.log('💾 window.selectedMediaInfo 설정 완료:', {
             selectedMessageIndex: messageIndex,
             selectedMessageId: actualMessageId,
-            originalMessageId: message.message_id || message.id
+            originalMessageId: message.message_id || message.id,
+            is_saved_message: true,
+            channel_id: null
         });
         
         // 커스텀 이모지가 있는 경우 원본 객체 전체 보존
@@ -7148,11 +7156,25 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo, targe
                             // 실제 선택한 메시지 ID 사용
                             const actualMessageId = accountMediaInfo.selectedMessageId || accountMediaInfo.message_id || accountMediaInfo.id;
                             
+                            // 저장된 메시지인지 채널 메시지인지 구분
+                            // channel_id가 없거나 'saved_messages'이면 저장된 메시지
+                            // channel_id가 있고 숫자이면 채널 메시지
+                            const isSavedMessage = !accountMediaInfo.channel_id || 
+                                                  accountMediaInfo.channel_id === 'saved_messages' ||
+                                                  accountMediaInfo.channel_id === null ||
+                                                  accountMediaInfo.channel_id === undefined;
+                            const isChannelMessage = accountMediaInfo.channel_id && 
+                                                    accountMediaInfo.channel_id !== 'saved_messages' &&
+                                                    accountMediaInfo.channel_id !== null &&
+                                                    accountMediaInfo.channel_id !== undefined;
+                            
                             const forwardData = {
                                 userId: account.user_id,
-                                channelUsername: accountMediaInfo.channel_id,
+                                channelUsername: isSavedMessage ? 'saved_messages' : accountMediaInfo.channel_id,
                                 messageId: actualMessageId,  // 실제 선택한 메시지 ID 사용
-                                groupIds: [groupId]
+                                groupIds: [groupId],
+                                isSavedMessage: isSavedMessage,  // 저장된 메시지 여부
+                                isChannelMessage: isChannelMessage  // 채널 메시지 여부
                             };
                             
                             console.log('📢 풀시스템 전달 데이터:', forwardData);
@@ -7160,6 +7182,8 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo, targe
                             console.log('📢 선택한 메시지 ID:', actualMessageId);
                             console.log('📢 원본 메시지 ID:', accountMediaInfo.message_id);
                             console.log('📢 채널 제목:', accountMediaInfo.channel_title);
+                            console.log('📢 저장된 메시지 여부:', isSavedMessage);
+                            console.log('📢 채널 메시지 여부:', isChannelMessage);
                             console.log('📢 전체 메시지 데이터:', accountMediaInfo);
                             
                             const response = await fetch(`${getApiBaseUrl()}/api/telegram/forward-channel-message`, {
