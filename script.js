@@ -7106,6 +7106,8 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo, targe
                             };
                             
                             console.log('📢 풀시스템 전달 데이터:', forwardData);
+                            console.log('📢 채널 ID 상세:', accountMediaInfo.channel_id);
+                            console.log('📢 메시지 ID 상세:', accountMediaInfo.message_id);
                             
                             const response = await fetch(`${getApiBaseUrl()}/api/telegram/forward-channel-message`, {
                                 method: 'POST',
