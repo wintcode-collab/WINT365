@@ -2727,11 +2727,11 @@ def forward_channel_message():
                                 logger.error(f'❌ 메시지 확인 실패: {e}')
                             
                             # 메시지 전달
-                            logger.info(f'📢 메시지 전달 시작: from_peer={channel_id}, message_id={message_id}, to_entity={group_entity.id}')
+                            logger.info(f'📢 메시지 전달 시작: from_peer={channel_entity.id}, message_id={message_id}, to_entity={group_entity.id}')
                             forwarded_messages = await client.forward_messages(
                                 entity=group_entity,
                                 messages=message_id,
-                                from_peer=channel_id
+                                from_peer=channel_entity  # 채널 엔티티를 사용
                             )
                         
                         if forwarded_messages:
