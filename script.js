@@ -4387,7 +4387,7 @@ function showChannelSelectionModal(account, channels) {
                             border-radius: 8px;
                             cursor: pointer;
                             transition: all 0.2s ease;
-                        " onclick="selectChannelForMessages('${channel.id}', '${channel.title.replace(/'/g, "\\'")}')">
+                        " onclick="confirmChannelSelection('${channel.id}', '${channel.title.replace(/'/g, "\\'")}')">
                             <div style="display: flex; justify-content: space-between; align-items: center;">
                                 <div style="flex: 1;">
                                     <div style="color: #10B981; font-weight: 600; margin-bottom: 5px;">${channel.title}</div>
@@ -4405,7 +4405,7 @@ function showChannelSelectionModal(account, channels) {
                                         font-size: 12px;
                                         cursor: pointer;
                                         font-weight: 600;
-                                    ">📥 메시지 선택</button>
+                                    ">✅ 확인</button>
                                 </div>
                             </div>
                         </div>
@@ -9226,4 +9226,237 @@ async function handleRefreshAccounts() {
             refreshBtn.textContent = '🔄 이름 새로고침';
         }
     }
+}
+
+// 채널 선택 확인 (다중 계정 모드용)
+function confirmChannelSelection(channelId, channelTitle) {
+    console.log('✅ 채널 선택 확인:', { channelId, channelTitle });
+    
+    // 채널 ID를 전역 변수에 저장
+    window.selectedChannelId = channelId;
+    window.selectedChannelTitle = channelTitle;
+    
+    // 채널 메시지 목록 모달로 전환
+    showChannelMessagesModalForMultiAccount(channelId, channelTitle);
+}
+
+// 다중 계정용 채널 메시지 목록 모달 표시
+function showChannelMessagesModalForMultiAccount(channelId, channelTitle) {
+    console.log('📢 다중 계정용 채널 메시지 목록 모달 표시:', { channelId, channelTitle });
+    
+    // 기존 모달 닫기
+    const existingModal = document.getElementById('messageSelectionModal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    // 새 모달 생성
+    const modalHTML = `
+        <div id="messageSelectionModal" style="
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        ">
+            <div style="
+                background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
+                border: 2px solid #10B981;
+                border-radius: 12px;
+                padding: 20px;
+                max-width: 600px;
+                width: 90%;
+                max-height: 80vh;
+                overflow-y: auto;
+                box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+            ">
+                <div style="margin-bottom: 20px;">
+                    <h3 style="margin: 0 0 10px 0; color: #10B981; text-align: center;">
+                        📢 ${channelTitle} - 메시지 선택
+                    </h3>
+                    <p style="margin: 0; color: #888; text-align: center; font-size: 14px;">
+                        전달할 메시지를 선택하세요
+                    </p>
+                </div>
+                
+                <div id="messagesLoading" style="text-align: center; padding: 20px;">
+                    <p style="color: #888;">📥 채널 메시지를 불러오는 중...</p>
+                    <button id="loadChannelMessagesBtn" style="
+                        background: #10B981;
+                        color: white;
+                        border: none;
+                        padding: 10px 20px;
+                        border-radius: 6px;
+                        font-size: 14px;
+                        cursor: pointer;
+                        font-weight: 600;
+                    ">📥 메시지 불러오기</button>
+                </div>
+                
+                <div id="channelMessagesList" style="margin-bottom: 20px; display: none;">
+                    <!-- 채널 메시지 목록이 여기에 표시됩니다 -->
+                </div>
+                
+                <div style="text-align: center;">
+                    <button id="closeChannelModalBtn" style="
+                        background: #6c757d;
+                        color: white;
+                        border: none;
+                        padding: 10px 20px;
+                        border-radius: 6px;
+                        font-size: 14px;
+                        cursor: pointer;
+                        font-weight: 600;
+                    ">❌ 닫기</button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // 모달창 추가
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    
+    // 이벤트 리스너 추가
+    const loadBtn = document.getElementById('loadChannelMessagesBtn');
+    if (loadBtn) {
+        loadBtn.onclick = () => loadChannelMessagesForMultiAccount(channelId);
+    }
+    
+    // 닫기 버튼 이벤트
+    document.getElementById('closeChannelModalBtn').addEventListener('click', function() {
+        document.getElementById('messageSelectionModal').remove();
+    });
+    
+    // 배경 클릭으로 닫기
+    document.getElementById('messageSelectionModal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            this.remove();
+        }
+    });
+}
+
+// 다중 계정용 채널 메시지 불러오기
+async function loadChannelMessagesForMultiAccount(channelId) {
+    console.log('📥 다중 계정용 채널 메시지 불러오기:', channelId);
+    
+    // 현재 선택된 계정 ID 가져오기 (다중 계정 모드에서는 마지막으로 선택된 계정 사용)
+    const selectedAccountId = localStorage.getItem('lastSelectedAccount');
+    if (!selectedAccountId) {
+        alert('계정을 먼저 선택해주세요.');
+        return;
+    }
+    
+    const loadingDiv = document.getElementById('messagesLoading');
+    const messagesList = document.getElementById('channelMessagesList');
+    const loadBtn = document.getElementById('loadChannelMessagesBtn');
+    
+    try {
+        loadBtn.textContent = '⏳ 불러오는 중...';
+        loadBtn.disabled = true;
+        
+        const response = await fetch('/api/telegram/get-channel-messages', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                userId: selectedAccountId,
+                channelUsername: channelId, // 채널 ID를 사용
+                limit: 50
+            })
+        });
+        
+        const result = await response.json();
+        console.log('📥 채널 메시지 불러오기 결과:', result);
+        
+        if (result.success && result.messages) {
+            displayChannelMessagesForMultiAccount(result.messages, window.selectedChannelTitle);
+            loadingDiv.style.display = 'none';
+            messagesList.style.display = 'block';
+        } else {
+            alert(`❌ 채널 메시지 불러오기 실패: ${result.error || '알 수 없는 오류'}`);
+        }
+        
+    } catch (error) {
+        console.error('❌ 채널 메시지 불러오기 에러:', error);
+        alert(`❌ 채널 메시지 불러오기 중 오류가 발생했습니다: ${error.message}`);
+    } finally {
+        loadBtn.textContent = '📥 메시지 불러오기';
+        loadBtn.disabled = false;
+    }
+}
+
+// 다중 계정용 채널 메시지 목록 표시
+function displayChannelMessagesForMultiAccount(messages, channelTitle) {
+    const messagesList = document.getElementById('channelMessagesList');
+    if (!messagesList) return;
+    
+    if (messages.length === 0) {
+        messagesList.innerHTML = `
+            <div style="text-align: center; padding: 40px; color: #666;">
+                <h4>📭 메시지가 없습니다</h4>
+                <p>이 채널에 텍스트 메시지가 없습니다.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    messagesList.innerHTML = `
+        <div style="margin-bottom: 15px; padding: 10px; background: #f8f9fa; border-radius: 5px;">
+            <h4 style="margin: 0; color: #495057;">📢 ${channelTitle}의 최근 메시지 (${messages.length}개)</h4>
+            <p style="margin: 5px 0 0 0; color: #6c757d; font-size: 14px;">전달할 메시지를 선택하세요</p>
+        </div>
+        <div class="messages-items">
+            ${messages.map((message, index) => `
+                <div class="message-item" onclick="selectChannelMessageForMultiAccount('${message.id}', '${channelTitle.replace(/'/g, "\\'")}', ${JSON.stringify(message).replace(/"/g, '&quot;')})" style="
+                    padding: 15px;
+                    margin-bottom: 10px;
+                    background: linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%);
+                    border: 1px solid #444;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                " onmouseover="this.style.borderColor='#10B981'" onmouseout="this.style.borderColor='#444'">
+                    <div style="margin-bottom: 10px;">
+                        <div style="color: #fff; line-height: 1.4;">
+                            ${message.text.substring(0, 100)}${message.text.length > 100 ? '...' : ''}
+                        </div>
+                    </div>
+                    <div style="color: #ccc; font-size: 12px;">
+                        ID: ${message.id} | ${new Date(message.date).toLocaleString()}
+                        ${message.has_custom_emoji ? ' | 🎨 커스텀 이모지' : ''}
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
+// 다중 계정용 채널 메시지 선택
+function selectChannelMessageForMultiAccount(messageId, channelTitle, messageData) {
+    console.log('✅ 다중 계정용 채널 메시지 선택:', { messageId, channelTitle, messageData });
+    
+    // 선택된 메시지 정보를 전역 변수에 저장
+    window.selectedChannelMessage = {
+        messageId: parseInt(messageId),
+        channelTitle: channelTitle,
+        channelId: window.selectedChannelId,
+        messageData: JSON.parse(messageData.replace(/&quot;/g, '"'))
+    };
+    
+    // 모든 계정에 선택된 메시지 정보 적용
+    applyChannelMessageToAllAccounts();
+    
+    // 모달 닫기
+    const modal = document.getElementById('messageSelectionModal');
+    if (modal) {
+        modal.remove();
+    }
+    
+    alert(`✅ 채널 메시지가 선택되었습니다!\n채널: ${channelTitle}\n메시지 ID: ${messageId}`);
 }
