@@ -3540,36 +3540,44 @@ async function refreshGroups() {
     }
     
     try {
-        // 현재 선택된 계정 정보 가져오기
-        const accountName = document.getElementById('selectedAccountName').textContent;
-        const accountPhone = document.getElementById('selectedAccountPhone').textContent;
-        
-        if (!accountName || !accountPhone) {
-            throw new Error('계정 정보를 찾을 수 없습니다.');
-        }
-        
-        // 계정 목록에서 해당 계정 찾기
-        const response = await fetch('/api/telegram/load-accounts', {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        });
-        
-        const result = await response.json();
-        if (response.ok && result.success && result.accounts) {
-            const account = result.accounts.find(acc => 
-                `${acc.first_name} ${acc.last_name || ''}`.trim() === accountName.trim()
-            );
+        // 다중계정 모드인지 확인
+        if (window.multiAccountMode && window.selectedMultiAccounts && window.selectedMultiAccounts.length > 0) {
+            console.log('🔄 다중계정 모드: 선택된 계정들로 그룹 새로고침');
             
-            if (account) {
-                // 그룹 다시 로드
-                await loadGroupsForAccount(account);
-            } else {
-                throw new Error('계정을 찾을 수 없습니다.');
-            }
+            // 다중계정 모드에서는 전체 다중계정 그룹 로딩 함수 호출
+            await loadMultipleAccountsGroups(window.selectedMultiAccounts);
         } else {
-            throw new Error(result.error || '계정 목록 로딩 실패');
+            // 단일 계정 모드: 기존 로직
+            const accountName = document.getElementById('selectedAccountName')?.textContent;
+            const accountPhone = document.getElementById('selectedAccountPhone')?.textContent;
+            
+            if (!accountName || !accountPhone || accountName === '계정을 선택하세요') {
+                throw new Error('계정 정보를 찾을 수 없습니다. 계정을 먼저 선택해주세요.');
+            }
+            
+            // 계정 목록에서 해당 계정 찾기
+            const response = await fetch('/api/telegram/load-accounts', {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+            
+            const result = await response.json();
+            if (response.ok && result.success && result.accounts) {
+                const account = result.accounts.find(acc => 
+                    `${acc.first_name} ${acc.last_name || ''}`.trim() === accountName.trim()
+                );
+                
+                if (account) {
+                    // 그룹 다시 로드
+                    await loadGroupsForAccount(account);
+                } else {
+                    throw new Error('계정을 찾을 수 없습니다.');
+                }
+            } else {
+                throw new Error(result.error || '계정 목록 로딩 실패');
+            }
         }
         
     } catch (error) {
