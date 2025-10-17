@@ -6001,13 +6001,37 @@ async function restoreAutoSendStatusFor(userId) {
 // 자동전송 중지 API 호출
 async function stopAutoSend() {
     try {
-        const accountName = document.getElementById('selectedAccountName')?.textContent?.trim();
-        // 가능한 모든 경로로 userId 추출 시도
+        let accountName = document.getElementById('selectedAccountName')?.textContent?.trim();
         let userId = document.getElementById('selectedAccountUserId')?.textContent?.trim()
             || document.querySelector('.account-item.selected')?.dataset?.userId
             || window.currentSelectedAccount?.user_id
             || window.selectedAccount?.user_id
             || '';
+        
+        // 풀시스템에서 실행 중인 경우, 실제 계정 정보 가져오기
+        if (window.rotationPoolsEnabled && window.groupPoolMapping) {
+            console.log('🔄 풀시스템 자동전송 중지 시도');
+            
+            // 풀시스템에서 실행 중인 계정들 찾기
+            const runningAccounts = [];
+            for (const [groupId, poolIds] of Object.entries(window.groupPoolMapping)) {
+                for (const poolId of poolIds) {
+                    const pool = window.rotationPools[poolId];
+                    if (pool && pool.accounts) {
+                        runningAccounts.push(...pool.accounts);
+                    }
+                }
+            }
+            
+            if (runningAccounts.length > 0) {
+                // 첫 번째 계정을 대표로 사용
+                const representativeAccount = runningAccounts[0];
+                accountName = `${representativeAccount.first_name} ${representativeAccount.last_name || ''}`.trim();
+                userId = String(representativeAccount.user_id);
+                console.log('🔄 풀시스템 대표 계정:', accountName, userId);
+            }
+        }
+        
         // userId가 없으면 서버에서 계정 목록을 받아 매핑 (이름 → userId, 실패 시 전화번호로 매칭)
         if (!userId && accountName) {
             try {
@@ -6291,6 +6315,29 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo, targe
         }
         
         // 자동전송 시작 API 호출 (CORS 우회)
+        const autoSendData = {
+            userId: String(account.user_id),
+            group_ids: selectedGroups,
+            message: message,
+            media_info: mediaInfo
+        };
+        
+        // 커스텀 이모지가 있는 경우 원본 메시지 객체 전체를 전송
+        if (mediaInfo && mediaInfo.has_custom_emoji) {
+            autoSendData.original_message_object = mediaInfo.original_message_object || mediaInfo.raw_message_data || mediaInfo;
+            autoSendData.is_original_message = true;
+            autoSendData.bypass_text_processing = true;
+            autoSendData.message = null; // 텍스트 처리를 우회
+            autoSendData.send_as_original = true; // 서버에서 원본 객체로 처리하라는 플래그
+            
+            console.log('📤 자동전송 커스텀 이모지 원본 객체 전체 전송:', {
+                original_message_object: autoSendData.original_message_object,
+                is_original_message: autoSendData.is_original_message,
+                bypass_text_processing: autoSendData.bypass_text_processing,
+                send_as_original: autoSendData.send_as_original
+            });
+        }
+        
         const autoSendResponse = await fetch(`${getApiBaseUrl()}/api/auto-send/start`, {
             method: 'POST',
             mode: 'cors',
@@ -6298,12 +6345,7 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo, targe
                 'Content-Type': 'application/json',
                 'Access-Control-Allow-Origin': '*',
             },
-            body: JSON.stringify({
-                userId: String(account.user_id),
-                group_ids: selectedGroups,
-                message: message,
-                media_info: mediaInfo
-            })
+            body: JSON.stringify(autoSendData)
         });
         
         const autoSendResult = await autoSendResponse.json();
@@ -7929,13 +7971,26 @@ async function sendMessageFromPoolAccount(account, groupId, groupTitle) {
     const sendData = {
         userId: account.user_id,
         groupId: groupId,
-        message: mediaInfo.has_custom_emoji ? null : mediaInfo.message,
-        mediaInfo: mediaInfo.has_custom_emoji ? mediaInfo.original_message_object : null,
-        poolInfo: {
-            poolId: account.poolId,
-            poolName: account.poolName
-        }
+        message: mediaInfo.has_custom_emoji ? null : mediaInfo.text,
+        mediaInfo: mediaInfo
     };
+    
+    // 커스텀 이모지가 있는 경우 원본 메시지 객체 전체를 전송
+    if (mediaInfo.has_custom_emoji) {
+        // 원본 메시지 객체 전체를 그대로 전송
+        sendData.original_message_object = mediaInfo.original_message_object || mediaInfo.raw_message_data || mediaInfo;
+        sendData.is_original_message = true;
+        sendData.bypass_text_processing = true;
+        sendData.message = null; // 텍스트 처리를 우회
+        sendData.send_as_original = true; // 서버에서 원본 객체로 처리하라는 플래그
+        
+        console.log('📤 풀시스템 커스텀 이모지 원본 객체 전체 전송:', {
+            original_message_object: sendData.original_message_object,
+            is_original_message: sendData.is_original_message,
+            bypass_text_processing: sendData.bypass_text_processing,
+            send_as_original: sendData.send_as_original
+        });
+    }
     
     console.log('📤 전송 데이터:', sendData);
     
