@@ -4971,6 +4971,14 @@ async function showAutoSendSettingsModal() {
     const modal = document.getElementById('autoSendSettingsModal');
     if (modal) {
         modal.style.display = 'flex';
+        
+        // 로테이션 풀시스템 체크박스를 기본값(비활성화)으로 초기화
+        const enablePoolsCheckbox = document.getElementById('enableRotationPools');
+        if (enablePoolsCheckbox) {
+            enablePoolsCheckbox.checked = false;
+            window.rotationPoolsEnabled = false;
+        }
+        
         loadAutoSendSettings();
         
         // 계정 로테이션 기능 초기화
@@ -6289,7 +6297,13 @@ async function restoreAutoSendStatusOnLoad() {
                 
                 console.log('✅ 자동전송 상태 복원 완료');
             } else {
-                console.log('ℹ️ 자동전송이 실행 중이 아님');
+                // 자동전송이 실행 중이 아닌 경우 토글을 OFF로 설정
+                const autoSendToggle = document.getElementById('autoSendToggle');
+                if (autoSendToggle) {
+                    autoSendToggle.checked = false;
+                    console.log('✅ 자동전송 토글 OFF로 설정');
+                }
+                console.log('ℹ️ 자동전송이 실행 중이 아님 - 토글 OFF로 설정');
             }
         } else {
             console.log('❌ 자동전송 상태 조회 실패:', response.status);
