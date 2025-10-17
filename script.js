@@ -3541,6 +3541,9 @@ async function sendMessageToGroup() {
     const messageInput = document.querySelector('.message-input');
     const sendBtn = document.getElementById('sendMessageBtn');
     
+    // 선택된 그룹들 확인 (먼저 선언)
+    const checkedBoxes = document.querySelectorAll('.group-checkbox:checked');
+    
     // 메시지 확인 (다중 계정 모드, 풀 시스템, 단일 계정 모드 구분)
     let hasValidMessage = false;
     
@@ -3583,8 +3586,6 @@ async function sendMessageToGroup() {
         return;
     }
     
-    // 선택된 그룹들 확인
-    const checkedBoxes = document.querySelectorAll('.group-checkbox:checked');
     if (checkedBoxes.length === 0) {
         alert('전송할 그룹을 선택해주세요.');
         return;
