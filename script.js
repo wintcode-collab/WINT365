@@ -7078,6 +7078,11 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo, targe
             console.log('🔄 풀시스템 계정 사용:', account);
             
             // 풀시스템 계정의 메시지 정보 가져오기 (account-message-setting 요소에서 직접)
+            const accountElement = document.querySelector(`[data-account-id="${account.user_id}"]`);
+            if (!accountElement) {
+                throw new Error(`계정 ${account.user_id}의 메시지 설정 요소를 찾을 수 없습니다.`);
+            }
+            
             const mediaInfoStr = accountElement.dataset.mediaInfo;
             console.log('🔍 풀시스템 계정 mediaInfoStr:', mediaInfoStr);
             
