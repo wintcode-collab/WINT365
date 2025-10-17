@@ -9489,6 +9489,12 @@ function displayChannelMessagesForMultiAccount(messages, channelTitle) {
             } else if (message.media_info && message.media_info.type === 'gif') {
                 mediaIcon = '🎬';
                 mediaTypeText = 'GIF';
+            } else if (message.media_info && message.media_info.type === 'image') {
+                mediaIcon = '🖼️';
+                mediaTypeText = '이미지';
+            } else if (message.media_info && message.media_info.type === 'audio') {
+                mediaIcon = '🎵';
+                mediaTypeText = '오디오';
             } else if (message.media_info && message.media_info.type === 'document') {
                 mediaIcon = '📄';
                 mediaTypeText = '문서';
@@ -9640,7 +9646,7 @@ function selectChannelMessageForMultiAccount(messageId, channelTitle, messageDat
         messageId: parseInt(messageId),
         channelTitle: channelTitle,
         channelId: window.selectedChannelId,
-        messageData: JSON.parse(messageData.replace(/&quot;/g, '"'))
+        messageData: messageData // 이미 객체이므로 파싱 불필요
     };
     
     // 모든 계정에 선택된 메시지 정보 적용

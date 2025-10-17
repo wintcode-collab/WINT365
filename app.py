@@ -4483,32 +4483,66 @@ def get_channel_messages():
                                     media_class_name = str(type(message.media).__name__)
                                     message_data['media_type'] = media_class_name
                                     
-                                    # 미디어 정보 저장
+                                    # MIME 타입 가져오기
+                                    mime_type = getattr(message.media, 'mime_type', 'unknown')
+                                    logger.info(f'📥 미디어 감지: 클래스={media_class_name}, MIME={mime_type}')
+                                    
+                                    # 미디어 정보 저장 (MIME 타입 기반으로 정확한 분류)
                                     if 'Photo' in media_class_name:
                                         message_data['media_info'] = {
                                             'type': 'photo',
-                                            'class': media_class_name
+                                            'class': media_class_name,
+                                            'mime_type': mime_type
                                         }
                                     elif 'Document' in media_class_name:
-                                        message_data['media_info'] = {
-                                            'type': 'document',
-                                            'class': media_class_name,
-                                            'mime_type': getattr(message.media, 'mime_type', 'unknown')
-                                        }
+                                        # Document 타입에서 MIME 타입으로 세분화
+                                        if mime_type.startswith('video/'):
+                                            message_data['media_info'] = {
+                                                'type': 'video',
+                                                'class': media_class_name,
+                                                'mime_type': mime_type
+                                            }
+                                        elif mime_type.startswith('image/gif'):
+                                            message_data['media_info'] = {
+                                                'type': 'gif',
+                                                'class': media_class_name,
+                                                'mime_type': mime_type
+                                            }
+                                        elif mime_type.startswith('image/'):
+                                            message_data['media_info'] = {
+                                                'type': 'image',
+                                                'class': media_class_name,
+                                                'mime_type': mime_type
+                                            }
+                                        elif mime_type.startswith('audio/'):
+                                            message_data['media_info'] = {
+                                                'type': 'audio',
+                                                'class': media_class_name,
+                                                'mime_type': mime_type
+                                            }
+                                        else:
+                                            message_data['media_info'] = {
+                                                'type': 'document',
+                                                'class': media_class_name,
+                                                'mime_type': mime_type
+                                            }
                                     elif 'Video' in media_class_name:
                                         message_data['media_info'] = {
                                             'type': 'video',
-                                            'class': media_class_name
+                                            'class': media_class_name,
+                                            'mime_type': mime_type
                                         }
                                     elif 'Animation' in media_class_name:
                                         message_data['media_info'] = {
                                             'type': 'gif',
-                                            'class': media_class_name
+                                            'class': media_class_name,
+                                            'mime_type': mime_type
                                         }
                                     else:
                                         message_data['media_info'] = {
                                             'type': 'other',
-                                            'class': media_class_name
+                                            'class': media_class_name,
+                                            'mime_type': mime_type
                                         }
                                 
                                 # 커스텀 이모지 엔티티 처리
