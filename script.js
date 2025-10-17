@@ -97,6 +97,7 @@ function initializeApp() {
     // 자동전송 동기화 잠금 변수 초기화
     window.autoSendSyncLocked = false;
     window.autoSendSettingsSaved = false;
+    window.autoSendShouldStop = false;
     console.log('🔧 자동전송 동기화 변수 초기화 완료');
     
     // 로컬 스토리지에서 설정 로드
@@ -5815,11 +5816,16 @@ function setupAutoSendEventListeners() {
                 console.log('🔄 자동전송 토글 ON - 설정 모달 열기');
                 // 상태 동기화 잠금 설정 (토글이 OFF로 돌아가는 것 방지)
                 window.autoSendSyncLocked = true;
+                window.autoSendShouldStop = false; // 자동전송 시작 시 중지 플래그 리셋
                 showAutoSendSettingsModal();
                 updateSendButtonText(true); // 자동전송 ON
             } else {
                 // 사용자가 명시적으로 자동전송을 OFF로 변경한 경우에만 중지
                 console.log('🛑 사용자가 자동전송을 OFF로 변경');
+                
+                // 즉시 자동전송 중지 플래그 설정
+                window.autoSendShouldStop = true;
+                console.log('🛑 자동전송 중지 플래그 설정');
                 
                 // 자동전송 중지
                 if (window.stopAutoSend) {
@@ -7188,157 +7194,38 @@ function getGroupInterval() {
 // 자동전송 시작 함수
 async function startAutoSendWithGroups(selectedGroups, message, mediaInfo, targetAccounts = null) {
     try {
+        // 자동전송 중지 플래그 확인
+        if (window.autoSendShouldStop) {
+            console.log('🛑 자동전송 시작 전 중지 플래그 감지 - 시작 취소');
+            window.autoSendShouldStop = false; // 플래그 리셋
+            return false;
+        }
+        
         console.log('🚀 자동전송 시작:', { selectedGroups, message, mediaInfo, targetAccounts });
         
         let account;
         
         if (targetAccounts && targetAccounts.length > 0) {
-            // 풀시스템에서는 전달 방식으로 직접 전송
-            console.log('🔄 풀시스템 전달 방식으로 직접 전송');
+            // 새로운 풀 시스템: 풀별 시차 시작 + 계정별 순차 전송
+            console.log('🔄 새로운 풀 시스템 시작');
             
-            const sendResults = [];
+            // 풀별로 그룹화
+            const pools = groupAccountsByPool(targetAccounts);
+            console.log('🔄 풀별 계정 그룹화:', pools);
             
-            for (const account of targetAccounts) {
-                try {
-                    // 계정의 메시지 정보 가져오기
-                    const accountElement = document.querySelector(`[data-account-id="${account.user_id}"]`);
-                    if (!accountElement) {
-                        console.error(`❌ 계정 ${account.user_id}의 메시지 설정 요소를 찾을 수 없습니다.`);
-                        continue;
-                    }
-                    
-                    const mediaInfoStr = accountElement.dataset.mediaInfo;
-                    if (!mediaInfoStr || mediaInfoStr === 'null' || mediaInfoStr === '') {
-                        console.error(`❌ 계정 ${account.user_id}에 메시지 정보가 없습니다.`);
-                        continue;
-                    }
-                    
-                    const accountMediaInfo = JSON.parse(mediaInfoStr);
-                    
-                    // 각 그룹으로 전달
-                    for (const groupId of selectedGroups) {
-                        try {
-                            // 실제 선택한 메시지 ID 사용
-                            const actualMessageId = accountMediaInfo.selectedMessageId || accountMediaInfo.message_id || accountMediaInfo.id;
-                            
-                            // 저장된 메시지인지 채널 메시지인지 구분
-                            // channel_id가 없거나 'saved_messages'이면 저장된 메시지
-                            // channel_id가 있고 숫자이면 채널 메시지
-                            const isSavedMessage = !accountMediaInfo.channel_id || 
-                                                  accountMediaInfo.channel_id === 'saved_messages' ||
-                                                  accountMediaInfo.channel_id === null ||
-                                                  accountMediaInfo.channel_id === undefined ||
-                                                  accountMediaInfo.is_saved_message === true;
-                            const isChannelMessage = accountMediaInfo.channel_id && 
-                                                    accountMediaInfo.channel_id !== 'saved_messages' &&
-                                                    accountMediaInfo.channel_id !== null &&
-                                                    accountMediaInfo.channel_id !== undefined &&
-                                                    accountMediaInfo.is_saved_message !== true;
-                            
-                            console.log('🔍 메시지 타입 판별 상세:', {
-                                channel_id: accountMediaInfo.channel_id,
-                                is_saved_message: accountMediaInfo.is_saved_message,
-                                is_channel_forward: accountMediaInfo.is_channel_forward,
-                                최종_isSavedMessage: isSavedMessage,
-                                최종_isChannelMessage: isChannelMessage
-                            });
-                            
-                            const forwardData = {
-                                userId: account.user_id,
-                                channelUsername: isSavedMessage ? 'saved_messages' : accountMediaInfo.channel_id,
-                                messageId: actualMessageId,  // 실제 선택한 메시지 ID 사용
-                                groupIds: [groupId],
-                                isSavedMessage: isSavedMessage,  // 저장된 메시지 여부
-                                isChannelMessage: isChannelMessage  // 채널 메시지 여부
-                            };
-                            
-                            console.log('📢 풀시스템 전달 데이터:', forwardData);
-                            console.log('📢 채널 ID 상세:', accountMediaInfo.channel_id);
-                            console.log('📢 선택한 메시지 ID:', actualMessageId);
-                            console.log('📢 원본 메시지 ID:', accountMediaInfo.message_id);
-                            console.log('📢 채널 제목:', accountMediaInfo.channel_title);
-                            console.log('📢 저장된 메시지 여부:', isSavedMessage);
-                            console.log('📢 채널 메시지 여부:', isChannelMessage);
-                            console.log('📢 계정 이름:', account.first_name);
-                            console.log('📢 메시지 텍스트 미리보기:', accountMediaInfo.text?.substring(0, 100) + '...');
-                            console.log('📢 전체 메시지 데이터:', accountMediaInfo);
-                            
-                            const response = await fetch(`${getApiBaseUrl()}/api/telegram/forward-channel-message`, {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json'
-                                },
-                                body: JSON.stringify(forwardData)
-                            });
-                            
-                            if (response.ok) {
-                                const result = await response.json();
-                                console.log(`📢 계정 ${account.first_name} 그룹 ${groupId} 전달 응답:`, result);
-                                
-                                // 실제 전달 성공 여부 확인
-                                if (result.success && result.results && result.results.length > 0) {
-                                    const groupResult = result.results.find(r => r.group_id == groupId);
-                                    if (groupResult && groupResult.success) {
-                                        console.log(`✅ 계정 ${account.first_name} 그룹 ${groupId} 실제 전달 성공:`, groupResult);
-                                        sendResults.push({
-                                            success: true,
-                                            account: account.first_name,
-                                            group: groupId,
-                                            result: groupResult
-                                        });
-                                    } else {
-                                        console.error(`❌ 계정 ${account.first_name} 그룹 ${groupId} 실제 전달 실패:`, groupResult);
-                                        sendResults.push({
-                                            success: false,
-                                            account: account.first_name,
-                                            group: groupId,
-                                            error: groupResult ? groupResult.error : '전달 실패'
-                                        });
-                                    }
-                                } else {
-                                    console.error(`❌ 계정 ${account.first_name} 그룹 ${groupId} API 응답 실패:`, result);
-                                    sendResults.push({
-                                        success: false,
-                                        account: account.first_name,
-                                        group: groupId,
-                                        error: result.error || 'API 응답 실패'
-                                    });
-                                }
-                            } else {
-                                const errorData = await response.json();
-                                console.error(`❌ 계정 ${account.first_name} 그룹 ${groupId} HTTP 에러:`, errorData);
-                                sendResults.push({
-                                    success: false,
-                                    account: account.first_name,
-                                    group: groupId,
-                                    error: errorData.error || `HTTP ${response.status}`
-                                });
-                            }
-                        } catch (error) {
-                            console.error(`❌ 계정 ${account.first_name} 그룹 ${groupId} 전달 에러:`, error);
-                            sendResults.push({
-                                success: false,
-                                account: account.first_name,
-                                group: groupId,
-                                error: error.message
-                            });
-                        }
-                    }
-                } catch (error) {
-                    console.error(`❌ 계정 ${account.user_id} 처리 에러:`, error);
-                }
-            }
+            // 풀별 시차 시작 실행
+            const poolResults = await executePoolSystemWithDelay(pools, selectedGroups);
             
-            console.log('📊 풀시스템 전달 결과:', sendResults);
+            console.log('📊 풀 시스템 전송 결과:', poolResults);
             
-            const successCount = sendResults.filter(r => r.success).length;
-            const totalCount = sendResults.length;
+            const successCount = poolResults.filter(r => r.success).length;
+            const totalCount = poolResults.length;
             
             if (successCount > 0) {
-                console.log(`✅ 풀시스템 전달 완료: ${successCount}/${totalCount}개 성공`);
+                console.log(`✅ 풀 시스템 전송 완료: ${successCount}/${totalCount} 성공`);
                 return true;
             } else {
-                console.log('❌ 풀시스템 전달 모두 실패');
+                console.log('❌ 풀 시스템 전송 실패');
                 return false;
             }
         } else {
@@ -8863,7 +8750,280 @@ function saveGroupPoolMapping() {
 }
 
 // ============================================================
-// 풀 시스템 전송 로직
+// 새로운 풀 시스템 전송 로직
+// ============================================================
+
+// 계정들을 풀별로 그룹화
+function groupAccountsByPool(targetAccounts) {
+    const pools = {};
+    
+    for (const account of targetAccounts) {
+        const poolId = account.poolId || 'default';
+        if (!pools[poolId]) {
+            pools[poolId] = {
+                poolId: poolId,
+                poolName: account.poolName || `풀 ${poolId}`,
+                accounts: []
+            };
+        }
+        pools[poolId].accounts.push(account);
+    }
+    
+    console.log('🔄 풀별 계정 그룹화 결과:', pools);
+    return Object.values(pools);
+}
+
+// 풀별 시차 시작 실행
+async function executePoolSystemWithDelay(pools, selectedGroups) {
+    const results = [];
+    const poolDelay = 2 * 60 * 1000; // 2분 (밀리초)
+    
+    console.log(`🔄 풀 시스템 시작: ${pools.length}개 풀, ${selectedGroups.length}개 그룹`);
+    
+    for (let i = 0; i < pools.length; i++) {
+        const pool = pools[i];
+        
+        try {
+            // 자동전송 중지 플래그 확인
+            if (window.autoSendShouldStop) {
+                console.log('🛑 자동전송 중지 플래그 감지 - 풀 시스템 중단');
+                break;
+            }
+            
+            console.log(`🔄 풀 ${i + 1}/${pools.length} 시작: ${pool.poolName} (${pool.accounts.length}개 계정)`);
+            
+            // 풀별 계정 순차 전송 실행
+            const poolResult = await executePoolAccountsSequentially(pool, selectedGroups);
+            results.push({
+                poolId: pool.poolId,
+                poolName: pool.poolName,
+                success: poolResult.success,
+                results: poolResult.results,
+                error: poolResult.error
+            });
+            
+            // 마지막 풀이 아닌 경우 다음 풀 시작까지 대기
+            if (i < pools.length - 1) {
+                console.log(`⏳ 다음 풀 시작까지 대기: ${poolDelay / 1000}초`);
+                await new Promise(resolve => setTimeout(resolve, poolDelay));
+            }
+            
+        } catch (error) {
+            console.error(`❌ 풀 ${pool.poolName} 실행 실패:`, error);
+            results.push({
+                poolId: pool.poolId,
+                poolName: pool.poolName,
+                success: false,
+                error: error.message
+            });
+        }
+    }
+    
+    return results;
+}
+
+// 풀 내 계정들을 순차적으로 전송
+async function executePoolAccountsSequentially(pool, selectedGroups) {
+    const results = [];
+    const accountRotationInterval = getAccountRotationInterval(); // 계정 순환 간격 (밀리초)
+    
+    console.log(`🔄 풀 ${pool.poolName} 계정 순차 전송 시작: ${pool.accounts.length}개 계정`);
+    
+    for (let i = 0; i < pool.accounts.length; i++) {
+        const account = pool.accounts[i];
+        
+        try {
+            // 자동전송 중지 플래그 확인
+            if (window.autoSendShouldStop) {
+                console.log('🛑 자동전송 중지 플래그 감지 - 계정 전송 중단');
+                break;
+            }
+            
+            console.log(`🔄 풀 ${pool.poolName} 계정 ${i + 1}/${pool.accounts.length}: ${account.first_name} (${account.user_id})`);
+            
+            // 계정의 메시지 정보 가져오기
+            const accountElement = document.querySelector(`[data-account-id="${account.user_id}"]`);
+            if (!accountElement) {
+                console.error(`❌ 계정 ${account.user_id}의 메시지 설정 요소를 찾을 수 없습니다.`);
+                continue;
+            }
+            
+            const mediaInfoStr = accountElement.dataset.mediaInfo;
+            if (!mediaInfoStr || mediaInfoStr === 'null' || mediaInfoStr === '') {
+                console.error(`❌ 계정 ${account.user_id}에 메시지 정보가 없습니다.`);
+                continue;
+            }
+            
+            const accountMediaInfo = JSON.parse(mediaInfoStr);
+            
+            // 계정이 모든 그룹에 순차적으로 전송
+            const accountResult = await sendAccountToAllGroups(account, selectedGroups, accountMediaInfo);
+            results.push(accountResult);
+            
+            // 마지막 계정이 아닌 경우 다음 계정까지 대기
+            if (i < pool.accounts.length - 1) {
+                console.log(`⏳ 계정 순환 간격 대기: ${accountRotationInterval / 1000}초`);
+                await new Promise(resolve => setTimeout(resolve, accountRotationInterval));
+            }
+            
+        } catch (error) {
+            console.error(`❌ 계정 ${account.user_id} 전송 실패:`, error);
+            results.push({
+                account: account.first_name,
+                success: false,
+                error: error.message
+            });
+        }
+    }
+    
+    return {
+        success: results.some(r => r.success),
+        results: results
+    };
+}
+
+// 계정이 모든 그룹에 순차적으로 전송
+async function sendAccountToAllGroups(account, selectedGroups, accountMediaInfo) {
+    const results = [];
+    const groupInterval = getGroupSendInterval() * 1000; // 그룹 간격 (밀리초)
+    
+    console.log(`🔄 계정 ${account.first_name}이 ${selectedGroups.length}개 그룹에 전송 시작`);
+    
+    for (let i = 0; i < selectedGroups.length; i++) {
+        const groupId = selectedGroups[i];
+        
+        try {
+            // 자동전송 중지 플래그 확인
+            if (window.autoSendShouldStop) {
+                console.log('🛑 자동전송 중지 플래그 감지 - 그룹 전송 중단');
+                break;
+            }
+            
+            console.log(`🔄 계정 ${account.first_name} 그룹 ${i + 1}/${selectedGroups.length} 전송: ${groupId}`);
+            
+            // 실제 선택한 메시지 ID 사용
+            const actualMessageId = accountMediaInfo.selectedMessageId || accountMediaInfo.message_id || accountMediaInfo.id;
+            
+            // 저장된 메시지인지 채널 메시지인지 구분
+            const isSavedMessage = !accountMediaInfo.channel_id || 
+                                  accountMediaInfo.channel_id === 'saved_messages' ||
+                                  accountMediaInfo.channel_id === null ||
+                                  accountMediaInfo.channel_id === undefined ||
+                                  accountMediaInfo.is_saved_message === true;
+            const isChannelMessage = accountMediaInfo.channel_id && 
+                                    accountMediaInfo.channel_id !== 'saved_messages' &&
+                                    accountMediaInfo.channel_id !== null &&
+                                    accountMediaInfo.channel_id !== undefined &&
+                                    accountMediaInfo.is_saved_message !== true;
+            
+            // 전달 데이터 구성
+            const forwardData = {
+                userId: account.user_id,
+                channelUsername: isSavedMessage ? 'saved_messages' : accountMediaInfo.channel_id,
+                messageId: actualMessageId,
+                groupIds: [groupId],
+                isSavedMessage: isSavedMessage,
+                isChannelMessage: isChannelMessage
+            };
+            
+            console.log('🔍 전달 데이터:', forwardData);
+            
+            // 메시지 전달 API 호출
+            const response = await fetch(`${getApiBaseUrl()}/api/telegram/forward-channel-message`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(forwardData)
+            });
+            
+            if (response.ok) {
+                const result = await response.json();
+                console.log(`📢 계정 ${account.first_name} 그룹 ${groupId} 전달 응답:`, result);
+                
+                // 실제 전달 성공 여부 확인
+                if (result.success && result.results && result.results.length > 0) {
+                    const groupResult = result.results.find(r => r.group_id == groupId);
+                    if (groupResult && groupResult.success) {
+                        console.log(`✅ 계정 ${account.first_name} 그룹 ${groupId} 실제 전달 성공:`, groupResult);
+                        results.push({
+                            success: true,
+                            group: groupId,
+                            result: groupResult
+                        });
+                    } else {
+                        console.error(`❌ 계정 ${account.first_name} 그룹 ${groupId} 실제 전달 실패:`, groupResult);
+                        results.push({
+                            success: false,
+                            group: groupId,
+                            error: groupResult ? groupResult.error : '전달 실패'
+                        });
+                    }
+                } else {
+                    console.error(`❌ 계정 ${account.first_name} 그룹 ${groupId} API 응답 실패:`, result);
+                    results.push({
+                        success: false,
+                        group: groupId,
+                        error: result.error || 'API 응답 실패'
+                    });
+                }
+            } else {
+                const errorData = await response.json();
+                console.error(`❌ 계정 ${account.first_name} 그룹 ${groupId} HTTP 에러:`, errorData);
+                results.push({
+                    success: false,
+                    group: groupId,
+                    error: errorData.error || `HTTP ${response.status}`
+                });
+            }
+            
+            // 마지막 그룹이 아닌 경우 다음 그룹까지 대기
+            if (i < selectedGroups.length - 1) {
+                console.log(`⏳ 그룹 간 전송 간격 대기: ${groupInterval / 1000}초 (계정: ${account.first_name})`);
+                await new Promise(resolve => setTimeout(resolve, groupInterval));
+            }
+            
+        } catch (error) {
+            console.error(`❌ 계정 ${account.first_name} 그룹 ${groupId} 전달 에러:`, error);
+            results.push({
+                success: false,
+                group: groupId,
+                error: error.message
+            });
+        }
+    }
+    
+    const successCount = results.filter(r => r.success).length;
+    console.log(`📊 계정 ${account.first_name} 전송 완료: ${successCount}/${selectedGroups.length} 성공`);
+    
+    return {
+        account: account.first_name,
+        success: successCount > 0,
+        results: results
+    };
+}
+
+// 계정 순환 간격 가져오기 (분을 밀리초로 변환)
+function getAccountRotationInterval() {
+    const interval = getRotationSettings()?.groupSendInterval || 3; // 기본값 3분
+    return interval * 60 * 1000; // 분을 밀리초로 변환
+}
+
+// 로테이션 설정 가져오기
+function getRotationSettings() {
+    const rotationData = localStorage.getItem('rotationSettings');
+    if (rotationData) {
+        try {
+            return JSON.parse(rotationData);
+        } catch (e) {
+            console.warn('⚠️ 로테이션 설정 파싱 실패:', e);
+        }
+    }
+    return null;
+}
+
+// ============================================================
+// 기존 풀 시스템 전송 로직 (참고용)
 // ============================================================
 
 // 풀 시스템에서 메시지 확인
