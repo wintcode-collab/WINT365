@@ -2256,10 +2256,10 @@ function showAccountSelectionModal(accounts) {
             ">
                 <div style="margin-bottom: 20px;">
                     <h3 style="margin: 0 0 10px 0; color: #10B981; text-align: center;">
-                        📢 비공개 채널 선택
+                        📱 계정별 메시지 선택
                     </h3>
                     <p style="margin: 0; color: #888; text-align: center; font-size: 14px;">
-                        계정을 클릭하여 선택하고, 해당 계정의 비공개 채널을 확인하세요
+                        각 계정마다 다른 메시지를 선택할 수 있습니다. 계정을 클릭하여 메시지를 선택하세요
                     </p>
                 </div>
                 
@@ -2282,6 +2282,9 @@ function showAccountSelectionModal(accounts) {
                                     </div>
                                     <div style="color: #888; font-size: 12px;">
                                         ${account.phone_number || ''}
+                                    </div>
+                                    <div class="account-message-status" style="color: #888; font-size: 11px; margin-top: 4px;">
+                                        메시지 미선택
                                     </div>
                                 </div>
                                 <div style="color: #10B981; font-size: 12px;">→</div>
@@ -2308,6 +2311,9 @@ function showAccountSelectionModal(accounts) {
     
     // 모달창 추가
     document.body.insertAdjacentHTML('beforeend', modalHTML);
+    
+    // 각 계정의 현재 메시지 상태 업데이트
+    updateAccountMessageStatuses();
     
     // 이벤트 리스너 추가
     setupAccountSelectionModalEvents();
@@ -4713,7 +4719,7 @@ function selectChannelMessage(messageId, channelTitle, messageData) {
     };
     
     // 모든 계정에 선택된 메시지 정보 적용
-    applyChannelMessageToAllAccounts();
+    applyChannelMessageToSelectedAccount();
     
     // 모달 닫기
     const modal = document.getElementById('savedMessagesModal');
@@ -4725,25 +4731,31 @@ function selectChannelMessage(messageId, channelTitle, messageData) {
 }
 
 // 선택된 채널 메시지를 모든 계정에 적용
-function applyChannelMessageToAllAccounts() {
+function applyChannelMessageToSelectedAccount() {
     if (!window.selectedChannelMessage) return;
     
-    console.log('📢 선택된 채널 메시지를 모든 계정에 적용');
+    // 현재 선택된 계정 ID 가져오기
+    const selectedAccountId = localStorage.getItem('lastSelectedAccount');
+    console.log('📢 선택된 채널 메시지를 계정에 적용:', selectedAccountId);
     
-    // 모든 계정 메시지 설정 요소 찾기
-    const accountMessageSettings = document.querySelectorAll('.account-message-setting');
+    if (!selectedAccountId) {
+        console.error('❌ 선택된 계정 ID가 없습니다');
+        return;
+    }
     
-    accountMessageSettings.forEach(accountSetting => {
-        const accountId = accountSetting.dataset.accountId;
-        const statusSpan = accountSetting.querySelector('span[data-account-id]');
+    // 선택된 계정의 메시지 설정 요소 찾기
+    const accountMessageSetting = document.querySelector(`.account-message-setting[data-account-id="${selectedAccountId}"]`);
+    
+    if (accountMessageSetting) {
+        const statusSpan = accountMessageSetting.querySelector('span[data-account-id]');
         
-        if (statusSpan && accountId) {
+        if (statusSpan) {
             // 상태 업데이트
             statusSpan.textContent = `📢 채널 메시지 선택됨 (${window.selectedChannelMessage.channelTitle})`;
             statusSpan.style.color = '#3B82F6';
             
             // 메시지 데이터 저장
-            accountSetting.dataset.mediaInfo = JSON.stringify({
+            accountMessageSetting.dataset.mediaInfo = JSON.stringify({
                 text: window.selectedChannelMessage.messageData.text,
                 has_custom_emoji: window.selectedChannelMessage.messageData.has_custom_emoji,
                 original_message_object: window.selectedChannelMessage.messageData,
@@ -4753,7 +4765,59 @@ function applyChannelMessageToAllAccounts() {
                 is_channel_forward: true
             });
             
-            console.log(`✅ 계정 ${accountId}에 채널 메시지 적용됨`);
+            console.log(`✅ 계정 ${selectedAccountId}에 채널 메시지 적용됨`);
+        } else {
+            console.error('❌ 계정 상태 스팬을 찾을 수 없습니다');
+        }
+    } else {
+        console.error('❌ 선택된 계정의 메시지 설정 요소를 찾을 수 없습니다');
+    }
+}
+
+// 계정별 메시지 상태 업데이트
+function updateAccountMessageStatuses() {
+    console.log('📱 계정별 메시지 상태 업데이트');
+    
+    const accountItems = document.querySelectorAll('#accountSelectionModal .account-item');
+    
+    accountItems.forEach(accountItem => {
+        const accountId = accountItem.dataset.accountId;
+        const statusElement = accountItem.querySelector('.account-message-status');
+        
+        if (statusElement && accountId) {
+            // 해당 계정의 메시지 설정 요소 찾기
+            const accountMessageSetting = document.querySelector(`.account-message-setting[data-account-id="${accountId}"]`);
+            
+            if (accountMessageSetting) {
+                const statusSpan = accountMessageSetting.querySelector('span[data-account-id]');
+                const mediaInfo = accountMessageSetting.dataset.mediaInfo;
+                
+                if (statusSpan && mediaInfo && mediaInfo !== 'null' && mediaInfo !== '') {
+                    try {
+                        const mediaData = JSON.parse(mediaInfo);
+                        
+                        if (mediaData.is_channel_forward) {
+                            statusElement.textContent = `📢 채널 메시지 선택됨 (${mediaData.channel_title})`;
+                            statusElement.style.color = '#3B82F6';
+                        } else if (mediaData.text) {
+                            statusElement.textContent = `💾 저장된 메시지 선택됨`;
+                            statusElement.style.color = '#10B981';
+                        } else {
+                            statusElement.textContent = `📎 미디어 메시지 선택됨`;
+                            statusElement.style.color = '#F59E0B';
+                        }
+                    } catch (error) {
+                        statusElement.textContent = `❌ 메시지 데이터 오류`;
+                        statusElement.style.color = '#EF4444';
+                    }
+                } else {
+                    statusElement.textContent = `메시지 미선택`;
+                    statusElement.style.color = '#888';
+                }
+            } else {
+                statusElement.textContent = `메시지 미선택`;
+                statusElement.style.color = '#888';
+            }
         }
     });
 }
@@ -9425,6 +9489,16 @@ async function loadChannelMessagesForMultiAccount(channelId) {
         console.log('📥 받은 메시지 개수:', result.messages ? result.messages.length : 0);
         if (result.messages && result.messages.length > 0) {
             console.log('📥 첫 번째 메시지 샘플:', result.messages[0]);
+            // 미디어 타입이 있는 메시지 찾기
+            const mediaMessage = result.messages.find(msg => msg.media_type);
+            if (mediaMessage) {
+                console.log('📥 미디어 메시지 상세:', {
+                    id: mediaMessage.id,
+                    media_type: mediaMessage.media_type,
+                    media_info: mediaMessage.media_info,
+                    mime_type: mediaMessage.media_info?.mime_type
+                });
+            }
         }
         
         if (result.success && result.messages) {
@@ -9649,8 +9723,11 @@ function selectChannelMessageForMultiAccount(messageId, channelTitle, messageDat
         messageData: messageData // 이미 객체이므로 파싱 불필요
     };
     
-    // 모든 계정에 선택된 메시지 정보 적용
-    applyChannelMessageToAllAccounts();
+    // 선택된 계정에 선택된 메시지 정보 적용
+    applyChannelMessageToSelectedAccount();
+    
+    // 계정 선택 모달의 상태 업데이트
+    updateAccountMessageStatuses();
     
     // 모달 닫기
     const modal = document.getElementById('messageSelectionModal');

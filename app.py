@@ -4487,6 +4487,10 @@ def get_channel_messages():
                                     mime_type = getattr(message.media, 'mime_type', 'unknown')
                                     logger.info(f'📥 미디어 감지: 클래스={media_class_name}, MIME={mime_type}')
                                     
+                                    # 미디어 속성 더 자세히 로그
+                                    if hasattr(message.media, '__dict__'):
+                                        logger.info(f'📥 미디어 속성: {message.media.__dict__}')
+                                    
                                     # 미디어 정보 저장 (MIME 타입 기반으로 정확한 분류)
                                     if 'Photo' in media_class_name:
                                         message_data['media_info'] = {
@@ -4496,35 +4500,51 @@ def get_channel_messages():
                                         }
                                     elif 'Document' in media_class_name:
                                         # Document 타입에서 MIME 타입으로 세분화
-                                        if mime_type.startswith('video/'):
+                                        # 파일명도 확인하여 확장자 기반 분류
+                                        file_name = getattr(message.media, 'file_name', '')
+                                        file_ext = file_name.lower().split('.')[-1] if '.' in file_name else ''
+                                        
+                                        logger.info(f'📥 파일 정보: 이름={file_name}, 확장자={file_ext}')
+                                        
+                                        if mime_type.startswith('video/') or file_ext in ['mp4', 'avi', 'mov', 'mkv', 'webm', 'flv']:
                                             message_data['media_info'] = {
                                                 'type': 'video',
                                                 'class': media_class_name,
-                                                'mime_type': mime_type
+                                                'mime_type': mime_type,
+                                                'file_name': file_name,
+                                                'file_ext': file_ext
                                             }
-                                        elif mime_type.startswith('image/gif'):
+                                        elif mime_type.startswith('image/gif') or file_ext == 'gif':
                                             message_data['media_info'] = {
                                                 'type': 'gif',
                                                 'class': media_class_name,
-                                                'mime_type': mime_type
+                                                'mime_type': mime_type,
+                                                'file_name': file_name,
+                                                'file_ext': file_ext
                                             }
                                         elif mime_type.startswith('image/'):
                                             message_data['media_info'] = {
                                                 'type': 'image',
                                                 'class': media_class_name,
-                                                'mime_type': mime_type
+                                                'mime_type': mime_type,
+                                                'file_name': file_name,
+                                                'file_ext': file_ext
                                             }
                                         elif mime_type.startswith('audio/'):
                                             message_data['media_info'] = {
                                                 'type': 'audio',
                                                 'class': media_class_name,
-                                                'mime_type': mime_type
+                                                'mime_type': mime_type,
+                                                'file_name': file_name,
+                                                'file_ext': file_ext
                                             }
                                         else:
                                             message_data['media_info'] = {
                                                 'type': 'document',
                                                 'class': media_class_name,
-                                                'mime_type': mime_type
+                                                'mime_type': mime_type,
+                                                'file_name': file_name,
+                                                'file_ext': file_ext
                                             }
                                     elif 'Video' in media_class_name:
                                         message_data['media_info'] = {
