@@ -7082,28 +7082,9 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo, targe
             account = targetAccounts[0]; // 첫 번째 계정을 대표로 사용
             console.log('🔄 풀시스템 계정 사용:', account);
             
-            // 풀시스템 계정의 메시지 정보 가져오기 (여러 방법 시도)
-            let accountElement = document.querySelector(`.account-message-setting span[data-account-id="${account.user_id}"]`)?.closest('.account-message-setting');
-            console.log('🔍 풀시스템 계정 요소 찾기 (방법1):', accountElement);
-            
-            // 방법1이 실패하면 다른 방법 시도
-            if (!accountElement) {
-                accountElement = document.querySelector(`[data-account-id="${account.user_id}"]`)?.closest('.account-message-setting');
-                console.log('🔍 풀시스템 계정 요소 찾기 (방법2):', accountElement);
-            }
-            
-            // 방법2도 실패하면 모든 계정 요소에서 찾기
-            if (!accountElement) {
-                const allElements = document.querySelectorAll('.account-message-setting');
-                for (const element of allElements) {
-                    const span = element.querySelector(`span[data-account-id="${account.user_id}"]`);
-                    if (span) {
-                        accountElement = element;
-                        console.log('🔍 풀시스템 계정 요소 찾기 (방법3):', accountElement);
-                        break;
-                    }
-                }
-            }
+            // 풀시스템 계정의 메시지 정보 가져오기 (checkPoolSystemMessages와 동일한 방식)
+            const accountElement = document.querySelector(`.account-message-setting span[data-account-id="${account.user_id}"]`)?.closest('.account-message-setting');
+            console.log('🔍 풀시스템 계정 요소 찾기:', accountElement);
             
             if (accountElement) {
                 const mediaInfoStr = accountElement.dataset.mediaInfo;
@@ -8797,21 +8778,23 @@ async function sendMessageWithPoolSystem(checkedBoxes) {
 async function sendMessageFromPoolAccount(account, groupId, groupTitle) {
     console.log(`📤 풀 계정 ${account.first_name} (${account.poolName})으로 그룹 ${groupTitle} 전송`);
     
-    // 계정의 메시지 정보 가져오기
+    // 계정의 메시지 정보 가져오기 (checkPoolSystemMessages와 동일한 방식)
     const accountElement = document.querySelector(`.account-message-setting span[data-account-id="${account.user_id}"]`)?.closest('.account-message-setting');
     if (!accountElement) {
+        console.error(`❌ 계정 ${account.user_id} 메시지 설정 요소를 찾을 수 없습니다`);
         throw new Error('계정 메시지 설정을 찾을 수 없습니다.');
     }
     
     const statusSpan = accountElement.querySelector('span[data-account-id]');
-    if (!statusSpan || statusSpan.textContent === '- 저장된 메시지를 선택하세요') {
-        throw new Error('메시지가 선택되지 않았습니다.');
-    }
-    
-    // 미디어 정보 가져오기
     const mediaInfoStr = accountElement.dataset.mediaInfo;
-    if (!mediaInfoStr) {
-        throw new Error('미디어 정보가 없습니다.');
+    
+    // 메시지 확인: statusSpan 텍스트 또는 dataset.mediaInfo 존재 여부 (checkPoolSystemMessages와 동일)
+    const hasMessage = (statusSpan && statusSpan.textContent !== '- 저장된 메시지를 선택하세요') || 
+                     (mediaInfoStr && mediaInfoStr !== 'null' && mediaInfoStr !== '');
+    
+    if (!hasMessage) {
+        console.error(`❌ 계정 ${account.user_id} 메시지 없음: statusSpan="${statusSpan?.textContent}", mediaInfo=${mediaInfoStr ? '있음' : '없음'}`);
+        throw new Error('메시지가 선택되지 않았습니다.');
     }
     
     const mediaInfo = JSON.parse(mediaInfoStr);
