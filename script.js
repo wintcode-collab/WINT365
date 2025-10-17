@@ -2938,6 +2938,8 @@ function updateSelectedMessageInfo(accountId, messageIndex) {
                     selectedMessageIndex: messageIndex,  // 선택한 인덱스도 저장
                     selectedMessageId: messageId,  // 선택한 메시지 ID 명시적으로 저장
                     channel_id: null,  // 저장된 메시지는 channel_id를 null로 설정
+                    channel_title: null,  // 저장된 메시지는 channel_title도 null로 설정
+                    is_channel_forward: false,  // 채널 전달이 아님
                     is_saved_message: true  // 저장된 메시지임을 명시
                 };
                 
@@ -2947,7 +2949,9 @@ function updateSelectedMessageInfo(accountId, messageIndex) {
                     selectedMessageId: messageId,
                     originalMessageId: message.message_id || message.id,
                     is_saved_message: true,
-                    channel_id: null
+                    channel_id: null,
+                    channel_title: null,
+                    is_channel_forward: false
                 });
             }
             
@@ -5330,6 +5334,8 @@ function selectTelegramSavedMessage(messageIndex, savedMessages) {
             selectedMessageId: actualMessageId,  // 선택한 메시지 ID 명시적으로 저장
             selectedMessageIndex: messageIndex,  // 선택한 인덱스도 저장
             channel_id: null,  // 저장된 메시지는 channel_id를 null로 설정
+            channel_title: null,  // 저장된 메시지는 channel_title도 null로 설정
+            is_channel_forward: false,  // 채널 전달이 아님
             is_saved_message: true,  // 저장된 메시지임을 명시
             date: message.date || null
         };
@@ -5339,7 +5345,9 @@ function selectTelegramSavedMessage(messageIndex, savedMessages) {
             selectedMessageId: actualMessageId,
             originalMessageId: message.message_id || message.id,
             is_saved_message: true,
-            channel_id: null
+            channel_id: null,
+            channel_title: null,
+            is_channel_forward: false
         });
         
         // 커스텀 이모지가 있는 경우 원본 객체 전체 보존
