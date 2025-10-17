@@ -4979,6 +4979,9 @@ async function showAutoSendSettingsModal() {
         
         // 로테이션 풀 시스템 초기화
         await initRotationPools();
+        
+        // 그룹간 전송간격 실시간 업데이트 이벤트 리스너 설정
+        setupGroupIntervalRealtimeUpdate();
     }
 }
 
@@ -4988,6 +4991,33 @@ function hideAutoSendSettingsModal() {
     if (modal) {
         modal.style.display = 'none';
     }
+}
+
+// 그룹간 전송간격 실시간 업데이트 설정
+function setupGroupIntervalRealtimeUpdate() {
+    const groupIntervalInput = document.getElementById('groupInterval');
+    if (!groupIntervalInput) return;
+    
+    // 기존 이벤트 리스너 제거 (중복 방지)
+    groupIntervalInput.removeEventListener('input', handleGroupIntervalChange);
+    groupIntervalInput.removeEventListener('change', handleGroupIntervalChange);
+    
+    // 새로운 이벤트 리스너 추가
+    groupIntervalInput.addEventListener('input', handleGroupIntervalChange);
+    groupIntervalInput.addEventListener('change', handleGroupIntervalChange);
+    
+    console.log('✅ 그룹간 전송간격 실시간 업데이트 설정 완료');
+}
+
+// 그룹간 전송간격 변경 처리
+function handleGroupIntervalChange() {
+    console.log('🔄 그룹간 전송간격 변경됨 - 전체 주기 실시간 업데이트');
+    
+    // 풀별 간격 설정 목록 실시간 업데이트
+    renderPoolIntervalsList();
+    
+    // 풀 목록도 실시간 업데이트
+    renderRotationPoolsList();
 }
 
 // 자동 전송 설정 모달 닫기 (X 버튼으로 닫을 때)
@@ -6126,7 +6156,16 @@ function loadAccountSettings(settingsType) {
 // 그룹간 간격 설정 가져오기
 function getGroupInterval() {
     try {
-        // 먼저 계정별 설정 확인
+        // 먼저 입력 필드의 현재 값 확인 (실시간 업데이트용)
+        const groupIntervalInput = document.getElementById('groupInterval');
+        if (groupIntervalInput && groupIntervalInput.value) {
+            const currentValue = parseInt(groupIntervalInput.value);
+            if (!isNaN(currentValue) && currentValue > 0) {
+                return currentValue;
+            }
+        }
+        
+        // 입력 필드 값이 없으면 저장된 설정 확인
         const accountSettings = loadAccountSettings('autoSend');
         if (accountSettings && accountSettings.groupInterval) {
             return accountSettings.groupInterval;
