@@ -4490,5 +4490,6 @@ def get_channel_messages():
             'error': f'채널 메시지 가져오기 실패: {str(e)}'
         }), 500
 
+if __name__ == '__main__':
     # 서버 시작 (Render에서는 HTTP 사용)
     app.run(host='0.0.0.0', port=port, debug=False)
