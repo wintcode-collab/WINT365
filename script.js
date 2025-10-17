@@ -8816,57 +8816,47 @@ async function sendMessageFromPoolAccount(account, groupId, groupTitle) {
     
     const mediaInfo = JSON.parse(mediaInfoStr);
     
-    // 전송 데이터 구성
-    const sendData = {
-        userId: account.user_id,
-        groupId: groupId,
-        message: mediaInfo.has_custom_emoji ? null : mediaInfo.text,
-        mediaInfo: mediaInfo
-    };
+    // 다중계정 모드에서는 무조건 채널 전달 방식 사용
+    console.log('📢 다중계정 모드: 채널 전달 방식으로 전송');
     
-    // 커스텀 이모지가 있는 경우 원본 메시지 객체 전체를 전송
-    if (mediaInfo.has_custom_emoji) {
-        // 원본 메시지 객체 전체를 그대로 전송
-        sendData.original_message_object = mediaInfo.original_message_object || mediaInfo.raw_message_data || mediaInfo;
-        sendData.is_original_message = true;
-        sendData.bypass_text_processing = true;
-        sendData.message = null; // 텍스트 처리를 우회
-        sendData.send_as_original = true; // 서버에서 원본 객체로 처리하라는 플래그
-        
-        console.log('📤 풀시스템 커스텀 이모지 원본 객체 전체 전송:', {
-            original_message_object: sendData.original_message_object,
-            is_original_message: sendData.is_original_message,
-            bypass_text_processing: sendData.bypass_text_processing,
-            send_as_original: sendData.send_as_original
-        });
+    // 채널 전달에 필요한 정보 확인
+    if (!mediaInfo.channel_id || !mediaInfo.message_id) {
+        throw new Error('채널 전달에 필요한 정보가 없습니다. (channel_id, message_id)');
     }
     
-    console.log('📤 전송 데이터:', sendData);
+    const forwardData = {
+        userId: account.user_id,
+        channelUsername: mediaInfo.channel_id,
+        messageId: mediaInfo.message_id,
+        groupIds: [groupId]
+    };
     
-    // 서버로 전송
-    const response = await fetch(`${getApiBaseUrl()}/api/telegram/send-message`, {
+    console.log('📢 채널 전달 데이터:', forwardData);
+    
+    // 채널 전달 API 호출
+    const response = await fetch(`${getApiBaseUrl()}/api/telegram/forward-channel-message`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify(sendData)
+        body: JSON.stringify(forwardData)
     });
     
     if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || `전송 실패: ${response.status}`);
+        throw new Error(errorData.error || `채널 전달 실패: ${response.status}`);
     }
     
     const result = await response.json();
-    
-    console.log(`✅ 계정 ${account.first_name} (${account.poolName}) 전송 성공:`, result);
+    console.log(`✅ 계정 ${account.first_name} (${account.poolName}) 채널 전달 성공:`, result);
     
     return {
         success: true,
         account: account.first_name,
         pool: account.poolName,
         group: groupTitle,
-        result: result
+        result: result,
+        method: 'channel_forward'
     };
 }
 
