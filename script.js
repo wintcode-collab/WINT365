@@ -6533,8 +6533,18 @@ function startRealtimeUpdates() {
     // 초기 업데이트는 건너뛰고 기본값 0개로 표시
     // updateGroupStatusRealtime(); // 주석 처리
     
-    // 5분마다 업데이트 (30초 → 5분으로 변경)
-    setInterval(updateGroupStatusRealtime, 300000);
+    // 2분마다 상태 업데이트
+    setInterval(updateGroupStatusRealtime, 120000);
+    
+    // 10분마다 그룹 목록 새로고침 (새로운 그룹 감지)
+    setInterval(async () => {
+        console.log('🔄 주기적 그룹 목록 새로고침');
+        try {
+            await refreshGroups();
+        } catch (error) {
+            console.error('❌ 주기적 그룹 새로고침 실패:', error);
+        }
+    }, 600000); // 10분
 }
 
 

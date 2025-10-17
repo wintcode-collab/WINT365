@@ -307,6 +307,18 @@ def load_telegram_groups_with_session(account_info):
         # 비동기 그룹 로딩 함수
         async def load_groups_async():
             try:
+                # 세션 파일 무효화하여 최신 데이터 강제 로드
+                try:
+                    if os.path.exists(f'{temp_session_file}.session'):
+                        logger.info('🔄 세션 파일 무효화하여 최신 데이터 로드')
+                        # 세션 파일을 삭제하고 새로 생성
+                        os.remove(f'{temp_session_file}.session')
+                        # 임시 세션 파일 다시 생성
+                        with open(f'{temp_session_file}.session', 'wb') as f:
+                            f.write(session_bytes)
+                except Exception as e:
+                    logger.warning(f'⚠️ 세션 파일 무효화 실패 (무시): {e}')
+                
                 # 클라이언트 생성
                 client = TelegramClient(temp_session_file, account_info['api_id'], account_info['api_hash'])
                 logger.info('🔍 텔레그램 클라이언트 생성 완료')
@@ -320,13 +332,37 @@ def load_telegram_groups_with_session(account_info):
                     logger.error('❌ 클라이언트 연결 실패')
                     return None
                 
+                # 연결 후 잠시 대기하여 최신 데이터 동기화
+                import asyncio
+                await asyncio.sleep(1)
+                logger.info('⏳ 연결 후 대기 완료 (최신 데이터 동기화)')
+                
+                # 강제로 대화 목록 새로고침 (새로운 그룹 감지를 위해)
+                try:
+                    logger.info('🔄 대화 목록 강제 새로고침 시작')
+                    # get_dialogs를 여러 번 호출하여 최신 데이터 확보
+                    await client.get_dialogs(limit=None, ignore_migrated=True)
+                    await asyncio.sleep(0.5)
+                    await client.get_dialogs(limit=None, ignore_migrated=True)
+                    logger.info('✅ 대화 목록 강제 새로고침 완료')
+                except Exception as e:
+                    logger.warning(f'⚠️ 대화 목록 새로고침 실패 (무시): {e}')
+                
                 # 그룹 목록 가져오기
                 groups = []
                 
-                # 대화 목록 가져오기 (그룹과 채널만)
+                # 대화 목록 가져오기 (그룹과 채널만) - 캐시 무시하고 최신 데이터 가져오기
                 logger.info('🔍 대화 목록 가져오는 중...')
-                dialogs = await client.get_dialogs()
+                dialogs = await client.get_dialogs(limit=None, ignore_migrated=True)
                 logger.info(f'🔍 총 {len(dialogs)}개의 대화를 찾았습니다.')
+                
+                # 추가로 최신 대화 목록 강제 새로고침
+                try:
+                    logger.info('🔄 대화 목록 강제 새로고침 중...')
+                    await client.get_dialogs(limit=None, ignore_migrated=True, offset_date=None)
+                    logger.info('✅ 대화 목록 새로고침 완료')
+                except Exception as e:
+                    logger.warning(f'⚠️ 대화 목록 새로고침 실패 (무시): {e}')
                 
                 for dialog in dialogs:
                     try:
