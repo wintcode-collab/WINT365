@@ -4850,9 +4850,32 @@ function applyChannelMessageToSelectedAccount() {
             // 메인 화면의 계정별 메시지 설정도 업데이트
             updateMainAccountMessageDisplay(selectedAccountId);
         } else {
-            console.error('❌ 계정 상태 스팬을 찾을 수 없습니다');
-            console.error('❌ 요소의 모든 자식:', accountMessageSetting.children);
-            console.error('❌ 요소의 모든 노드:', accountMessageSetting.childNodes);
+            // 찾은 요소 자체가 스팬이므로 직접 업데이트
+            console.log('🔧 찾은 요소 자체가 스팬이므로 직접 업데이트');
+            accountMessageSetting.textContent = `📢 채널 메시지 선택됨 (${window.selectedChannelMessage.channelTitle})`;
+            accountMessageSetting.style.color = '#3B82F6';
+            
+            // 메시지 데이터 저장 (부모 요소에 저장)
+            const parentElement = accountMessageSetting.parentElement;
+            if (parentElement) {
+                parentElement.dataset.mediaInfo = JSON.stringify({
+                    text: window.selectedChannelMessage.messageData.text,
+                    has_custom_emoji: window.selectedChannelMessage.messageData.has_custom_emoji,
+                    original_message_object: window.selectedChannelMessage.messageData,
+                    channel_title: window.selectedChannelMessage.channelTitle,
+                    channel_id: window.selectedChannelMessage.channelId,
+                    message_id: window.selectedChannelMessage.messageId,
+                    is_channel_forward: true,
+                    media_type: window.selectedChannelMessage.messageData.media_type,
+                    media_info: window.selectedChannelMessage.messageData.media_info
+                });
+                console.log(`✅ 계정 ${selectedAccountId}에 채널 메시지 적용됨 (부모 요소에 저장)`);
+            } else {
+                console.error('❌ 부모 요소를 찾을 수 없습니다');
+            }
+            
+            // 메인 화면의 계정별 메시지 설정도 업데이트
+            updateMainAccountMessageDisplay(selectedAccountId);
         }
     } else {
         console.error('❌ 선택된 계정의 메시지 설정 요소를 찾을 수 없습니다');
