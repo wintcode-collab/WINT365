@@ -4168,6 +4168,14 @@ function clearMessage() {
 async function showSavedMessages() {
     console.log('💾 비공개 채널 목록 표시');
     
+    // 다중 계정 모드인지 확인
+    if (window.multiAccountMode && window.selectedMultiAccounts && window.selectedMultiAccounts.length > 1) {
+        console.log('🔄 다중 계정 모드 - 계정 선택 모달 열기');
+        showAccountSelectionModal(window.selectedMultiAccounts);
+        return;
+    }
+    
+    // 단일 계정 모드 - 기존 모달 열기
     const modal = document.getElementById('savedMessagesModal');
     if (!modal) {
         console.error('❌ 저장된 메시지 모달을 찾을 수 없습니다');
@@ -4184,14 +4192,8 @@ async function showSavedMessages() {
     const content = modal.querySelector('.saved-messages-list');
     if (content) {
         content.innerHTML = `
-            <div class="private-channels-container">
-                <div class="channels-loading" id="channelsLoading" style="text-align: center; padding: 20px;">
-                    <p>📥 비공개 채널 목록을 불러오는 중...</p>
-                    <button id="loadPrivateChannelsBtn" class="btn btn-primary">🔄 비공개 채널 불러오기</button>
-                </div>
-                <div id="privateChannelsList" class="private-channels-list" style="display: none;">
-                    <!-- 비공개 채널 목록이 여기에 표시됩니다 -->
-                </div>
+            <div style="text-align: center; color: #888; padding: 20px;">
+                비공개 채널 목록을 불러오는 중...
             </div>
         `;
     }
@@ -4199,11 +4201,8 @@ async function showSavedMessages() {
     // 모달 표시
     modal.style.display = 'flex';
     
-    // 이벤트 리스너 추가
-    const loadBtn = document.getElementById('loadPrivateChannelsBtn');
-    if (loadBtn) {
-        loadBtn.onclick = loadPrivateChannels;
-    }
+    // 텔레그램 비공개 채널 로드
+    await loadPrivateChannelsForAccount();
     
     // 모달 배경 클릭 시 닫기
     modal.addEventListener('click', (e) => {
@@ -4211,6 +4210,129 @@ async function showSavedMessages() {
             closeSavedMessages();
         }
     });
+}
+
+// 계정별 비공개 채널 로드 (저장된 메시지 방식과 유사)
+async function loadPrivateChannelsForAccount() {
+    console.log('📥 계정별 비공개 채널 로드');
+    
+    try {
+        // 현재 계정 정보 가져오기
+        const accountName = document.getElementById('selectedAccountName').textContent;
+        const accountPhone = document.getElementById('selectedAccountPhone').textContent;
+        
+        console.log('📥 계정 정보:', { accountName, accountPhone });
+        
+        // 계정 ID 가져오기
+        const selectedAccountId = localStorage.getItem('lastSelectedAccount');
+        if (!selectedAccountId) {
+            throw new Error('선택된 계정이 없습니다.');
+        }
+        
+        console.log('📥 선택된 계정 ID:', selectedAccountId);
+        
+        // 비공개 채널 목록 불러오기
+        const response = await fetch('/api/telegram/get-private-channels', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                userId: selectedAccountId
+            })
+        });
+        
+        const result = await response.json();
+        console.log('📥 비공개 채널 목록 불러오기 결과:', result);
+        
+        if (result.success && result.channels) {
+            displayPrivateChannelsForAccount(result.channels);
+        } else {
+            throw new Error(result.error || '비공개 채널 목록을 불러올 수 없습니다.');
+        }
+        
+    } catch (error) {
+        console.error('❌ 비공개 채널 로드 에러:', error);
+        
+        // 에러 메시지 표시
+        const messagesList = document.getElementById('savedMessagesList');
+        if (messagesList) {
+            messagesList.innerHTML = `
+                <div style="text-align: center; color: #ff4444; padding: 20px;">
+                    <h4>❌ 비공개 채널 로드 실패</h4>
+                    <p>${error.message}</p>
+                    <button onclick="loadPrivateChannelsForAccount()" style="
+                        background: #007bff;
+                        color: white;
+                        border: none;
+                        padding: 10px 20px;
+                        border-radius: 5px;
+                        cursor: pointer;
+                        margin-top: 10px;
+                    ">🔄 다시 시도</button>
+                </div>
+            `;
+        }
+    }
+}
+
+// 계정별 비공개 채널 목록 표시
+function displayPrivateChannelsForAccount(channels) {
+    const messagesList = document.getElementById('savedMessagesList');
+    if (!messagesList) return;
+    
+    if (channels.length === 0) {
+        messagesList.innerHTML = `
+            <div style="text-align: center; color: #666; padding: 40px;">
+                <h4>📭 비공개 채널이 없습니다</h4>
+                <p>이 계정이 참여한 비공개 채널이 없습니다.</p>
+                <p>비공개 채널에 참여한 후 다시 시도해주세요.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    messagesList.innerHTML = `
+        <div style="margin-bottom: 15px; padding: 10px; background: #f8f9fa; border-radius: 5px;">
+            <h4 style="margin: 0; color: #495057;">📢 비공개 채널 목록 (${channels.length}개)</h4>
+            <p style="margin: 5px 0 0 0; color: #6c757d; font-size: 14px;">전달할 메시지를 선택할 채널을 클릭하세요</p>
+        </div>
+        <div class="channels-list">
+            ${channels.map(channel => `
+                <div class="channel-item" onclick="selectChannelForMessages('${channel.id}', '${channel.title.replace(/'/g, "\\'")}')" style="
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 15px;
+                    margin-bottom: 10px;
+                    background: white;
+                    border: 1px solid #ddd;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+                " onmouseover="this.style.backgroundColor='#f8f9fa'" onmouseout="this.style.backgroundColor='white'">
+                    <div class="channel-info">
+                        <div class="channel-title" style="font-weight: 600; color: #495057; margin-bottom: 5px;">${channel.title}</div>
+                        <div class="channel-meta" style="font-size: 12px; color: #6c757d;">
+                            <span class="channel-id">ID: ${channel.id}</span>
+                            <span class="channel-participants" style="margin-left: 10px;">👥 ${channel.participants_count}명</span>
+                        </div>
+                    </div>
+                    <div class="channel-action">
+                        <button class="select-channel-btn" style="
+                            background: #007bff;
+                            color: white;
+                            border: none;
+                            padding: 8px 16px;
+                            border-radius: 5px;
+                            font-size: 12px;
+                            cursor: pointer;
+                        ">📥 메시지 선택</button>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
 }
 
 // 비공개 채널 목록 불러오기
