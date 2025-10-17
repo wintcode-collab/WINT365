@@ -4901,7 +4901,29 @@ function updateMainAccountMessageDisplay(accountId) {
             statusSpan.style.color = '#3B82F6';
             console.log('✅ 메인 화면 상태 업데이트 완료');
         } else {
-            console.error('❌ 메인 화면에서 상태 스팬을 찾을 수 없습니다');
+            // 찾은 요소 자체가 스팬이거나 다른 구조일 수 있음
+            console.log('🔧 메인 화면에서 직접 업데이트 시도');
+            console.log('🔍 메인 화면 요소 태그명:', mainAccountSetting.tagName);
+            
+            if (mainAccountSetting.tagName === 'SPAN') {
+                // 요소 자체가 스팬인 경우
+                mainAccountSetting.textContent = `📢 채널 메시지 선택됨 (${window.selectedChannelMessage.channelTitle})`;
+                mainAccountSetting.style.color = '#3B82F6';
+                console.log('✅ 메인 화면 상태 업데이트 완료 (직접 업데이트)');
+            } else {
+                // 다른 구조인 경우 모든 텍스트 노드 확인
+                const textNodes = Array.from(mainAccountSetting.childNodes).filter(node => node.nodeType === Node.TEXT_NODE);
+                console.log('🔍 메인 화면 텍스트 노드들:', textNodes);
+                
+                if (textNodes.length > 0) {
+                    // 첫 번째 텍스트 노드 업데이트
+                    textNodes[0].textContent = `📢 채널 메시지 선택됨 (${window.selectedChannelMessage.channelTitle})`;
+                    mainAccountSetting.style.color = '#3B82F6';
+                    console.log('✅ 메인 화면 상태 업데이트 완료 (텍스트 노드 업데이트)');
+                } else {
+                    console.error('❌ 메인 화면에서 업데이트할 요소를 찾을 수 없습니다');
+                }
+            }
         }
     } else {
         console.error('❌ 메인 화면에서 계정 설정 요소를 찾을 수 없습니다');
