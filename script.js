@@ -5385,6 +5385,21 @@ function clearSavedMessage() {
     // 전역 변수 초기화
     window.selectedMediaInfo = null;
     
+    // 다중계정 모드에서 모든 계정의 메시지 정보도 초기화
+    if (window.multiAccountMode) {
+        const accountMessageElements = document.querySelectorAll('.account-message-setting');
+        accountMessageElements.forEach(element => {
+            const statusSpan = element.querySelector('span[data-account-id]');
+            if (statusSpan) {
+                statusSpan.textContent = '- 저장된 메시지를 선택하세요';
+                statusSpan.style.color = '#888';
+            }
+            // dataset.mediaInfo 초기화
+            element.dataset.mediaInfo = '';
+        });
+        console.log('🗑️ 다중계정 모드: 모든 계정의 메시지 정보 초기화 완료');
+    }
+    
     // 입력칸 초기화 및 활성화
     const messageInput = document.querySelector('.message-input');
     if (messageInput) {
@@ -7181,11 +7196,21 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo, targe
                             const isSavedMessage = !accountMediaInfo.channel_id || 
                                                   accountMediaInfo.channel_id === 'saved_messages' ||
                                                   accountMediaInfo.channel_id === null ||
-                                                  accountMediaInfo.channel_id === undefined;
+                                                  accountMediaInfo.channel_id === undefined ||
+                                                  accountMediaInfo.is_saved_message === true;
                             const isChannelMessage = accountMediaInfo.channel_id && 
                                                     accountMediaInfo.channel_id !== 'saved_messages' &&
                                                     accountMediaInfo.channel_id !== null &&
-                                                    accountMediaInfo.channel_id !== undefined;
+                                                    accountMediaInfo.channel_id !== undefined &&
+                                                    accountMediaInfo.is_saved_message !== true;
+                            
+                            console.log('🔍 메시지 타입 판별 상세:', {
+                                channel_id: accountMediaInfo.channel_id,
+                                is_saved_message: accountMediaInfo.is_saved_message,
+                                is_channel_forward: accountMediaInfo.is_channel_forward,
+                                최종_isSavedMessage: isSavedMessage,
+                                최종_isChannelMessage: isChannelMessage
+                            });
                             
                             const forwardData = {
                                 userId: account.user_id,

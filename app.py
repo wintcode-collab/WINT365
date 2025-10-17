@@ -2690,14 +2690,39 @@ def forward_channel_message():
                             # 채널 메시지 전달 (기존 로직)
                             logger.info(f'📢 채널 메시지 전달: channel_id={channel_id}, message_id={message_id}')
                             try:
-                                # 전달하려는 메시지가 실제로 존재하는지 확인
+                                # 채널 엔티티 확인
+                                channel_entity = await client.get_entity(channel_id)
+                                logger.info(f'📢 채널 엔티티 확인: {channel_entity.title} (ID: {channel_entity.id})')
+                                
+                                # 채널의 메시지 목록 가져오기 (최근 50개)
+                                channel_messages = await client.get_messages(channel_id, limit=50)
+                                logger.info(f'📢 채널 메시지 총 개수: {len(channel_messages)}')
+                                
+                                # 요청한 메시지 ID가 있는지 확인
+                                target_message = None
+                                for msg in channel_messages:
+                                    if msg.id == message_id:
+                                        target_message = msg
+                                        break
+                                
+                                if target_message:
+                                    logger.info(f'📢 채널에서 메시지 확인 성공: ID={message_id}, 실제 ID={target_message.id}')
+                                    logger.info(f'📢 메시지 텍스트 미리보기: {target_message.text[:100] if target_message.text else "None"}...')
+                                    logger.info(f'📢 메시지 날짜: {target_message.date}')
+                                else:
+                                    logger.error(f'❌ 채널에서 메시지 ID {message_id}를 찾을 수 없습니다')
+                                    logger.error(f'❌ 사용 가능한 메시지 ID들: {[msg.id for msg in channel_messages[:10]]}')
+                                
+                                # 기존 방식으로도 확인
                                 test_message = await client.get_messages(channel_id, ids=message_id)
                                 if test_message:
-                                    logger.info(f'📢 전달할 메시지 확인 성공: ID={message_id}, 실제 ID={test_message.id}')
+                                    logger.info(f'📢 get_messages로 확인 성공: ID={message_id}, 실제 ID={test_message.id}')
+                                    logger.info(f'📢 get_messages 텍스트 미리보기: {test_message.text[:100] if test_message.text else "None"}...')
                                     if test_message.id != message_id:
                                         logger.warning(f'⚠️ 메시지 ID 불일치: 요청={message_id}, 실제={test_message.id}')
                                 else:
-                                    logger.error(f'❌ 메시지 ID {message_id}를 찾을 수 없습니다')
+                                    logger.error(f'❌ get_messages로도 메시지 ID {message_id}를 찾을 수 없습니다')
+                                    
                             except Exception as e:
                                 logger.error(f'❌ 메시지 확인 실패: {e}')
                             
@@ -2712,6 +2737,8 @@ def forward_channel_message():
                         if forwarded_messages:
                             forwarded_message = forwarded_messages[0] if isinstance(forwarded_messages, list) else forwarded_messages
                             logger.info(f'✅ 그룹 {group_id}로 메시지 전달 성공: {forwarded_message.id}')
+                            logger.info(f'📢 전달된 메시지 상세: ID={forwarded_message.id}, 텍스트={forwarded_message.text[:100] if forwarded_message.text else "None"}...')
+                            logger.info(f'📢 전달된 메시지 날짜: {forwarded_message.date}')
                             results.append({
                                 'group_id': group_id,
                                 'success': True,
