@@ -2584,9 +2584,57 @@ def forward_channel_message():
                 results = []
                 for group_id in group_ids:
                     try:
+                        # 그룹 ID 처리 (다양한 형식 시도)
+                        group_entity = None
+                        
+                        # 1. 원본 ID로 시도
+                        try:
+                            group_entity = await client.get_entity(int(group_id))
+                            logger.info(f'📢 원본 그룹 ID로 엔티티 찾기 성공: {group_id}')
+                        except Exception as e:
+                            logger.error(f'❌ 원본 그룹 ID로 엔티티 찾기 실패: {e}')
+                        
+                        # 2. 음수 ID로 시도
+                        if not group_entity:
+                            try:
+                                negative_id = -int(group_id)
+                                group_entity = await client.get_entity(negative_id)
+                                logger.info(f'📢 음수 그룹 ID로 엔티티 찾기 성공: {negative_id}')
+                            except Exception as e:
+                                logger.error(f'❌ 음수 그룹 ID로 엔티티 찾기 실패: {e}')
+                        
+                        # 3. 슈퍼그룹을 채널로 변환하여 시도
+                        if not group_entity:
+                            try:
+                                channel_id = int(group_id) + 1000000000000
+                                group_entity = await client.get_entity(channel_id)
+                                logger.info(f'📢 채널 ID로 엔티티 찾기 성공: {channel_id}')
+                            except Exception as e:
+                                logger.error(f'❌ 채널 ID로 엔티티 찾기 실패: {e}')
+                        
+                        # 4. 슈퍼그룹을 채널로 변환한 후 음수로 시도
+                        if not group_entity:
+                            try:
+                                channel_negative_id = -(int(group_id) + 1000000000000)
+                                group_entity = await client.get_entity(channel_negative_id)
+                                logger.info(f'📢 채널 음수 ID로 엔티티 찾기 성공: {channel_negative_id}')
+                            except Exception as e:
+                                logger.error(f'❌ 채널 음수 ID로 엔티티 찾기 실패: {e}')
+                        
+                        if not group_entity:
+                            logger.error(f'❌ 모든 ID 형식으로 그룹 엔티티 찾기 실패: {group_id}')
+                            results.append({
+                                'group_id': group_id,
+                                'success': False,
+                                'error': f'그룹을 찾을 수 없습니다: {group_id}'
+                            })
+                            continue
+                        
+                        logger.info(f'📢 전달할 그룹: {group_entity.title} (ID: {group_entity.id})')
+                        
                         # 메시지 전달
                         forwarded_messages = await client.forward_messages(
-                            entity=group_id,
+                            entity=group_entity,
                             messages=message_id,
                             from_peer=channel_id
                         )
