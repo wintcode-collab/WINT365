@@ -4441,6 +4441,10 @@ def get_channel_messages():
                         raise Exception(f'공개 채널입니다. 비공개 채널만 선택 가능합니다: {channel_username}')
                     
                     logger.info(f'📥 비공개 채널 확인 완료: {channel_entity.title}')
+                    
+                except Exception as e:
+                    logger.error(f'❌ 채널 엔티티 가져오기 실패: {e}')
+                    raise Exception(f'채널을 찾을 수 없습니다: {channel_username}')
                 
                 # 채널 메시지 가져오기
                 messages = []
