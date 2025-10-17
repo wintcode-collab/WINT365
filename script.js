@@ -9317,16 +9317,6 @@ function showChannelMessagesModalForMultiAccount(channelId, channelTitle) {
                 
                 <div id="messagesLoading" style="text-align: center; padding: 20px;">
                     <p style="color: #888;">📥 채널 메시지를 불러오는 중...</p>
-                    <button id="loadChannelMessagesBtn" style="
-                        background: #10B981;
-                        color: white;
-                        border: none;
-                        padding: 10px 20px;
-                        border-radius: 6px;
-                        font-size: 14px;
-                        cursor: pointer;
-                        font-weight: 600;
-                    ">📥 메시지 불러오기</button>
                 </div>
                 
                 <div id="channelMessagesList" style="margin-bottom: 20px; display: none;">
@@ -9351,12 +9341,6 @@ function showChannelMessagesModalForMultiAccount(channelId, channelTitle) {
     
     // 모달창 추가
     document.body.insertAdjacentHTML('beforeend', modalHTML);
-    
-    // 이벤트 리스너 추가
-    const loadBtn = document.getElementById('loadChannelMessagesBtn');
-    if (loadBtn) {
-        loadBtn.onclick = () => loadChannelMessagesForMultiAccount(channelId);
-    }
     
     // 닫기 버튼 이벤트
     document.getElementById('closeChannelModalBtn').addEventListener('click', function() {
@@ -9386,12 +9370,8 @@ async function loadChannelMessagesForMultiAccount(channelId) {
     
     const loadingDiv = document.getElementById('messagesLoading');
     const messagesList = document.getElementById('channelMessagesList');
-    const loadBtn = document.getElementById('loadChannelMessagesBtn');
     
     try {
-        loadBtn.textContent = '⏳ 불러오는 중...';
-        loadBtn.disabled = true;
-        
         console.log('📤 서버로 전송할 데이터:', {
             userId: selectedAccountId,
             channelUsername: channelId,
@@ -9424,9 +9404,6 @@ async function loadChannelMessagesForMultiAccount(channelId) {
     } catch (error) {
         console.error('❌ 채널 메시지 불러오기 에러:', error);
         alert(`❌ 채널 메시지 불러오기 중 오류가 발생했습니다: ${error.message}`);
-    } finally {
-        loadBtn.textContent = '📥 메시지 불러오기';
-        loadBtn.disabled = false;
     }
 }
 

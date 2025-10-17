@@ -44,6 +44,22 @@
       ".read": true,
       ".write": true
     },
+    "channel_messages": {
+      ".read": true,
+      ".write": true
+    },
+    "channel_forwards": {
+      ".read": true,
+      ".write": true
+    },
+    "message_history": {
+      ".read": true,
+      ".write": true
+    },
+    "system_logs": {
+      ".read": true,
+      ".write": true
+    },
     ".read": false,
     ".write": false
   }

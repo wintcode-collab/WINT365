@@ -4387,17 +4387,22 @@ def get_channel_messages():
         # 비동기 함수로 채널 메시지 가져오기
         async def get_messages_async():
             try:
+                logger.info(f'📥 채널 메시지 가져오기 시작: {channel_username}')
+                
                 # 세션 데이터 복원
                 session_b64 = account_info.get('session_data')
                 if not session_b64:
                     raise Exception('세션 데이터 없음')
                 
+                logger.info(f'📥 세션 데이터 복원 완료: {len(session_b64)} bytes')
                 session_bytes = base64.b64decode(session_b64)
                 temp_session_file = f'temp_channel_{user_id}'
                 
                 # 임시 세션 파일 생성
                 with open(f'{temp_session_file}.session', 'wb') as f:
                     f.write(session_bytes)
+                
+                logger.info(f'📥 임시 세션 파일 생성 완료: {temp_session_file}.session')
                 
                 # 클라이언트 생성
                 client = TelegramClient(temp_session_file, account_info['api_id'], account_info['api_hash'])
@@ -4406,13 +4411,17 @@ def get_channel_messages():
                 if not client.is_connected():
                     raise Exception('클라이언트 연결 실패')
                 
+                logger.info(f'📥 클라이언트 연결 성공')
+                
                 # 채널 엔티티 가져오기 (ID 또는 사용자명 모두 지원)
                 try:
                     if channel_username.isdigit() or channel_username.startswith('-'):
                         # 숫자 ID인 경우
+                        logger.info(f'📥 숫자 ID로 채널 엔티티 조회: {channel_username}')
                         channel_entity = await client.get_entity(int(channel_username))
                     else:
                         # 사용자명인 경우
+                        logger.info(f'📥 사용자명으로 채널 엔티티 조회: {channel_username}')
                         channel_entity = await client.get_entity(channel_username)
                     
                     logger.info(f'📥 채널 엔티티 가져오기 성공: {channel_entity.title}')
@@ -4477,18 +4486,27 @@ def get_channel_messages():
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
+            logger.info(f'📥 비동기 함수 실행 시작')
             messages = loop.run_until_complete(get_messages_async())
+            logger.info(f'📥 메시지 가져오기 성공: {len(messages)}개')
             return jsonify({
                 'success': True,
                 'messages': messages,
                 'channel_title': channel_username,
                 'count': len(messages)
             })
+        except Exception as e:
+            logger.error(f'❌ 비동기 함수 실행 중 오류: {e}')
+            logger.error(f'❌ 오류 타입: {type(e)}')
+            logger.error(f'❌ 오류 상세: {str(e)}')
+            raise e
         finally:
             loop.close()
         
     except Exception as e:
         logger.error(f'❌ 채널 메시지 가져오기 API 에러: {e}')
+        logger.error(f'❌ 오류 타입: {type(e)}')
+        logger.error(f'❌ 오류 상세: {str(e)}')
         return jsonify({
             'success': False,
             'error': f'채널 메시지 가져오기 실패: {str(e)}'
