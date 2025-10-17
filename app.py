@@ -2516,6 +2516,95 @@ def save_auto_send_status_to_firebase(user_id, status_data):
 # 계정-그룹 매핑 저장 API
 # ============================================================
 
+@app.route('/api/telegram/forward-channel-message', methods=['POST'])
+@cross_origin(origins=ALLOWED_ORIGINS, methods=['POST','OPTIONS'], allow_headers=['Content-Type','Authorization'], max_age=86400)
+def forward_channel_message():
+    """채널 메시지를 그룹으로 전달"""
+    try:
+        data = request.get_json()
+        user_id = data.get('userId')
+        channel_username = data.get('channelUsername')  # 채널 ID 또는 username
+        message_id = data.get('messageId')
+        group_ids = data.get('groupIds', [])
+        
+        if not all([user_id, channel_username, message_id, group_ids]):
+            return jsonify({'success': False, 'error': '필수 파라미터 누락'}), 400
+        
+        logger.info(f'📢 채널 메시지 전달 요청: 계정={user_id}, 채널={channel_username}, 메시지={message_id}, 그룹={len(group_ids)}개')
+        
+        # 계정 정보 가져오기
+        account = await get_account_from_firebase(user_id)
+        if not account:
+            return jsonify({'success': False, 'error': '계정 정보를 찾을 수 없습니다'}), 404
+        
+        # Telethon 클라이언트 생성
+        client = await create_telethon_client(account)
+        
+        try:
+            # 채널 ID 처리 (음수로 변환)
+            if isinstance(channel_username, str) and channel_username.isdigit():
+                channel_id = int(f"-100{channel_username}")
+            else:
+                channel_id = channel_username
+            
+            logger.info(f'📢 전달할 채널 ID: {channel_id}')
+            
+            # 각 그룹으로 메시지 전달
+            results = []
+            for group_id in group_ids:
+                try:
+                    # 메시지 전달
+                    forwarded_messages = await client.forward_messages(
+                        entity=group_id,
+                        messages=message_id,
+                        from_peer=channel_id
+                    )
+                    
+                    if forwarded_messages:
+                        forwarded_message = forwarded_messages[0] if isinstance(forwarded_messages, list) else forwarded_messages
+                        logger.info(f'✅ 그룹 {group_id}로 메시지 전달 성공: {forwarded_message.id}')
+                        results.append({
+                            'group_id': group_id,
+                            'success': True,
+                            'message_id': forwarded_message.id
+                        })
+                    else:
+                        logger.warning(f'⚠️ 그룹 {group_id}로 전달 실패')
+                        results.append({
+                            'group_id': group_id,
+                            'success': False,
+                            'error': '전달 실패'
+                        })
+                        
+                except Exception as e:
+                    logger.error(f'❌ 그룹 {group_id} 전달 에러: {str(e)}')
+                    results.append({
+                        'group_id': group_id,
+                        'success': False,
+                        'error': str(e)
+                    })
+            
+            await client.disconnect()
+            
+            success_count = sum(1 for r in results if r['success'])
+            logger.info(f'📢 전달 완료: {success_count}/{len(group_ids)}개 그룹 성공')
+            
+            return jsonify({
+                'success': True,
+                'results': results,
+                'success_count': success_count,
+                'total_count': len(group_ids)
+            })
+            
+        except Exception as e:
+            await client.disconnect()
+            logger.error(f'❌ 채널 메시지 전달 실패: {str(e)}')
+            return jsonify({'success': False, 'error': str(e)}), 500
+            
+    except Exception as e:
+        logger.error(f'❌ 채널 메시지 전달 API 에러: {str(e)}')
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/api/account-group-mapping/save', methods=['POST'])
 @cross_origin(origins=ALLOWED_ORIGINS, methods=['POST','OPTIONS'], allow_headers=['Content-Type','Authorization'], max_age=86400)
 def save_account_group_mapping():
