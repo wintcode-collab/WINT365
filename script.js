@@ -9542,13 +9542,42 @@ function displayChannelMessagesForMultiAccount(messages, channelTitle) {
                 i.style.backgroundColor = 'linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%)';
                 i.style.transform = 'translateY(0)';
                 i.style.boxShadow = 'none';
+                i.style.borderWidth = '1px';
+                // 선택 표시 제거
+                const checkIcon = i.querySelector('.selection-check');
+                if (checkIcon) {
+                    checkIcon.remove();
+                }
             });
             
-            // 현재 아이템 선택 상태로 변경
+            // 현재 아이템 선택 상태로 변경 (더 명확한 시각적 피드백)
             this.style.borderColor = '#10B981';
+            this.style.borderWidth = '3px';
             this.style.backgroundColor = 'linear-gradient(135deg, #1F2937 0%, #374151 100%)';
-            this.style.transform = 'translateY(-2px)';
-            this.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.15)';
+            this.style.transform = 'translateY(-3px)';
+            this.style.boxShadow = '0 6px 20px rgba(16, 185, 129, 0.3)';
+            
+            // 선택 표시 아이콘 추가
+            const checkIcon = document.createElement('div');
+            checkIcon.className = 'selection-check';
+            checkIcon.innerHTML = '✅';
+            checkIcon.style.cssText = `
+                position: absolute;
+                top: 10px;
+                right: 10px;
+                background: #10B981;
+                color: white;
+                border-radius: 50%;
+                width: 24px;
+                height: 24px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 12px;
+                z-index: 10;
+            `;
+            this.style.position = 'relative';
+            this.appendChild(checkIcon);
             
             // 선택된 메시지 정보 저장
             try {
@@ -9577,19 +9606,23 @@ function displayChannelMessagesForMultiAccount(messages, channelTitle) {
             console.log('📝 메시지 선택됨:', window.selectedChannelMessageForMultiAccount);
         });
         
-        // 호버 효과
+        // 호버 효과 (선택되지 않은 메시지만)
         item.addEventListener('mouseenter', function() {
-            if (!this.style.borderColor.includes('10B981')) { // 선택되지 않은 경우만
+            const isSelected = this.querySelector('.selection-check');
+            if (!isSelected) { // 선택되지 않은 경우만
                 this.style.borderColor = '#10B981';
+                this.style.borderWidth = '2px';
                 this.style.backgroundColor = 'linear-gradient(135deg, #374151 0%, #4B5563 100%)';
-                this.style.transform = 'translateY(-1px)';
-                this.style.boxShadow = '0 2px 8px rgba(16, 185, 129, 0.1)';
+                this.style.transform = 'translateY(-2px)';
+                this.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.2)';
             }
         });
         
         item.addEventListener('mouseleave', function() {
-            if (!this.style.borderColor.includes('10B981')) { // 선택되지 않은 경우만
+            const isSelected = this.querySelector('.selection-check');
+            if (!isSelected) { // 선택되지 않은 경우만
                 this.style.borderColor = '#444';
+                this.style.borderWidth = '1px';
                 this.style.backgroundColor = 'linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%)';
                 this.style.transform = 'translateY(0)';
                 this.style.boxShadow = 'none';
