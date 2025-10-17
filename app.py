@@ -4415,57 +4415,92 @@ def get_channel_messages():
                 
                 # 채널 엔티티 가져오기 (ID 또는 사용자명 모두 지원)
                 try:
-                    if channel_username.isdigit() or channel_username.startswith('-'):
-                        # 숫자 ID인 경우
+                    # 채널 ID가 숫자인지 확인 (매우 큰 숫자도 처리)
+                    try:
+                        channel_id_int = int(channel_username)
                         logger.info(f'📥 숫자 ID로 채널 엔티티 조회: {channel_username}')
-                        channel_entity = await client.get_entity(int(channel_username))
-                    else:
-                        # 사용자명인 경우
+                        channel_entity = await client.get_entity(channel_id_int)
+                    except ValueError:
+                        # 숫자가 아닌 경우 사용자명으로 처리
                         logger.info(f'📥 사용자명으로 채널 엔티티 조회: {channel_username}')
                         channel_entity = await client.get_entity(channel_username)
                     
                     logger.info(f'📥 채널 엔티티 가져오기 성공: {channel_entity.title}')
-                except Exception as e:
-                    logger.error(f'❌ 채널 엔티티 가져오기 실패: {e}')
-                    raise Exception(f'채널을 찾을 수 없습니다: {channel_username}')
+                    
+                    # 채널 타입 확인 (비공개 채널만 허용)
+                    entity_type = str(type(channel_entity).__name__)
+                    logger.info(f'📥 채널 엔티티 타입: {entity_type}')
+                    
+                    if 'Channel' not in entity_type:
+                        raise Exception(f'채널이 아닙니다: {channel_username} (타입: {entity_type})')
+                    
+                    if hasattr(channel_entity, 'megagroup') and channel_entity.megagroup:
+                        raise Exception(f'그룹입니다. 채널만 선택 가능합니다: {channel_username}')
+                    
+                    if hasattr(channel_entity, 'username') and channel_entity.username:
+                        raise Exception(f'공개 채널입니다. 비공개 채널만 선택 가능합니다: {channel_username}')
+                    
+                    logger.info(f'📥 비공개 채널 확인 완료: {channel_entity.title}')
                 
                 # 채널 메시지 가져오기
                 messages = []
-                async for message in client.iter_messages(channel_entity, limit=limit):
-                    if message.text:  # 텍스트가 있는 메시지만
-                        message_data = {
-                            'id': message.id,
-                            'text': message.text,
-                            'date': message.date.isoformat(),
-                            'from_id': str(getattr(message, 'from_id', None)) if getattr(message, 'from_id', None) else None,
-                            'peer_id': str(getattr(message, 'peer_id', None)) if getattr(message, 'peer_id', None) else None,
-                            'has_custom_emoji': False,
-                            'custom_emoji_entities': [],
-                            'entities': []
-                        }
-                        
-                        # 커스텀 이모지 엔티티 처리
-                        if message.entities:
-                            for entity in message.entities:
-                                entity_class_name = str(entity.__class__)
-                                if 'CustomEmoji' in entity_class_name:
-                                    message_data['has_custom_emoji'] = True
-                                    message_data['custom_emoji_entities'].append({
-                                        'offset': entity.offset,
-                                        'length': entity.length,
-                                        'type': entity_class_name,
-                                        'document_id': getattr(entity, 'document_id', None)
-                                    })
+                logger.info(f'📥 채널 메시지 반복 조회 시작: {limit}개')
+                
+                try:
+                    message_count = 0
+                    async for message in client.iter_messages(channel_entity, limit=limit):
+                        try:
+                            if message.text:  # 텍스트가 있는 메시지만
+                                message_data = {
+                                    'id': message.id,
+                                    'text': message.text,
+                                    'date': message.date.isoformat(),
+                                    'from_id': str(getattr(message, 'from_id', None)) if getattr(message, 'from_id', None) else None,
+                                    'peer_id': str(getattr(message, 'peer_id', None)) if getattr(message, 'peer_id', None) else None,
+                                    'has_custom_emoji': False,
+                                    'custom_emoji_entities': [],
+                                    'entities': []
+                                }
                                 
-                                # 모든 엔티티 정보 저장
-                                message_data['entities'].append({
-                                    'offset': entity.offset,
-                                    'length': entity.length,
-                                    'type': entity_class_name,
-                                    'document_id': getattr(entity, 'document_id', None)
-                                })
-                        
-                        messages.append(message_data)
+                                # 커스텀 이모지 엔티티 처리
+                                if message.entities:
+                                    for entity in message.entities:
+                                        try:
+                                            entity_class_name = str(entity.__class__)
+                                            if 'CustomEmoji' in entity_class_name:
+                                                message_data['has_custom_emoji'] = True
+                                                message_data['custom_emoji_entities'].append({
+                                                    'offset': entity.offset,
+                                                    'length': entity.length,
+                                                    'type': entity_class_name,
+                                                    'document_id': getattr(entity, 'document_id', None)
+                                                })
+                                            
+                                            # 모든 엔티티 정보 저장
+                                            message_data['entities'].append({
+                                                'offset': entity.offset,
+                                                'length': entity.length,
+                                                'type': entity_class_name,
+                                                'document_id': getattr(entity, 'document_id', None)
+                                            })
+                                        except Exception as entity_error:
+                                            logger.warning(f'⚠️ 엔티티 처리 중 오류: {entity_error}')
+                                
+                                messages.append(message_data)
+                                message_count += 1
+                                
+                                if message_count % 10 == 0:
+                                    logger.info(f'📥 메시지 처리 중: {message_count}개')
+                                    
+                        except Exception as message_error:
+                            logger.warning(f'⚠️ 메시지 처리 중 오류: {message_error}')
+                            continue
+                    
+                    logger.info(f'📥 메시지 가져오기 완료: {len(messages)}개')
+                    
+                except Exception as iter_error:
+                    logger.error(f'❌ 메시지 반복 조회 중 오류: {iter_error}')
+                    raise Exception(f'메시지 가져오기 실패: {str(iter_error)}')
                 
                 await client.disconnect()
                 
