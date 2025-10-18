@@ -3821,7 +3821,7 @@ def start_auto_send_job(user_id, group_ids, message, media_info=None, settings=N
         }
         
         # Firebase에 자동전송 상태 저장(선반영)
-        save_auto_send_status_to_firebase(user_id, {
+        status_data = {
             'is_active': True,
             'is_running': True,  # 자동전송 실행 상태 추가
             'group_ids': group_ids,
@@ -3831,7 +3831,15 @@ def start_auto_send_job(user_id, group_ids, message, media_info=None, settings=N
             'job_id': job_id,
             'last_send_times': {group_id: None for group_id in group_ids},  # 각 그룹별 마지막 전송 시간
             'settings': settings  # 자동전송 설정 정보 포함
-        })
+        }
+        
+        logger.info(f'🔥 Firebase에 저장할 자동전송 상태 데이터: {status_data}')
+        firebase_result = save_auto_send_status_to_firebase(user_id, status_data)
+        
+        if firebase_result:
+            logger.info(f'✅ Firebase 자동전송 상태 저장 성공: {user_id}')
+        else:
+            logger.error(f'❌ Firebase 자동전송 상태 저장 실패: {user_id}')
 
         def job():
             execute_auto_send_job(user_id, group_ids, message, media_info)
@@ -4340,14 +4348,17 @@ def start_auto_send():
                 logger.error(f'❌ 자동전송 설정 Firebase 저장 실패: {e}')
         
         # 자동전송 작업 시작
+        logger.info(f'🚀 자동전송 작업 시작 호출: user_id={user_id}, group_ids={group_ids}, message_length={len(message)}, has_media={bool(media_info)}')
         result = start_auto_send_job(user_id, group_ids, message, media_info, settings)
         
         if result:
+            logger.info(f'✅ 자동전송 작업 시작 성공: {user_id}')
             return jsonify({
                 'success': True,
                 'message': '자동전송이 시작되었습니다.'
             })
         else:
+            logger.error(f'❌ 자동전송 작업 시작 실패: {user_id}')
             return jsonify({
                 'success': False,
                 'error': '자동전송 시작에 실패했습니다.'

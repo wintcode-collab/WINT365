@@ -2015,11 +2015,22 @@ function showAccountList(accounts) {
                 }
             }, 100);
             
-            updateAutoSendSettingsDisplay();
-            updateSendButtonText();
-            // 서버 자동전송 상태로 토글/버튼 동기화 + 단기 재동기화 폴링
-            restoreAutoSendStatusFor(account.user_id);
-            startPostRestoreSync(account.user_id);
+                updateAutoSendSettingsDisplay();
+                updateSendButtonText();
+                // 서버 자동전송 상태로 토글/버튼 동기화 + 단기 재동기화 폴링
+                restoreAutoSendStatusFor(account.user_id);
+                startPostRestoreSync(account.user_id);
+                
+                // 계정 선택 후 자동전송 상태 복원
+                setTimeout(async () => {
+                    try {
+                        console.log('🔄 계정 선택 후 자동전송 상태 복원 시작');
+                        await restoreAutoSendStatusFor(account.user_id);
+                        console.log('✅ 계정 선택 후 자동전송 상태 복원 완료');
+                    } catch (error) {
+                        console.error('❌ 계정 선택 후 자동전송 상태 복원 실패:', error);
+                    }
+                }, 2000);
         }
     });
     
@@ -3383,6 +3394,17 @@ function showTelegramGroupsWindow(groups, account) {
         if (account?.user_id) {
             restoreAutoSendStatusFor(account.user_id);
             startPostRestoreSync(account.user_id);
+            
+            // 다중 계정 모드에서도 자동전송 상태 복원
+            setTimeout(async () => {
+                try {
+                    console.log('🔄 다중 계정 모드 자동전송 상태 복원 시작');
+                    await restoreAutoSendStatusFor(account.user_id);
+                    console.log('✅ 다중 계정 모드 자동전송 상태 복원 완료');
+                } catch (error) {
+                    console.error('❌ 다중 계정 모드 자동전송 상태 복원 실패:', error);
+                }
+            }, 2000);
         }
         
         // 자동전송 상태 주기적 업데이트 시작
@@ -7164,6 +7186,15 @@ async function restoreAutoSendStatusFor(userId) {
         const localStatusRestored = restoreAutoSendStatusFromLocalStorage();
         if (localStatusRestored) {
             console.log('✅ localStorage에서 자동전송 상태 복원 완료');
+            // localStorage에서 복원된 경우 서버 상태와 동기화
+            setTimeout(async () => {
+                try {
+                    await restoreAutoSendStatusFor(userId);
+                    console.log('✅ 서버 상태와 동기화 완료');
+                } catch (error) {
+                    console.error('❌ 서버 상태 동기화 실패:', error);
+                }
+            }, 1000);
             return;
         }
         const resp = await fetch(`${getApiBaseUrl()}/api/auto-send/status`, {
@@ -7625,7 +7656,15 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo, targe
             userId: autoSendData.userId,
             group_ids: autoSendData.group_ids,
             message: autoSendData.message,
-            media_info: autoSendData.media_info
+            media_info: autoSendData.media_info,
+            settings: autoSendData.settings
+        });
+        console.log('📤 자동전송 데이터 상세:', {
+            userId: autoSendData.userId,
+            group_ids_count: autoSendData.group_ids.length,
+            message_length: autoSendData.message.length,
+            has_media: !!autoSendData.media_info,
+            settings: autoSendData.settings
         });
         
         // 커스텀 이모지가 있는 경우 원본 메시지 객체 전체를 전송
@@ -7655,6 +7694,9 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo, targe
         });
         
         const autoSendResult = await autoSendResponse.json();
+        
+        console.log('📥 서버 응답 상태:', autoSendResponse.status);
+        console.log('📥 서버 응답 데이터:', autoSendResult);
         
         if (autoSendResponse.ok && autoSendResult.success) {
             console.log('✅ 자동전송 시작 성공:', autoSendResult);
@@ -7827,6 +7869,15 @@ async function restoreAutoSendStatusOnLoad() {
         const localStatusRestored = restoreAutoSendStatusFromLocalStorage();
         if (localStatusRestored) {
             console.log('✅ localStorage에서 자동전송 상태 복원 완료');
+            // localStorage에서 복원된 경우 서버 상태와 동기화
+            setTimeout(async () => {
+                try {
+                    await restoreAutoSendStatusFor(lastUserId);
+                    console.log('✅ 서버 상태와 동기화 완료');
+                } catch (error) {
+                    console.error('❌ 서버 상태 동기화 실패:', error);
+                }
+            }, 1000);
             return;
         }
         
