@@ -4809,12 +4809,23 @@ function displayChannelMessages(messages, channelTitle) {
 function selectChannelMessage(messageId, channelTitle, messageData, channelId) {
     console.log('✅ 채널 메시지 선택:', { messageId, channelTitle, messageData, channelId });
     
+    // 메시지 데이터 파싱
+    const parsedMessageData = JSON.parse(messageData.replace(/&quot;/g, '"'));
+    
+    // 원본 텍스트와 엔티티를 분리하여 저장 (HTML 태그 제거)
+    const originalText = parsedMessageData.text || '';
+    const entities = parsedMessageData.entities || [];
+    
     // 선택된 메시지 정보를 전역 변수에 저장
     window.selectedChannelMessage = {
         messageId: parseInt(messageId),
         channelTitle: channelTitle,
         channelId: channelId, // 직접 전달받은 채널 ID 사용
-        messageData: JSON.parse(messageData.replace(/&quot;/g, '"'))
+        messageData: {
+            ...parsedMessageData,
+            text: originalText, // 원본 텍스트 사용 (HTML 태그 없음)
+            entities: entities   // 엔티티 정보 유지
+        }
     };
     
     // 모든 계정에 선택된 메시지 정보 적용
@@ -5903,6 +5914,24 @@ function setupAutoSendEventListeners() {
     
     // 입력창 자동 크기 조절
     setupAutoResizeInputs();
+    
+    // 풀간 전송 간격 설정 이벤트 리스너 (항상 활성화)
+    const poolIntervalDelayElement = document.getElementById('poolIntervalDelay');
+    if (poolIntervalDelayElement) {
+        poolIntervalDelayElement.addEventListener('input', function() {
+            // 실시간 전체주기 업데이트
+            updatePoolSystemCycleTime();
+        });
+        
+        poolIntervalDelayElement.addEventListener('change', function() {
+            const delay = parseInt(this.value) || 2;
+            console.log(`⏰ 풀간 간격 설정 변경: ${delay}분`);
+            // 실시간 저장
+            savePoolSettings();
+            // 전체주기 업데이트
+            updatePoolSystemCycleTime();
+        });
+    }
 }
 
 // 자동 전송 설정 모달 표시
@@ -5921,6 +5950,31 @@ async function showAutoSendSettingsModal() {
         
         // 그룹간 전송간격 실시간 업데이트 이벤트 리스너 설정
         setupGroupIntervalRealtimeUpdate();
+        
+        // 풀간 전송 간격 설정 이벤트 리스너 설정 (모달 열릴 때마다)
+        const poolIntervalDelayElement = document.getElementById('poolIntervalDelay');
+        if (poolIntervalDelayElement) {
+            // 기존 이벤트 리스너 제거 (중복 방지)
+            poolIntervalDelayElement.removeEventListener('input', updatePoolSystemCycleTime);
+            poolIntervalDelayElement.removeEventListener('change', updatePoolSystemCycleTime);
+            
+            poolIntervalDelayElement.addEventListener('input', function() {
+                // 실시간 전체주기 업데이트
+                updatePoolSystemCycleTime();
+            });
+            
+            poolIntervalDelayElement.addEventListener('change', function() {
+                const delay = parseInt(this.value) || 2;
+                console.log(`⏰ 풀간 간격 설정 변경: ${delay}분`);
+                // 실시간 저장
+                savePoolSettings();
+                // 전체주기 업데이트
+                updatePoolSystemCycleTime();
+            });
+        }
+        
+        // 초기 전체 주기 시간 업데이트
+        updatePoolSystemCycleTime();
     }
 }
 
@@ -10373,12 +10427,20 @@ function displayChannelMessagesForMultiAccount(messages, channelTitle) {
 function selectChannelMessageForMultiAccount(messageId, channelTitle, messageData) {
     console.log('✅ 다중 계정용 채널 메시지 선택:', { messageId, channelTitle, messageData });
     
+    // 원본 텍스트와 엔티티를 분리하여 저장 (HTML 태그 제거)
+    const originalText = messageData.text || '';
+    const entities = messageData.entities || [];
+    
     // 선택된 메시지 정보를 전역 변수에 저장
     window.selectedChannelMessage = {
         messageId: parseInt(messageId),
         channelTitle: channelTitle,
         channelId: window.selectedChannelId,
-        messageData: messageData // 이미 객체이므로 파싱 불필요
+        messageData: {
+            ...messageData,
+            text: originalText, // 원본 텍스트 사용 (HTML 태그 없음)
+            entities: entities   // 엔티티 정보 유지
+        }
     };
     
     // 선택된 계정에 선택된 메시지 정보 적용
