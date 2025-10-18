@@ -2090,6 +2090,12 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                 # 메시지 전송 (미디어 포함)
                 logger.info(f'📤 메시지 전송 중: 그룹={group_entity.title}, 메시지={message[:50] if message else "None"}...')
                 
+                # 엔티티 정보가 있는지 확인
+                entities_data = data.get('entities', [])
+                has_entities = data.get('has_entities', False)
+                logger.info(f'📤 엔티티 정보: {entities_data}')
+                logger.info(f'📤 엔티티 있음: {has_entities}')
+                
                 # 원본 메시지 객체가 있는지 확인 (최우선 처리)
                 if media_info and media_info.get('original_message_object'):
                     # 원본 메시지 객체로 전송
@@ -2100,9 +2106,11 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                     # 원본 텍스트 사용
                     original_text = original_obj.get('text', message or '')
                     original_message_id = original_obj.get('id', 1)
+                    original_entities = original_obj.get('entities', [])
                     
                     logger.info(f'📤 원본 텍스트: {original_text}')
                     logger.info(f'📤 원본 메시지 ID: {original_message_id}')
+                    logger.info(f'📤 원본 엔티티: {original_entities}')
                     
                     # 🚀 최종 해결책: 원본 메시지 직접 전달
                     try:
@@ -2111,9 +2119,6 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                         # 자신의 저장된 메시지에서 원본 메시지를 직접 전달
                         me = await client.get_me()
                         logger.info(f'📤 자신의 저장된 메시지에서 전달: {me.id}')
-                        
-                        # InputPeerSelf import
-                        from telethon.tl.types import InputPeerSelf
                         
                         # InputPeerSelf import
                         from telethon.tl.types import InputPeerSelf
@@ -2134,12 +2139,35 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                         
                     except Exception as e:
                         logger.error(f'❌ 원본 메시지 직접 전달 실패: {e}')
-                        logger.info('📤 백업: 원본 텍스트 전송')
+                        logger.info('📤 백업: 엔티티 정보와 함께 원본 텍스트 전송')
                         
-                        # 백업: 원본 텍스트 전송
+                        # 백업: 엔티티 정보와 함께 원본 텍스트 전송
                         if original_text:
-                            sent_message = await client.send_message(group_entity, original_text)
-                            logger.info(f'✅ 백업 성공: 원본 텍스트 전송 완료: {sent_message.id}')
+                            # 엔티티 정보가 있으면 파싱해서 전송
+                            if original_entities:
+                                logger.info('📤 엔티티 정보와 함께 메시지 전송')
+                                # 엔티티 정보를 텔레그램 엔티티 객체로 변환
+                                from telethon.tl.types import MessageEntityMention, MessageEntityTextUrl
+                                
+                                entities = []
+                                for entity_data in original_entities:
+                                    if entity_data.get('type') == 'mention':
+                                        entities.append(MessageEntityMention(
+                                            offset=entity_data.get('offset', 0),
+                                            length=entity_data.get('length', 0)
+                                        ))
+                                    elif entity_data.get('type') == 'text_link':
+                                        entities.append(MessageEntityTextUrl(
+                                            offset=entity_data.get('offset', 0),
+                                            length=entity_data.get('length', 0),
+                                            url=entity_data.get('url', '')
+                                        ))
+                                
+                                sent_message = await client.send_message(group_entity, original_text, formatting_entities=entities)
+                                logger.info(f'✅ 백업 성공: 엔티티 정보와 함께 원본 텍스트 전송 완료: {sent_message.id}')
+                            else:
+                                sent_message = await client.send_message(group_entity, original_text)
+                                logger.info(f'✅ 백업 성공: 원본 텍스트 전송 완료: {sent_message.id}')
                         else:
                             logger.warning('⚠️ 원본 텍스트가 없어서 전송할 수 없습니다.')
                 
@@ -2188,12 +2216,35 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                         
                     except Exception as e:
                         logger.error(f'❌ 원본 메시지 직접 전달 실패: {e}')
-                        logger.info('📤 백업: 단순 텍스트 전송')
+                        logger.info('📤 백업: 엔티티 정보와 함께 원본 텍스트 전송')
                         
-                        # 백업: 단순 텍스트 전송
+                        # 백업: 엔티티 정보와 함께 원본 텍스트 전송
                         if original_text:
-                            sent_message = await client.send_message(group_entity, original_text)
-                            logger.info(f'✅ 백업 성공: 단순 텍스트 전송 완료: {sent_message.id}')
+                            # 엔티티 정보가 있으면 파싱해서 전송
+                            if original_entities:
+                                logger.info('📤 엔티티 정보와 함께 메시지 전송')
+                                # 엔티티 정보를 텔레그램 엔티티 객체로 변환
+                                from telethon.tl.types import MessageEntityMention, MessageEntityTextUrl
+                                
+                                entities = []
+                                for entity_data in original_entities:
+                                    if entity_data.get('type') == 'mention':
+                                        entities.append(MessageEntityMention(
+                                            offset=entity_data.get('offset', 0),
+                                            length=entity_data.get('length', 0)
+                                        ))
+                                    elif entity_data.get('type') == 'text_link':
+                                        entities.append(MessageEntityTextUrl(
+                                            offset=entity_data.get('offset', 0),
+                                            length=entity_data.get('length', 0),
+                                            url=entity_data.get('url', '')
+                                        ))
+                                
+                                sent_message = await client.send_message(group_entity, original_text, formatting_entities=entities)
+                                logger.info(f'✅ 백업 성공: 엔티티 정보와 함께 원본 텍스트 전송 완료: {sent_message.id}')
+                            else:
+                                sent_message = await client.send_message(group_entity, original_text)
+                                logger.info(f'✅ 백업 성공: 원본 텍스트 전송 완료: {sent_message.id}')
                         else:
                             logger.warning('⚠️ 원본 텍스트가 없어서 전송할 수 없습니다.')
                 
@@ -2396,7 +2447,31 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                     # 텍스트만 전송
                     logger.info('📤 텍스트만 전송')
                     if message:
-                        await client.send_message(group_entity, message)
+                        # 엔티티 정보가 있으면 파싱해서 전송
+                        if has_entities and entities_data:
+                            logger.info('📤 엔티티 정보와 함께 텍스트 전송')
+                            # 엔티티 정보를 텔레그램 엔티티 객체로 변환
+                            from telethon.tl.types import MessageEntityMention, MessageEntityTextUrl
+                            
+                            entities = []
+                            for entity_data in entities_data:
+                                if entity_data.get('type') == 'mention':
+                                    entities.append(MessageEntityMention(
+                                        offset=entity_data.get('offset', 0),
+                                        length=entity_data.get('length', 0)
+                                    ))
+                                elif entity_data.get('type') == 'text_link':
+                                    entities.append(MessageEntityTextUrl(
+                                        offset=entity_data.get('offset', 0),
+                                        length=entity_data.get('length', 0),
+                                        url=entity_data.get('url', '')
+                                    ))
+                            
+                            await client.send_message(group_entity, message, formatting_entities=entities)
+                            logger.info('✅ 엔티티 정보와 함께 텍스트 전송 완료')
+                        else:
+                            await client.send_message(group_entity, message)
+                            logger.info('✅ 일반 텍스트 전송 완료')
                     else:
                         logger.warning('⚠️ 메시지가 없어서 전송할 수 없습니다.')
                 
@@ -4204,6 +4279,10 @@ def start_auto_send():
         bypass_text_processing = data.get('bypass_text_processing', False)
         send_as_original = data.get('send_as_original', False)
         
+        # 엔티티 정보 처리
+        entities_data = data.get('entities', [])
+        has_entities = data.get('has_entities', False)
+        
         if original_message_object:
             logger.info('🔥 자동전송 커스텀 이모지 원본 메시지 객체 감지')
             logger.info(f'🔥 원본 메시지 객체: {original_message_object}')
@@ -4214,6 +4293,15 @@ def start_auto_send():
             media_info['is_original_message'] = is_original_message
             media_info['bypass_text_processing'] = bypass_text_processing
             media_info['send_as_original'] = send_as_original
+        
+        # 엔티티 정보가 있으면 media_info에 추가
+        if has_entities and entities_data:
+            logger.info('🔥 자동전송 엔티티 정보 감지')
+            logger.info(f'🔥 엔티티 정보: {entities_data}')
+            if not media_info:
+                media_info = {}
+            media_info['entities'] = entities_data
+            media_info['has_entities'] = has_entities
         
         logger.info(f'🚀 자동전송 시작 요청: account_name={account_name}, group_ids={group_ids}')
         
