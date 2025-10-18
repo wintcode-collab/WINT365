@@ -3578,11 +3578,373 @@ def auto_recover_session(user_id):
         logger.error(f'❌ 세션 자동 복구 에러: {user_id} - {e}')
         return False
 
-# 개별 계정 자동전송 함수들 제거됨 - 통합 풀시스템 사용
+def execute_auto_send_job(user_id, group_ids, message, media_info=None):
+    """자동전송 작업 실행"""
+    try:
+        logger.info(f'🤖 자동전송 작업 시작: {user_id}')
+        # 안전 가드: OFF 상태면 즉시 중단 (더 관대한 조건)
+        try:
+            status_guard = get_auto_send_status_from_firebase(user_id)
+            logger.info(f'🔍 Firebase 상태 확인: {status_guard}')
+            
+            # is_running이 명시적으로 false인 경우만 중단
+            if status_guard and status_guard.get('is_running') == False:
+                logger.info(f'⛔ 자동전송 명시적 중지 상태 감지, 실행 중단: {user_id}')
+                # 메모리에서도 작업 제거
+                if user_id in auto_send_jobs:
+                    del auto_send_jobs[user_id]
+                if f'{user_id}_repeats' in auto_send_jobs:
+                    del auto_send_jobs[f'{user_id}_repeats']
+                return False
+            else:
+                logger.info(f'✅ 자동전송 상태 확인 통과, 계속 실행: {user_id}')
+        except Exception as _e:
+            logger.error(f'⛔ 상태 가드 확인 실패(계속 시도): {user_id} - {_e}')
+        
+        # 계정 정보 조회
+        account_info = get_account_from_firebase(user_id)
+        if not account_info:
+            logger.error(f'❌ 자동전송 실패: 계정 정보 없음 - {user_id}')
+            return False
+        
+        # 설정 조회
+        settings = get_auto_send_settings_from_firebase(user_id)
+        if not settings:
+            logger.error(f'❌ 자동전송 실패: 설정 없음 - {user_id}')
+            return False
+        
+        # Firebase에서 저장된 자동전송 상태 조회 (media_info 포함)
+        status_data = get_auto_send_status_from_firebase(user_id)
+        if status_data:
+            # Firebase에 저장된 media_info가 있으면 우선 사용 (커스텀 이모지 원본 객체 포함)
+            if status_data.get('media_info'):
+                media_info = status_data.get('media_info')
+                logger.info(f'🔥 Firebase에서 저장된 media_info 사용: {media_info}')
+                # 메시지도 Firebase에서 가져온 것으로 업데이트
+                if status_data.get('message'):
+                    message = status_data.get('message')
+                    logger.info(f'🔥 Firebase에서 저장된 message 사용: {message}')
+        
+        group_interval = settings.get('groupInterval', 30)  # 초 단위
+        max_repeats = settings.get('maxRepeats', 10)
+        
+        # 계정 로테이션 설정 확인
+        account_rotation = settings.get('accountRotation')
+        rotation_enabled = account_rotation and account_rotation.get('enabled', False) if account_rotation else False
+        rotation_accounts = account_rotation.get('selectedAccounts', []) if account_rotation else []
+        rotation_interval = account_rotation.get('groupSendInterval', 15) if account_rotation else 15  # 계정 순환 간격 (분)
+        
+        logger.info(f'⏰ 자동전송 설정 확인:')
+        logger.info(f'   - 그룹 간격: {group_interval}초 (타입: {type(group_interval)})')
+        logger.info(f'   - 최대 반복: {max_repeats}회')
+        logger.info(f'   - 계정 로테이션: {"활성화" if rotation_enabled else "비활성화"}')
+        if rotation_enabled:
+            logger.info(f'   - 로테이션 계정 수: {len(rotation_accounts)}개')
+            logger.info(f'   - 계정 순환 간격: {rotation_interval}분')
+            logger.info(f'   - 계정당 전역 쿨다운: {rotation_interval * len(rotation_accounts)}분')
+        logger.info(f'   - 전체 설정: {settings}')
+        
+        # 그룹 간격이 숫자인지 확인
+        if not isinstance(group_interval, (int, float)) or group_interval <= 0:
+            logger.error(f'❌ 잘못된 그룹 간격 값: {group_interval} (타입: {type(group_interval)})')
+            group_interval = 30  # 기본값으로 설정
+            logger.info(f'🔧 그룹 간격을 기본값 30초로 설정')
+        
+        # 현재 반복 횟수 조회
+        current_repeats = auto_send_jobs.get(f'{user_id}_repeats', 0)
+        
+        if max_repeats > 0 and current_repeats >= max_repeats:
+            logger.info(f'✅ 자동전송 완료: 최대 반복 횟수 도달 - {user_id}')
+            stop_auto_send_job(user_id)
+            return True
+        
+        # 각 그룹에 메시지 전송 (메시지 개수 확인 포함)
+        success_count = 0
+        for i, group_id in enumerate(group_ids):
+            try:
+                # 계정 로테이션이 활성화되어 있으면 로테이션 계정 사용
+                if rotation_enabled:
+                    # 다음 발송 계정 결정 (그룹별 독립 로테이션 + 계정 전역 쿨다운)
+                    rotation_user_id = get_next_rotation_account(group_id, rotation_accounts, rotation_interval)
+                    
+                    if not rotation_user_id:
+                        logger.info(f'⏭️ 그룹 {group_id}: 로테이션 쿨다운 중, 건너뜀 (다음 기회에 발송)')
+                        continue
+                    
+                    # 로테이션 계정 정보 조회
+                    rotation_account_info = get_account_from_firebase(rotation_user_id)
+                    if not rotation_account_info:
+                        logger.error(f'❌ 로테이션 계정 정보 없음: {rotation_user_id}')
+                        continue
+                    
+                    # 로테이션 계정의 저장된 메시지 조회
+                    saved_message_data = get_account_saved_message(rotation_user_id)
+                    rotation_message = saved_message_data.get('message', message) if saved_message_data else message
+                    rotation_media_info = saved_message_data.get('media_info', media_info) if saved_message_data else media_info
+                    
+                    logger.info(f'🔄 그룹 {group_id}: 로테이션 계정 {rotation_user_id} 사용')
+                    
+                    # 로테이션 계정으로 전송
+                    result = send_message_to_telegram_group(rotation_account_info, group_id, rotation_message, rotation_media_info)
+                    
+                    if result:
+                        success_count += 1
+                        logger.info(f'✅ 로테이션 자동전송 성공: 그룹 {group_id} (계정: {rotation_user_id})')
+                    else:
+                        logger.error(f'❌ 로테이션 자동전송 실패: 그룹 {group_id} (계정: {rotation_user_id})')
+                    
+                    # 그룹 간 대기
+                    if i < len(group_ids) - 1:
+                        time.sleep(group_interval)
+                    
+                    continue  # 로테이션 모드에서는 아래 일반 모드 로직을 건너뜀
+                
+                # 일반 모드 (로테이션 비활성화)
+                # 두 가지 조건 확인: 메시지 개수 + 재전송 텀 (평탄화된 설정 사용)
+                enable_message_check = settings.get('enableMessageCheck', False)
+                message_threshold = settings.get('messageThreshold', 5)
+                repeat_interval = settings.get('repeatInterval', 30)  # 분 단위
+                
+                # 조건 1: 메시지 개수 확인 (첫 발송이 아닌 경우에만)
+                message_count_ok = True
+                
+                # Firebase에서 마지막 전송 시간 확인하여 첫 발송인지 판단
+                status_data = get_auto_send_status_from_firebase(user_id)
+                is_first_send = True
+                if status_data and 'last_send_times' in status_data:
+                    last_send_time_str = status_data['last_send_times'].get(str(group_id))
+                    if last_send_time_str:
+                        is_first_send = False
+                
+                if is_first_send:
+                    logger.info(f'🚀 그룹 {group_id} 첫 발송: 메시지 개수 확인 생략')
+                elif enable_message_check:
+                    message_count = check_telegram_group_message_count(account_info, group_id)
+                    logger.info(f'📊 그룹 {group_id} 메시지 개수: {message_count} (임계값: {message_threshold})')
+                    
+                    if message_count < message_threshold:
+                        logger.info(f'⏭️ 그룹 {group_id} 메시지 개수 부족으로 전송 건너뜀')
+                        message_count_ok = False
+                
+                # 조건 2: 재전송 텀 확인 (첫 발송이 아닌 경우에만)
+                time_interval_ok = True
+                if is_first_send:
+                    logger.info(f'🚀 그룹 {group_id} 첫 발송: 재전송 텀 확인 생략')
+                else:
+                    # Firebase에서 마지막 전송 시간 조회
+                    if status_data and 'last_send_times' in status_data:
+                        last_send_time_str = status_data['last_send_times'].get(str(group_id))
+                        if last_send_time_str:
+                            last_send_time = datetime.fromisoformat(last_send_time_str)
+                            time_since_last_send = datetime.now() - last_send_time
+                            time_since_last_send_minutes = time_since_last_send.total_seconds() / 60
+                            logger.info(f'⏰ 그룹 {group_id} 마지막 전송: {time_since_last_send_minutes:.1f}분 전 (필요: {repeat_interval}분)')
+                            if time_since_last_send_minutes < repeat_interval:
+                                logger.info(f'⏭️ 그룹 {group_id} 재전송 텀 미경과')
+                                time_interval_ok = False
+                
+                # OR 로직: 둘 중 하나라도 통과하면 전송, 둘 다 미충족이면 건너뜀
+                if (not message_count_ok) and (not time_interval_ok):
+                    continue
+                
+                result = send_message_to_telegram_group(account_info, group_id, message, media_info)
+                if result:
+                    success_count += 1
+                    logger.info(f'✅ 자동전송 성공: 그룹 {group_id}')
+                    
+                    # 마지막 전송 시간 업데이트
+                    update_last_send_time(user_id, group_id)
+                else:
+                    logger.error(f'❌ 자동전송 실패: 그룹 {group_id}')
+                    
+                    # 슬로우 모드 감지 및 재시도 스케줄링
+                    if isinstance(result, dict) and result.get('error') == 'flood_control':
+                        wait_seconds = result.get('wait_seconds', 480)  # 기본값 8분
+                        logger.info(f'⏳ 슬로우 모드 감지: 그룹 {group_id}, {wait_seconds}초 후 재시도')
+                        schedule_retry_for_group(user_id, group_id, message, media_info, wait_seconds)
+                
+                # 그룹 간 대기
+                if i < len(group_ids) - 1:  # 마지막 그룹이 아닌 경우에만 대기
+                    logger.info(f'⏰ 그룹 간 대기 시작: {group_interval}초 (그룹 {i+1}/{len(group_ids)})')
+                    logger.info(f'⏰ 실제 대기 시간: {group_interval}초')
+                    time.sleep(group_interval)
+                    logger.info(f'⏰ 그룹 간 대기 완료: {group_interval}초')
+                
+            except Exception as e:
+                logger.error(f'❌ 자동전송 그룹 {group_id} 에러: {e}')
+                continue
+        
+        # 반복 횟수 증가
+        auto_send_jobs[f'{user_id}_repeats'] = current_repeats + 1
+        
+        logger.info(f'🤖 자동전송 완료: {success_count}/{len(group_ids)} 그룹 성공')
+        return True
+        
+    except Exception as e:
+        logger.error(f'❌ 자동전송 작업 에러: {e}')
+        return False
 
-# start_auto_send_job 함수 제거됨 - 통합 풀시스템 사용
+def start_auto_send_job(user_id, group_ids, message, media_info=None, settings=None):
+    """자동전송 작업 시작"""
+    try:
+        logger.info(f'🤖 자동전송 작업 시작: {user_id}')
+        
+        # 기존 작업 중지 (Firebase 상태는 중지하지 않음)
+        stop_auto_send_job_without_firebase_update(user_id)
+        
+        # 설정 조회
+        if not settings:
+            settings = get_auto_send_settings_from_firebase(user_id)
+            if not settings:
+                logger.warning(f'⚠️ 자동전송 설정 없음, 기본 설정으로 시작: {user_id}')
+                # 기본 설정 생성
+                default_settings = {
+                    'groupInterval': 30,
+                    'repeatInterval': 30,
+                    'maxRepeats': 10,
+                    'messageThreshold': 5,
+                    'enableMessageCheck': False
+                }
+                # Firebase에 기본 설정 저장
+                save_auto_send_settings_to_firebase(user_id, default_settings)
+                settings = default_settings
+        
+        logger.info(f'🔥 Firebase에서 가져온 설정: {settings}')
+        
+        repeat_interval = settings.get('repeatInterval', 30)  # 분 단위
+        
+        # 스케줄 작업 등록
+        job_id = f'auto_send_{user_id}'
 
-# stop_auto_send_job_without_firebase_update, stop_auto_send_job 함수들 제거됨 - 통합 풀시스템 사용
+        # 먼저 메모리/Firebase 상태를 올려 프론트가 즉시 ON으로 인식하게 함
+        auto_send_jobs[user_id] = {
+            'job_id': job_id,
+            'group_ids': group_ids,
+            'message': message,
+            'media_info': media_info,
+            'started_at': datetime.now().isoformat()
+        }
+        
+        # Firebase에 자동전송 상태 저장(선반영)
+        status_data = {
+            'is_active': True,
+            'is_running': True,  # 자동전송 실행 상태 추가
+            'group_ids': group_ids,
+            'message': message,
+            'media_info': media_info,
+            'started_at': datetime.now().isoformat(),
+            'job_id': job_id,
+            'last_send_times': {group_id: None for group_id in group_ids},  # 각 그룹별 마지막 전송 시간
+            'settings': settings  # 자동전송 설정 정보 포함
+        }
+        
+        logger.info(f'🔥 자동전송 상태 저장 전 확인: is_active={status_data["is_active"]}, is_running={status_data["is_running"]}')
+        
+        logger.info(f'🔥 Firebase에 저장할 자동전송 상태 데이터: {status_data}')
+        firebase_result = save_auto_send_status_to_firebase(user_id, status_data)
+        
+        if firebase_result:
+            logger.info(f'✅ Firebase 자동전송 상태 저장 성공: {user_id}')
+            
+            # 저장 후 즉시 확인
+            def verify_firebase_save():
+                try:
+                    saved_status = get_auto_send_status_from_firebase(user_id)
+                    logger.info(f'🔍 Firebase 저장 확인: {saved_status}')
+                    if saved_status and saved_status.get('is_running'):
+                        logger.info(f'✅ Firebase 상태 저장 검증 성공: is_running={saved_status.get("is_running")}')
+                    else:
+                        logger.error(f'❌ Firebase 상태 저장 검증 실패: {saved_status}')
+                except Exception as e:
+                    logger.error(f'❌ Firebase 저장 검증 에러: {e}')
+            
+            threading.Timer(1.0, verify_firebase_save).start()
+        else:
+            logger.error(f'❌ Firebase 자동전송 상태 저장 실패: {user_id}')
+
+        def job():
+            execute_auto_send_job(user_id, group_ids, message, media_info)
+
+        # 반복 스케줄 등록
+        schedule.every(repeat_interval).minutes.do(job)
+        # 빠른 검사 스케줄: 30초마다 조건(메시지 수 OR 시간) 충족 여부를 확인해 즉시 전송
+        try:
+            schedule.every(30).seconds.do(job)
+            logger.info('⚡ 빠른 검사 스케줄 등록(30초 간격)')
+        except Exception as _e:
+            logger.error(f'❌ 빠른 검사 스케줄 등록 실패: {_e}')
+
+        # 즉시 한 번 실행은 비동기로 트리거
+        threading.Thread(target=execute_auto_send_job, args=(user_id, group_ids, message, media_info), daemon=True).start()
+        
+        logger.info(f'✅ 자동전송 작업 시작됨: {user_id} (간격: {repeat_interval}분)')
+        logger.info(f'🔥 Firebase에 저장된 자동전송 상태: is_active=True, is_running=True, group_ids={group_ids}, started_at={datetime.now().isoformat()}')
+        
+        # Firebase 상태 저장 후 즉시 확인
+        def check_firebase_status():
+            try:
+                status = get_auto_send_status_from_firebase(user_id)
+                logger.info(f'🔍 Firebase 상태 저장 확인: {status}')
+            except Exception as e:
+                logger.error(f'❌ Firebase 상태 확인 실패: {e}')
+        
+        threading.Timer(2.0, check_firebase_status).start()
+        
+        return True
+        
+    except Exception as e:
+        logger.error(f'❌ 자동전송 시작 에러: {e}')
+        return False
+
+def stop_auto_send_job_without_firebase_update(user_id):
+    """자동전송 작업 중지 (Firebase 상태 업데이트 없음)"""
+    try:
+        logger.info(f'🛑 자동전송 작업 중지 (Firebase 업데이트 없음): {user_id}')
+        
+        # 메모리에서 작업 제거
+        if user_id in auto_send_jobs:
+            del auto_send_jobs[user_id]
+        if f'{user_id}_repeats' in auto_send_jobs:
+            del auto_send_jobs[f'{user_id}_repeats']
+        
+        logger.info(f'✅ 자동전송 작업 중지 완료 (Firebase 업데이트 없음): {user_id}')
+        
+    except Exception as e:
+        logger.error(f'❌ 자동전송 작업 중지 에러: {e}')
+
+def stop_auto_send_job(user_id):
+    """자동전송 작업 중지"""
+    try:
+        logger.info(f'🛑 자동전송 작업 중지: {user_id}')
+        
+        # 특정 사용자의 스케줄 작업만 제거
+        # schedule.clear()는 모든 스케줄을 지우므로 사용하지 않음
+        # 대신 특정 사용자의 스케줄만 제거하는 방법 사용
+        
+        # 메모리에서 작업 제거
+        if user_id in auto_send_jobs:
+            del auto_send_jobs[user_id]
+        
+        if f'{user_id}_repeats' in auto_send_jobs:
+            del auto_send_jobs[f'{user_id}_repeats']
+        
+        # Firebase에서 자동전송 상태를 중지 상태로 업데이트
+        try:
+            save_auto_send_status_to_firebase(user_id, {
+                'is_active': False,
+                'is_running': False,  # 자동전송 중지 상태
+                'stopped_at': datetime.now().isoformat()
+            })
+            logger.info(f'🔥 Firebase 자동전송 상태 중지로 업데이트: {user_id}')
+        except Exception as e:
+            logger.error(f'❌ Firebase 자동전송 상태 업데이트 에러: {e}')
+        
+        logger.info(f'✅ 자동전송 작업 중지됨: {user_id}')
+        return True
+            
+    except Exception as e:
+        logger.error(f'❌ 자동전송 중지 에러: {e}')
+        return False
 
 def check_telegram_group_message_count(account_info, group_id):
     """텔레그램 그룹에서 메시지 개수 확인 (내가 보낸 메시지 이후 다른 사람들의 메시지)"""
@@ -4035,44 +4397,31 @@ def start_auto_send():
             except Exception as e:
                 logger.error(f'❌ 자동전송 설정 Firebase 저장 실패: {e}')
         
-        # 통합 풀시스템 자동전송 처리 (모든 자동전송을 풀시스템으로 통합)
-        target_accounts = data.get('target_accounts', [])
-        
-        # 풀 시스템 정보 생성 또는 업데이트
-        if not pool_system and target_accounts:
-            # 새로운 풀 시스템 생성
-            pool_system = {
-                'pools': [{'poolName': 'Default Pool', 'accounts': target_accounts}],
-                'targetAccounts': target_accounts
-            }
-            logger.info(f'🔄 새로운 풀 시스템 생성: {len(target_accounts)}개 계정')
-        
-        logger.info(f'🔥 통합 풀시스템 자동전송 시작')
-        
-        # 통합 풀시스템 정보를 Firebase에 저장 (pool_system으로 저장)
-        try:
-            save_auto_send_settings_to_firebase('pool_system', settings)
-            save_auto_send_status_to_firebase('pool_system', {
-                'is_active': True,
-                'is_running': True,
-                'group_ids': group_ids,
-                'message': message,
-                'media_info': media_info,
-                'started_at': datetime.now().isoformat(),
-                'job_id': 'auto_send_pool_system',
-                'pool_system': pool_system,
-                'settings': settings,
-                'last_send_times': {group_id: None for group_id in group_ids}
-            })
-            logger.info(f'🔥 통합 풀시스템 Firebase 상태 저장 완료')
-        except Exception as e:
-            logger.error(f'❌ 통합 풀시스템 Firebase 상태 저장 실패: {e}')
-            return jsonify({
-                'success': False,
-                'error': 'Firebase 상태 저장 실패'
-            }), 500
-        
-        result = True  # 통합 풀시스템 자동전송은 클라이언트에서 실행
+        # 풀시스템 자동전송 처리
+        if pool_system and pool_system.get('pools'):
+            logger.info(f'🔥 풀시스템 자동전송 시작: {user_id}')
+            
+            # 풀시스템 정보를 Firebase에 저장
+            try:
+                save_auto_send_status_to_firebase(user_id, {
+                    'is_active': True,
+                    'is_running': True,
+                    'group_ids': group_ids,
+                    'message': message,
+                    'media_info': media_info,
+                    'started_at': datetime.now().isoformat(),
+                    'pool_system': pool_system,
+                    'settings': settings
+                })
+                logger.info(f'🔥 풀시스템 Firebase 상태 저장 완료: {user_id}')
+            except Exception as e:
+                logger.error(f'❌ 풀시스템 Firebase 상태 저장 실패: {e}')
+            
+            result = True  # 풀시스템 자동전송은 클라이언트에서 실행
+        else:
+            # 일반 자동전송 작업 시작
+            logger.info(f'🚀 자동전송 작업 시작 호출: user_id={user_id}, group_ids={group_ids}, message_length={len(message)}, has_media={bool(media_info)}')
+            result = start_auto_send_job(user_id, group_ids, message, media_info, settings)
         
         if result:
             logger.info(f'✅ 자동전송 작업 시작 성공: {user_id}')
@@ -4097,37 +4446,73 @@ def start_auto_send():
 # 자동전송 중지 API
 @app.route('/api/auto-send/stop', methods=['POST'])
 def stop_auto_send():
-    """통합 풀시스템 자동전송 중지"""
+    """자동전송 중지"""
     try:
         data = request.get_json()
-        logger.info(f'🛑 통합 풀시스템 자동전송 중지 요청')
+        user_id = data.get('userId')
+        account_name = data.get('account_name')
         
-        # 통합 풀시스템 자동전송 중지
-        try:
-            save_auto_send_status_to_firebase('pool_system', {
-                'is_active': False,
-                'is_running': False,
-                'stopped_at': datetime.now().isoformat()
-            })
-            logger.info(f'🛑 통합 풀시스템 Firebase 상태 중지로 업데이트 완료')
-            
-            return jsonify({
-                'success': True,
-                'message': '통합 풀시스템 자동전송이 중지되었습니다.'
-            })
-            
-        except Exception as e:
-            logger.error(f'❌ 통합 풀시스템 Firebase 상태 업데이트 실패: {e}')
+        # userId나 account_name 중 하나라도 있으면 처리
+        if not user_id and not account_name:
             return jsonify({
                 'success': False,
-                'error': '통합 풀시스템 중지 실패'
+                'error': '사용자 ID 또는 계정명이 필요합니다.'
+            }), 400
+        
+        # account_name만 있는 경우 userId 찾기
+        if not user_id and account_name:
+            try:
+                # Firebase에서 계정 목록 조회하여 이름으로 userId 찾기
+                url = f"{FIREBASE_URL}/authenticated_accounts.json"
+                response = requests.get(url, timeout=10)
+                
+                if response.status_code == 200:
+                    accounts_data = response.json()
+                    if accounts_data:
+                        for acc_user_id, acc_data in accounts_data.items():
+                            if isinstance(acc_data, dict):
+                                first_name = acc_data.get('first_name', '')
+                                last_name = acc_data.get('last_name', '')
+                                full_name = f"{first_name} {last_name}".strip()
+                                
+                                if full_name == account_name:
+                                    user_id = acc_user_id
+                                    logger.info(f'계정명으로 userId 찾음: {account_name} -> {user_id}')
+                                    break
+                
+                if not user_id:
+                    logger.warning(f'계정명으로 userId를 찾을 수 없음: {account_name}')
+                    return jsonify({
+                        'success': False,
+                        'error': f'계정명 "{account_name}"에 해당하는 사용자를 찾을 수 없습니다.'
+                    }), 404
+                    
+            except Exception as e:
+                logger.error(f'계정명으로 userId 찾기 실패: {e}')
+                return jsonify({
+                    'success': False,
+                    'error': f'계정 정보 조회 실패: {str(e)}'
+                }), 500
+        
+        # 자동전송 작업 중지
+        result = stop_auto_send_job(user_id)
+        
+        if result:
+            return jsonify({
+                'success': True,
+                'message': '자동전송이 중지되었습니다.'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': '자동전송 중지에 실패했습니다.'
             }), 500
             
     except Exception as error:
-        logger.error(f'❌ 통합 풀시스템 자동전송 중지 실패: {error}')
+        logger.error(f'❌ 자동전송 중지 실패: {error}')
         return jsonify({
             'success': False,
-            'error': f'통합 풀시스템 자동전송 중지 실패: {str(error)}'
+            'error': f'자동전송 중지 실패: {str(error)}'
         }), 500
 
 # 자동전송 재개(필요 시) API: Firebase 상태가 활성인데 메모리에 작업이 없으면 복원
@@ -4200,52 +4585,63 @@ def check_group_message_count():
 # 자동전송 상태 조회 API
 @app.route('/api/auto-send/status', methods=['POST'])
 def get_auto_send_status():
-    """통합 풀시스템 자동전송 상태 조회"""
+    """자동전송 상태 조회"""
     try:
         data = request.get_json()
-        logger.info(f'🔥 통합 풀시스템 자동전송 상태 조회 요청')
+        user_id = (data.get('userId') or data.get('account_name') or '').strip()
         
-        # 통합 풀시스템 상태 확인
-        fb_status = get_auto_send_status_from_firebase('pool_system') or {}
+        if not user_id:
+            return jsonify({
+                'success': False,
+                'error': '사용자 ID 또는 계정명이 필요합니다.'
+            }), 400
         
+        # 현재 작업 상태 확인 (Firebase 상태 우선 확인)
+        fb_status = get_auto_send_status_from_firebase(user_id) or {}
+        
+        # Firebase 상태가 있으면 Firebase 상태를 우선 사용
         if fb_status:
             is_running = fb_status.get('is_running', False)
-            is_active = fb_status.get('is_active', False)
-            logger.info(f'🔥 통합 풀시스템 Firebase 상태: is_running={is_running}, is_active={is_active}')
+            logger.info(f'🔥 Firebase 상태 사용: is_running={is_running}')
         else:
-            is_running = False
-            is_active = False
-            logger.info(f'🔥 통합 풀시스템 Firebase 상태 없음')
+            # Firebase 상태가 없으면 메모리 상태 확인
+            is_running = (user_id in auto_send_jobs)
+            logger.info(f'🔥 메모리 상태 사용: is_running={is_running}')
         
-        # 설정 조회
-        settings = get_auto_send_settings_from_firebase('pool_system')
+        current_repeats = auto_send_jobs.get(f'{user_id}_repeats', 0)
+        
+        # 스케줄된 작업 개수 확인
+        scheduled_jobs = len(schedule.jobs)
+        
+        # 설정 조회 (평탄화된 설정)
+        settings = get_auto_send_settings_from_firebase(user_id)
 
-        # Firebase에 저장된 최신 상태 반환
+        # Firebase에 저장된 최신 상태(그룹/메시지/미디어)를 함께 반환하여 프론트가 서버 상태를 1:1로 복원할 수 있게 함
+        fb_status = get_auto_send_status_from_firebase(user_id) or {}
         fb_group_ids = fb_status.get('group_ids', [])
         fb_message = fb_status.get('message')
         fb_media_info = fb_status.get('media_info')
-        fb_pool_system = fb_status.get('pool_system')
         
-        logger.info(f'🔥 통합 풀시스템 상태 상세: is_running={is_running}, group_ids={len(fb_group_ids)}, message_length={len(fb_message) if fb_message else 0}, has_pool_system={bool(fb_pool_system)}')
+        logger.info(f'🤖 자동전송 상태 조회: user_id={user_id}, is_running={is_running}, scheduled_jobs={scheduled_jobs}')
+        logger.info(f'🔥 Firebase 상태 상세: fb_status={fb_status}, fb_group_ids={fb_group_ids}, fb_message_length={len(fb_message) if fb_message else 0}, fb_media_info={bool(fb_media_info)}')
         
         return jsonify({
             'success': True,
             'is_running': is_running,
-            'is_active': is_active,
+            'current_repeats': current_repeats,
+            'scheduled_jobs': scheduled_jobs,
             'settings': settings,
+            'job_info': auto_send_jobs.get(user_id) if is_running else None,
             'group_ids': fb_group_ids,
             'message': fb_message,
-            'media_info': fb_media_info,
-            'pool_system': fb_pool_system,
-            'started_at': fb_status.get('started_at'),
-            'stopped_at': fb_status.get('stopped_at')
+            'media_info': fb_media_info
         })
         
     except Exception as error:
-        logger.error(f'❌ 통합 풀시스템 자동전송 상태 조회 실패: {error}')
+        logger.error(f'❌ 자동전송 상태 조회 실패: {error}')
         return jsonify({
             'success': False,
-            'error': f'통합 풀시스템 자동전송 상태 조회 실패: {str(error)}'
+            'error': f'자동전송 상태 조회 실패: {str(error)}'
         }), 500
 
 # Keep-Alive 엔드포인트 (Render Free Plan용)

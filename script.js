@@ -181,20 +181,12 @@ async function checkLoginState() {
             showMainApp(savedEmail);
             
             // 텔레그램 설정 및 자동전송 상태 복원
-            setTimeout(async () => {
+            setTimeout(() => {
                 loadTelegramSettings();
                 loadAutoSendSettings(); // 자동전송 설정 로드
-                
-                // 계정 복원 후 자동전송 상태 복원
-                await restoreLastSelectedAccount(); // 마지막 선택 계정 복원
-                
-                // 계정 복원이 완료된 후 자동전송 상태 복원
-                setTimeout(async () => {
-                    await restoreAutoSendStatusOnLoad();
-                    updateSendButtonText(); // 전송 버튼 텍스트 초기화
-                    updateAutoSendSettingsDisplay(); // 자동전송 설정 표시 업데이트
-                }, 500);
-                
+                restoreAutoSendStatusOnLoad();
+                updateSendButtonText(); // 전송 버튼 텍스트 초기화
+                updateAutoSendSettingsDisplay(); // 자동전송 설정 표시 업데이트
             }, 1000);
             
         } else {
@@ -260,16 +252,10 @@ function setupEventListeners() {
     // 자동 전송 토글 이벤트 리스너
     setupAutoSendEventListeners();
     
-    // 키보드 이벤트
+    // Enter 키 이벤트
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Enter') {
             handleLogin();
-        }
-        
-        // ESC 키로 로딩 애니메이션 강제 제거
-        if (e.key === 'Escape') {
-            console.log('🚨 ESC 키 감지 - 로딩 애니메이션 강제 제거');
-            forceHideAllLoadingAnimations();
         }
     });
     
@@ -1773,14 +1759,12 @@ function showAccountList(accounts) {
         background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
         border-radius: 20px;
         padding: 30px;
-        max-width: 600px;
+        max-width: 500px;
         width: 90%;
         max-height: 80vh;
         overflow-y: auto;
         border: 2px solid #10B981;
         box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
-        position: relative;
-        z-index: 10001;
     `;
     
     modalContent.innerHTML = `
@@ -1813,47 +1797,34 @@ function showAccountList(accounts) {
         
         <div id="accountList" style="margin-bottom: 25px;">
             ${accounts.map((account, index) => `
-                <div class="account-item" data-user-id="${account.user_id}" style="
+                <div class="account-item" style="
                     background: linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%);
                     border: 1px solid #444;
                     border-radius: 12px;
                     padding: 15px;
-                    margin-bottom: 12px;
+                    margin-bottom: 10px;
                     cursor: pointer;
                     transition: all 0.3s ease;
-                    display: flex;
-                    align-items: center;
-                    gap: 12px;
-                ">
-                    <div style="
-                        width: 20px;
-                        height: 20px;
-                        border: 2px solid #10B981;
-                        border-radius: 4px;
-                        background: transparent;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        transition: all 0.3s ease;
-                        flex-shrink: 0;
-                    " class="account-checkbox">
-                        <div style="
-                            color: #10B981;
-                            font-size: 12px;
-                            opacity: 0;
-                            transition: opacity 0.3s ease;
-                        " class="checkmark">✓</div>
-                    </div>
-                    <div style="flex: 1; min-width: 0;">
-                        <div style="color: #10B981; font-weight: 600; font-size: 16px; margin-bottom: 5px;">
-                            ${account.first_name} ${account.last_name || ''}
+                    position: relative;
+                " data-user-id="${account.user_id}">
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                        <div style="flex: 1;">
+                            <div style="color: #10B981; font-weight: 600; font-size: 16px; margin-bottom: 5px;">
+                                ${account.first_name} ${account.last_name || ''}
+                            </div>
+                            <div style="color: #888; font-size: 14px; margin-bottom: 3px;">
+                                📱 ${account.phone_number}
+                            </div>
+                            ${account.username ? `
+                                <div style="color: #888; font-size: 14px;">
+                                    @${account.username}
+                                </div>
+                            ` : ''}
                         </div>
-                        <div style="color: #888; font-size: 14px;">
-                            📱 ${account.phone_number}
-                            ${account.username ? ` • @${account.username}` : ''}
+                        <div style="color: #10B981; font-size: 20px;">
+                            ▶
                         </div>
                     </div>
-                    <div style="color: #10B981; font-size: 18px; flex-shrink: 0;">→</div>
                 </div>
             `).join('')}
         </div>
@@ -1894,7 +1865,7 @@ function showAccountList(accounts) {
     let selectedAccounts = []; // 다중 선택용
     
     
-    // 계정 아이템 클릭 이벤트 (다중 선택 가능)
+    // 계정 아이템 클릭 이벤트 (체크박스 없이)
     const accountItems = modal.querySelectorAll('.account-item');
     accountItems.forEach(item => {
         item.addEventListener('mouseenter', () => {
@@ -1927,81 +1898,53 @@ function showAccountList(accounts) {
                 item.style.borderColor = '#444';
                 item.classList.remove('selected');
                 
-                // 체크박스 해제
-                const checkbox = item.querySelector('.account-checkbox');
-                const checkmark = item.querySelector('.checkmark');
-                if (checkbox) {
-                    checkbox.style.background = 'transparent';
-                    checkbox.style.borderColor = '#10B981';
-                }
-                if (checkmark) {
-                    checkmark.style.opacity = '0';
-                }
-                
                 // 텍스트 색상 복원
-                const nameEl = item.querySelector('div:nth-child(2) > div:first-child');
-                const phoneEl = item.querySelector('div:nth-child(2) > div:nth-child(2)');
-                const arrowEl = item.querySelector('div:last-child');
+                const nameEl = item.querySelector('div > div:first-child');
+                const phoneEl = item.querySelector('div > div:nth-child(2)');
+                const arrowEl = item.querySelector('div > div:last-child');
                 if (nameEl) {
                     nameEl.style.color = '#10B981';
-                    nameEl.style.fontWeight = '600';
+                    nameEl.style.fontWeight = 'normal'; // 굵기 복원
                 }
                 if (phoneEl) phoneEl.style.color = '#888';
                 if (arrowEl) arrowEl.style.color = '#10B981';
             } else {
-                // 새로운 계정 선택 (기존 선택 유지)
+                // 새로운 계정 선택
                 selectedAccounts.push(account);
-                item.style.background = 'linear-gradient(135deg, #374151 0%, #1F2937 100%)';
+                item.style.background = 'linear-gradient(135deg, #374151 0%, #1F2937 100%)'; // 어두운 회색 배경
                 item.style.borderColor = '#4B5563';
-                item.classList.add('selected');
+            item.classList.add('selected');
                 
-                // 체크박스 체크
-                const checkbox = item.querySelector('.account-checkbox');
-                const checkmark = item.querySelector('.checkmark');
-                if (checkbox) {
-                    checkbox.style.background = '#10B981';
-                    checkbox.style.borderColor = '#10B981';
-                }
-                if (checkmark) {
-                    checkmark.style.opacity = '1';
-                }
-                
-                // 텍스트 색상을 흰색으로 변경
-                const nameEl = item.querySelector('div:nth-child(2) > div:first-child');
-                const phoneEl = item.querySelector('div:nth-child(2) > div:nth-child(2)');
-                const arrowEl = item.querySelector('div:last-child');
+                // 텍스트 색상을 흰색으로 변경 (어두운 배경에 잘 보이도록)
+                const nameEl = item.querySelector('div > div:first-child');
+                const phoneEl = item.querySelector('div > div:nth-child(2)');
+                const arrowEl = item.querySelector('div > div:last-child');
                 if (nameEl) {
-                    nameEl.style.color = '#FFFFFF';
-                    nameEl.style.fontWeight = 'bold';
+                    nameEl.style.color = '#FFFFFF'; // 흰색
+                    nameEl.style.fontWeight = 'bold'; // 굵게
                 }
                 if (phoneEl) {
-                    phoneEl.style.color = '#D1D5DB';
+                    phoneEl.style.color = '#D1D5DB'; // 연한 회색
                 }
                 if (arrowEl) {
-                    arrowEl.style.color = '#FFFFFF';
+                    arrowEl.style.color = '#FFFFFF'; // 흰색
                 }
             }
             
             updateConfirmButton();
-            console.log('✅ 선택된 계정들:', selectedAccounts.length, '개:', selectedAccounts.map(a => a.first_name));
+            console.log('✅ 선택된 계정들:', selectedAccounts.length, '개');
         });
     });
     
     // 확인 버튼 상태 업데이트 함수
     function updateConfirmButton() {
-        const confirmBtn = modal.querySelector('#confirmAccountSelection');
+            const confirmBtn = modal.querySelector('#confirmAccountSelection');
         if (selectedAccounts.length > 0) {
             confirmBtn.style.opacity = '1';
             confirmBtn.style.pointerEvents = 'auto';
-            if (selectedAccounts.length === 1) {
-                confirmBtn.textContent = `✅ 계정 로드 (${selectedAccounts[0].first_name})`;
-            } else {
-                confirmBtn.textContent = `✅ 다중 계정 로드 (${selectedAccounts.length}개)`;
-            }
         } else {
             confirmBtn.style.opacity = '0.5';
             confirmBtn.style.pointerEvents = 'none';
-            confirmBtn.textContent = '계정을 선택하세요';
         }
     }
     
@@ -2093,14 +2036,12 @@ function showAccountList(accounts) {
     
     // 닫기 버튼 이벤트
     modal.querySelector('#closeAccountList').addEventListener('click', () => {
-        hideLoadingAnimation(); // 로딩 애니메이션 숨기기
         document.body.removeChild(modal);
     });
     
     // 모달 배경 클릭 시 닫기
     modal.addEventListener('click', (e) => {
         if (e.target === modal) {
-            hideLoadingAnimation(); // 로딩 애니메이션 숨기기
             document.body.removeChild(modal);
         }
     });
@@ -2111,13 +2052,11 @@ async function loadMultipleAccountsGroups(accounts) {
     try {
         console.log('🔄 다중 계정 그룹 로딩 시작:', accounts.length, '개');
         
-        // 로딩 상태 표시
-        showLoadingAnimation('계정별 그룹 로딩 중...', accounts.length);
+        // 모든 계정의 그룹 로드
+        const allGroupsData = [];
         
-        // 모든 계정의 그룹을 병렬로 로드
-        const loadPromises = accounts.map(async (account) => {
+        for (const account of accounts) {
             try {
-                console.log(`🔄 계정 ${account.first_name} 그룹 로드 시작`);
                 const response = await fetch('/api/telegram/load-groups', {
                     method: 'POST',
                     headers: {
@@ -2131,49 +2070,28 @@ async function loadMultipleAccountsGroups(accounts) {
                 const result = await response.json();
                 
                 if (response.ok && result.success && result.groups) {
-                    console.log(`✅ 계정 ${account.first_name}의 그룹 ${result.groups.length}개 로드 완료`);
-                    return {
+                    allGroupsData.push({
                         account: account,
                         groups: result.groups
-                    };
-                } else {
-                    console.error(`❌ 계정 ${account.first_name} 그룹 로드 실패:`, result.error);
-                    return {
-                        account: account,
-                        groups: [],
-                        error: result.error
-                    };
+                    });
+                    console.log(`✅ 계정 ${account.first_name}의 그룹 ${result.groups.length}개 로드`);
                 }
             } catch (error) {
                 console.error(`❌ 계정 ${account.first_name} 그룹 로드 실패:`, error);
-                return {
-                    account: account,
-                    groups: [],
-                    error: error.message
-                };
             }
-        });
+        }
         
-        // 모든 계정의 그룹 로드가 완료될 때까지 대기
-        console.log('⏳ 모든 계정의 그룹 로드 완료 대기 중...');
-        const allGroupsData = await Promise.all(loadPromises);
-        
-        // 성공적으로 로드된 계정들만 필터링
-        const successfulGroupsData = allGroupsData.filter(data => data.groups.length > 0);
-        
-        if (successfulGroupsData.length === 0) {
+        if (allGroupsData.length === 0) {
             alert('❌ 그룹을 로드할 수 없습니다.');
             return;
         }
-        
-        console.log(`✅ 병렬 로딩 완료: ${successfulGroupsData.length}/${accounts.length}개 계정 성공`);
         
         // 그룹 통합 (중복 제거)
         const groupMap = new Map();
         const groupAccountMapping = {}; // 각 그룹에 어떤 계정들이 속해있는지
         
         console.log('🔍 그룹 통합 시작:');
-        successfulGroupsData.forEach(({account, groups}) => {
+        allGroupsData.forEach(({account, groups}) => {
             console.log(`  📋 계정 ${account.first_name}: ${groups.length}개 그룹`);
             groups.forEach(group => {
                 const groupId = group.id;
@@ -2200,8 +2118,8 @@ async function loadMultipleAccountsGroups(accounts) {
         console.log(`✅ 통합 완료: ${mergedGroups.length}개 그룹 (중복 제거)`);
         console.log('📊 통합된 그룹 목록:', mergedGroups.map(g => g.title));
         
-        // 계정-그룹 매핑 Firebase에 병렬로 저장
-        const mappingPromises = successfulGroupsData.map(async (accountData) => {
+        // 계정-그룹 매핑 Firebase에 저장
+        for (const accountData of allGroupsData) {
             const userId = accountData.account.user_id;
             const groupIds = accountData.groups.map(g => g.id);
             
@@ -2215,13 +2133,7 @@ async function loadMultipleAccountsGroups(accounts) {
             } catch (error) {
                 console.error(`❌ 계정 ${userId} 매핑 저장 실패:`, error);
             }
-        });
-        
-        // 모든 매핑 저장이 완료될 때까지 대기
-        await Promise.all(mappingPromises);
-        
-        // 로딩 애니메이션 숨기기
-        hideLoadingAnimation();
+        }
         
         // 그룹 관리 창 표시
         const firstAccount = accounts[0];
@@ -2259,162 +2171,9 @@ async function loadMultipleAccountsGroups(accounts) {
         
     } catch (error) {
         console.error('❌ 다중 계정 그룹 로딩 실패:', error);
-        hideLoadingAnimation(); // 에러 시에도 로딩 애니메이션 숨기기
         alert(`❌ 다중 계정 그룹 로딩 실패:\n\n${error.message}`);
     }
 }
-
-// 로딩 애니메이션 표시
-function showLoadingAnimation(message, totalCount = 0) {
-    try {
-        // 기존 로딩 애니메이션이 있으면 제거
-        hideLoadingAnimation();
-        
-        // 로딩 애니메이션 HTML 생성
-        const loadingHtml = `
-            <div id="loadingAnimation" style="
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background: rgba(0, 0, 0, 0.8);
-                display: flex;
-                flex-direction: column;
-                justify-content: center;
-                align-items: center;
-                z-index: 10000;
-                color: white;
-                font-family: Arial, sans-serif;
-            ">
-                <div style="
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    padding: 30px 40px;
-                    border-radius: 15px;
-                    text-align: center;
-                    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-                    max-width: 400px;
-                    width: 90%;
-                ">
-                    <div style="
-                        width: 50px;
-                        height: 50px;
-                        border: 4px solid rgba(255, 255, 255, 0.3);
-                        border-top: 4px solid white;
-                        border-radius: 50%;
-                        animation: spin 1s linear infinite;
-                        margin: 0 auto 20px;
-                    "></div>
-                    <div style="font-size: 18px; font-weight: bold; margin-bottom: 10px;">
-                        ${message}
-                    </div>
-                    ${totalCount > 0 ? `
-                        <div style="font-size: 14px; color: rgba(255, 255, 255, 0.8);">
-                            총 ${totalCount}개 계정 처리 중...
-                        </div>
-                        <div style="
-                            width: 100%;
-                            height: 4px;
-                            background: rgba(255, 255, 255, 0.2);
-                            border-radius: 2px;
-                            margin-top: 15px;
-                            overflow: hidden;
-                        ">
-                            <div style="
-                                height: 100%;
-                                background: linear-gradient(90deg, #4CAF50, #8BC34A);
-                                border-radius: 2px;
-                                animation: progress 2s ease-in-out infinite;
-                            "></div>
-                        </div>
-                    ` : ''}
-                </div>
-            </div>
-            <style>
-                @keyframes spin {
-                    0% { transform: rotate(0deg); }
-                    100% { transform: rotate(360deg); }
-                }
-                @keyframes progress {
-                    0% { transform: translateX(-100%); }
-                    50% { transform: translateX(0%); }
-                    100% { transform: translateX(100%); }
-                }
-            </style>
-        `;
-        
-        // 로딩 애니메이션을 body에 추가
-        document.body.insertAdjacentHTML('beforeend', loadingHtml);
-        
-        console.log('🔄 로딩 애니메이션 표시:', message);
-        
-    } catch (error) {
-        console.error('❌ 로딩 애니메이션 표시 실패:', error);
-    }
-}
-
-// 로딩 애니메이션 숨기기
-function hideLoadingAnimation() {
-    try {
-        const loadingAnimation = document.getElementById('loadingAnimation');
-        if (loadingAnimation) {
-            loadingAnimation.remove();
-            console.log('✅ 로딩 애니메이션 숨김');
-        }
-        
-        // 추가 안전장치: 모든 로딩 관련 요소 제거
-        const allLoadingElements = document.querySelectorAll('[id*="loading"], [class*="loading"], [style*="loading"]');
-        allLoadingElements.forEach(element => {
-            if (element.id === 'loadingAnimation' || element.textContent.includes('로딩')) {
-                element.remove();
-            }
-        });
-        
-    } catch (error) {
-        console.error('❌ 로딩 애니메이션 숨기기 실패:', error);
-    }
-}
-
-// 긴급 로딩 애니메이션 강제 제거 (모든 상황에서 사용)
-function forceHideAllLoadingAnimations() {
-    try {
-        console.log('🚨 긴급 로딩 애니메이션 강제 제거');
-        
-        // 모든 가능한 로딩 요소 제거
-        const loadingSelectors = [
-            '#loadingAnimation',
-            '.loading',
-            '[id*="loading"]',
-            '[class*="loading"]'
-        ];
-        
-        loadingSelectors.forEach(selector => {
-            const elements = document.querySelectorAll(selector);
-            elements.forEach(element => {
-                if (element && element.parentNode) {
-                    element.remove();
-                    console.log('🗑️ 로딩 요소 제거:', selector);
-                }
-            });
-        });
-        
-        // 추가: body에서 로딩 관련 스타일 제거
-        const body = document.body;
-        if (body) {
-            body.style.overflow = '';
-            body.style.pointerEvents = '';
-        }
-        
-        console.log('✅ 모든 로딩 애니메이션 강제 제거 완료');
-        
-    } catch (error) {
-        console.error('❌ 강제 로딩 제거 실패:', error);
-    }
-}
-
-// 전역 함수로 등록 (개발자 도구에서도 사용 가능)
-window.forceHideAllLoadingAnimations = forceHideAllLoadingAnimations;
-window.hideLoadingAnimation = hideLoadingAnimation;
 
 // 다중 계정 모드에서 계정별 메시지 설정 표시
 function showMultiAccountMessageSettings(accounts) {
@@ -3517,9 +3276,6 @@ async function loadGroupsForAccount(account) {
     try {
         console.log('🔍 선택된 계정으로 그룹 로딩 중...', account);
         
-        // 로딩 애니메이션 표시
-        showLoadingAnimation(`계정 ${account.first_name}의 그룹 로딩 중...`);
-        
         const response = await fetch('/api/telegram/load-groups', {
             method: 'POST',
             headers: {
@@ -3535,9 +3291,6 @@ async function loadGroupsForAccount(account) {
         
         if (response.ok && result.success) {
             console.log('✅ 그룹 로딩 성공:', result.groups);
-            
-            // 로딩 애니메이션 숨기기
-            hideLoadingAnimation();
             
             // 그룹 목록 표시
             if (result.groups && result.groups.length > 0) {
@@ -3556,7 +3309,6 @@ async function loadGroupsForAccount(account) {
         
     } catch (error) {
         console.error('❌ 그룹 로딩 실패:', error);
-        hideLoadingAnimation(); // 에러 시에도 로딩 애니메이션 숨기기
         alert(`❌ 그룹 로딩 실패:\n\n${error.message}`);
     }
 }
@@ -4008,8 +3760,8 @@ async function sendMessageToGroup() {
                 if (autoSendSuccess) {
                     console.log('✅ 풀시스템 자동전송 시작 성공');
                     
-                    // 자동전송 상태를 localStorage에 저장 (다중 계정 + 모든 설정 포함)
-                    saveAutoSendStatusToLocalStorage(true, validGroupIds, poolResult.targetAccounts);
+                    // 자동전송 상태를 localStorage에 저장
+                    saveAutoSendStatusToLocalStorage(true, validGroupIds);
                     
                     alert('🤖 풀시스템 자동전송이 시작되었습니다!\n\n설정된 간격마다 자동으로 전송됩니다.\nPC를 종료해도 계속 작동합니다.');
                     return true; // 성공적으로 종료
@@ -4197,8 +3949,8 @@ async function sendMessageToGroup() {
         if (autoSendSuccess) {
             console.log('✅ 자동전송 시작 성공');
             
-            // 자동전송 상태를 localStorage에 저장 (다중 계정 + 모든 설정 포함)
-            saveAutoSendStatusToLocalStorage(true, validGroupIds, window.selectedMultiAccounts);
+            // 자동전송 상태를 localStorage에 저장
+            saveAutoSendStatusToLocalStorage(true, validGroupIds);
             
             alert('🤖 자동전송이 시작되었습니다!\n\n설정된 간격마다 자동으로 전송됩니다.\nPC를 종료해도 계속 작동합니다.');
             return; // 자동전송이 시작되면 여기서 종료
@@ -7427,7 +7179,8 @@ function getApiBaseUrl() {
 // 서버 자동전송 상태 복원 (특정 userId)
 async function restoreAutoSendStatusFor(userId) {
     try {
-        console.log('🔄 통합 풀시스템 상태 복원 시작');
+        if (!userId) return;
+        console.log('🔄 특정 계정 상태 복원 시작:', userId);
         
         // 먼저 localStorage에서 상태 복원 시도
         const localStatusRestored = restoreAutoSendStatusFromLocalStorage();
@@ -7436,7 +7189,7 @@ async function restoreAutoSendStatusFor(userId) {
             // localStorage에서 복원된 경우 서버 상태와 동기화
             setTimeout(async () => {
                 try {
-                    await restoreAutoSendStatusFor('pool_system');
+                    await restoreAutoSendStatusFor(userId);
                     console.log('✅ 서버 상태와 동기화 완료');
                 } catch (error) {
                     console.error('❌ 서버 상태 동기화 실패:', error);
@@ -7444,14 +7197,13 @@ async function restoreAutoSendStatusFor(userId) {
             }, 1000);
             return;
         }
-        
         const resp = await fetch(`${getApiBaseUrl()}/api/auto-send/status`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: 'pool_system' }) // 통합 풀시스템 상태 조회
+            body: JSON.stringify({ userId })
         });
         const data = await resp.json();
-        console.log('📊 통합 풀시스템 상태:', data);
+        console.log('📊 특정 계정 상태:', data);
         const toggle = document.getElementById('autoSendToggle');
         if (!(data && data.success)) return;
 
@@ -7503,7 +7255,7 @@ async function restoreAutoSendStatusFor(userId) {
             }
         } catch (_) {}
 
-        // 4) 서버가 is_running:false면 로컬 스냅샷 제거 및 UI 초기화
+        // 4) 서버가 is_running:false면 로컬 스냅샷 제거 및 UI 초기화(이전 로직 유지)
         if (!data.is_running) {
             try {
                 const key = getCurrentAccountKey ? getCurrentAccountKey() : null;
@@ -7511,44 +7263,136 @@ async function restoreAutoSendStatusFor(userId) {
             } catch (_) {}
         }
     } catch (e) {
-        console.warn('통합 풀시스템 상태 복원 실패:', e);
+        console.warn('상태 복원 실패:', e);
     }
 }
 
-// 통합 풀시스템 자동전송 중지 API 호출
+// 자동전송 중지 API 호출
 async function stopAutoSend() {
     try {
-        console.log('🛑 통합 풀시스템 자동전송 중지 요청 시작');
+        console.log('🛑 자동전송 중지 요청 시작');
         
-        // 통합 풀시스템 중지 요청
-        const response = await fetch(`${getApiBaseUrl()}/api/auto-send/stop`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                userId: 'pool_system' // 통합 풀시스템 식별자
-            })
-        });
-        
-        const result = await response.json();
-        console.log('🛑 통합 풀시스템 중지 결과:', result);
-        
-        if (result.success) {
-            console.log('✅ 통합 풀시스템 자동전송 중지 성공');
+        // 새로운 풀 시스템에서는 모든 활성 계정들을 중지
+        if (window.rotationPoolsEnabled && window.groupPoolMapping) {
+            console.log('🔄 풀시스템 자동전송 중지 - 모든 활성 계정 중지');
+            
+            // 모든 활성 계정들 수집
+            const activeAccounts = [];
+            for (const [groupId, poolIds] of Object.entries(window.groupPoolMapping)) {
+                for (const poolId of poolIds) {
+                    const pool = window.rotationPools[poolId];
+                    if (pool && pool.accounts) {
+                        activeAccounts.push(...pool.accounts);
+                    }
+                }
+            }
+            
+            // 중복 제거
+            const uniqueAccounts = activeAccounts.filter((account, index, self) => 
+                index === self.findIndex(a => a.user_id === account.user_id)
+            );
+            
+            console.log(`🔄 중지할 계정들: ${uniqueAccounts.length}개`, uniqueAccounts.map(a => a.first_name));
+            
+            // 모든 계정에 대해 중지 요청
+            const stopPromises = uniqueAccounts.map(async (account) => {
+                try {
+                    const response = await fetch(`${getApiBaseUrl()}/api/auto-send/stop`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            userId: account.user_id
+                        })
+                    });
+                    
+                    const result = await response.json();
+                    console.log(`🛑 계정 ${account.first_name} 중지 결과:`, result);
+                    return result;
+                } catch (error) {
+                    console.error(`❌ 계정 ${account.first_name} 중지 실패:`, error);
+                    return { success: false, error: error.message };
+                }
+            });
+            
+            const stopResults = await Promise.all(stopPromises);
+            const successCount = stopResults.filter(r => r.success).length;
+            
+            console.log(`✅ 풀시스템 자동전송 중지 완료: ${successCount}/${uniqueAccounts.length} 성공`);
             
             // 자동전송 상태를 localStorage에 저장
             saveAutoSendStatusToLocalStorage(false);
             
-            return true;
-        } else {
-            console.error('❌ 통합 풀시스템 자동전송 중지 실패:', result.error);
-            return false;
+            return;
         }
         
+        // 단일 계정 모드
+        let accountName = document.getElementById('selectedAccountName')?.textContent?.trim();
+        let userId = document.getElementById('selectedAccountUserId')?.textContent?.trim()
+            || document.querySelector('.account-item.selected')?.dataset?.userId
+            || window.currentSelectedAccount?.user_id
+            || window.selectedAccount?.user_id
+            || '';
+        
+        console.log('🛑 단일 계정 자동전송 중지:', accountName, userId);
+        
+        // userId가 없으면 서버에서 계정 목록을 받아 매핑 (이름 → userId, 실패 시 전화번호로 매칭)
+        if (!userId && accountName) {
+            try {
+                const accResp = await fetch(`${getApiBaseUrl()}/api/telegram/load-accounts`, {
+                    method: 'GET'
+                });
+                const accData = await accResp.json();
+                const accounts = accData.accounts || accData || [];
+                // 1) 이름 매칭
+                let found = (accounts || []).find(a => {
+                    const full = `${a.first_name || ''} ${a.last_name || ''}`.trim();
+                    return full === accountName;
+                });
+                // 2) 전화번호 매칭 (DOM에서 선택된 번호 읽기)
+                if (!found) {
+                    const phoneText = document.getElementById('selectedAccountPhone')?.textContent?.trim();
+                    if (phoneText) {
+                        found = (accounts || []).find(a => (a.phone_number || '').trim() === phoneText);
+                    }
+                }
+                if (found && found.user_id) {
+                    userId = String(found.user_id);
+                }
+            } catch (e) {
+                console.warn('⚠️ 계정 목록 조회 실패(중지 준비)', e);
+            }
+        }
+        // 계정명이나 userId 중 하나라도 있으면 중지 요청 전송
+        if (!accountName && !userId) {
+            console.warn('⚠️ 계정명과 userId 모두 없어 자동전송 중지 요청을 건너뜀');
+            return;
+        }
+        
+        // userId가 없어도 계정명으로 중지 시도
+        if (!userId && accountName) {
+            console.log('⚠️ userId 없음, 계정명으로만 중지 시도:', accountName);
+        }
+        console.log('🛑 자동전송 중지 요청:', { account_name: accountName, userId });
+        const resp = await fetch(`${getApiBaseUrl()}/api/auto-send/stop`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ account_name: accountName, userId })
+        });
+        const result = await resp.json().catch(() => ({}));
+        console.log('🛑 자동전송 중지 응답:', resp.status, result);
+        
+        // 자동전송 중지 성공 시 활성 계정 정보 정리
+        if (resp.ok && result.success) {
+            window.autoSendActiveAccount = null;
+            console.log('🔥 자동전송 활성 계정 정보 정리 완료');
+            
+            // 자동전송 상태를 localStorage에 저장
+            saveAutoSendStatusToLocalStorage(false);
+        }
     } catch (e) {
-        console.error('❌ 통합 풀시스템 자동전송 중지 에러:', e);
-        return false;
+        console.error('❌ 자동전송 중지 에러:', e);
     }
 }
 // 전역에서 접근 가능하도록 등록
@@ -7724,7 +7568,7 @@ function getGroupInterval() {
     }
 }
 
-// 통합 풀시스템 자동전송 시작 함수
+// 자동전송 시작 함수
 async function startAutoSendWithGroups(selectedGroups, message, mediaInfo, targetAccounts = null) {
     try {
         // 자동전송 중지 플래그 확인
@@ -7734,17 +7578,82 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo, targe
             return false;
         }
         
-        console.log('🚀 통합 풀시스템 자동전송 시작:', { selectedGroups, message, mediaInfo, targetAccounts });
+        console.log('🚀 자동전송 시작:', { selectedGroups, message, mediaInfo, targetAccounts });
         
-        // 계정 정보 수집 (단일 계정이든 다중 계정이든 모두 풀시스템으로 처리)
-        let accounts = [];
+        let account;
         
         if (targetAccounts && targetAccounts.length > 0) {
-            // 다중 계정 모드
-            accounts = targetAccounts;
-            console.log('🔄 다중 계정 모드 - 선택된 계정들:', accounts.length);
+            // 새로운 풀 시스템: 서버 API를 통해 자동전송 시작
+            console.log('🔄 새로운 풀 시스템 시작 - 서버 API 호출');
+            
+            // 풀별로 그룹화
+            const pools = groupAccountsByPool(targetAccounts);
+            console.log('🔄 풀별 계정 그룹화:', pools);
+            
+            // 서버 API를 통해 풀시스템 자동전송 시작
+            console.log('🔥 풀시스템 서버 API 호출 시작');
+            const autoSendData = {
+                userId: 'pool_system', // 풀시스템 식별자
+                group_ids: selectedGroups,
+                message: message || '',
+                media_info: mediaInfo,
+                // 자동전송 설정 정보도 함께 전달
+                settings: {
+                    groupInterval: window.groupIntervalMinutes || 30,
+                    repeatInterval: window.repeatIntervalMinutes || 30,
+                    maxRepeats: window.maxRepeats || 10,
+                    messageThreshold: window.messageThreshold || 5,
+                    enableMessageCheck: window.enableMessageCheck || true
+                },
+                // 풀시스템 정보
+                pool_system: {
+                    pools: pools,
+                    targetAccounts: targetAccounts
+                }
+            };
+            
+            console.log('📤 서버에 전달할 풀시스템 자동전송 데이터:', autoSendData);
+            
+            const autoSendResponse = await fetch(`${getApiBaseUrl()}/api/auto-send/start`, {
+                method: 'POST',
+                mode: 'cors',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*',
+                },
+                body: JSON.stringify(autoSendData)
+            });
+            
+            const autoSendResult = await autoSendResponse.json();
+            
+            console.log('📥 서버 응답 상태:', autoSendResponse.status);
+            console.log('📥 서버 응답 데이터:', autoSendResult);
+            
+            if (autoSendResponse.ok && autoSendResult.success) {
+                console.log('✅ 풀시스템 자동전송 시작 성공:', autoSendResult);
+                
+                // 서버에서 자동전송이 시작되었으므로 클라이언트에서도 실행
+                console.log('🔄 클라이언트에서도 풀시스템 자동전송 실행');
+                const poolResults = await executePoolSystemWithDelay(pools, selectedGroups);
+                
+                console.log('📊 풀 시스템 전송 결과:', poolResults);
+                
+                const successCount = poolResults.filter(r => r.success).length;
+                const totalCount = poolResults.length;
+                
+                if (successCount > 0) {
+                    console.log(`✅ 풀 시스템 전송 완료: ${successCount}/${totalCount} 성공`);
+                    return true;
+                } else {
+                    console.log('❌ 풀 시스템 전송 실패');
+                    return false;
+                }
+            } else {
+                console.log('❌ 풀시스템 자동전송 시작 실패:', autoSendResult);
+                return false;
+            }
         } else {
-            // 단일 계정 모드 - 현재 선택된 계정을 풀로 구성
+            // 기존 단일 계정 로직
             const accountName = document.getElementById('selectedAccountName').textContent;
             const accountPhone = document.getElementById('selectedAccountPhone').textContent;
             
@@ -7760,40 +7669,26 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo, targe
                 }
             });
             
-            if (!response.ok) {
-                throw new Error('계정 목록을 불러올 수 없습니다.');
+            const result = await response.json();
+            if (!response.ok || !result.success || !result.accounts) {
+                throw new Error(result.error || '계정 목록 로딩 실패');
             }
             
-            const accountsData = await response.json();
-            if (!accountsData.success || !accountsData.accounts) {
-                throw new Error('계정 데이터를 불러올 수 없습니다.');
-            }
-            
-            // 선택된 계정 찾기
-            const selectedAccount = accountsData.accounts.find(acc => 
-                `${acc.first_name} ${acc.last_name}`.trim() === accountName.trim()
+            account = result.accounts.find(acc => 
+                `${acc.first_name} ${acc.last_name || ''}`.trim() === accountName.trim()
             );
             
-            if (!selectedAccount) {
-                throw new Error('선택된 계정을 찾을 수 없습니다.');
+            if (!account) {
+                throw new Error('계정을 찾을 수 없습니다.');
             }
-            
-            accounts = [selectedAccount];
-            console.log('🔄 단일 계정 모드 - 계정을 풀로 구성:', selectedAccount.user_id);
         }
         
-        // 풀별로 그룹화 (단일 계정도 풀로 처리)
-        const pools = groupAccountsByPool(accounts);
-        console.log('🔄 풀별 계정 그룹화:', pools);
-        
-        // 통합 풀시스템 자동전송 시작
-        console.log('🔥 통합 풀시스템 서버 API 호출 시작');
+        // 자동전송 시작 API 호출 (CORS 우회)
         const autoSendData = {
-            userId: 'pool_system', // 통합 풀시스템 식별자
+            userId: String(account.user_id),
             group_ids: selectedGroups,
-            message: message || '',
+            message: message,
             media_info: mediaInfo,
-            target_accounts: accounts, // 모든 계정 정보 전달
             // 자동전송 설정 정보도 함께 전달
             settings: {
                 groupInterval: window.groupIntervalMinutes || 30,
@@ -7801,15 +7696,39 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo, targe
                 maxRepeats: window.maxRepeats || 10,
                 messageThreshold: window.messageThreshold || 5,
                 enableMessageCheck: window.enableMessageCheck || true
-            },
-            // 풀시스템 정보
-            pool_system: {
-                pools: pools,
-                targetAccounts: accounts
             }
         };
         
-        console.log('📤 서버에 전달할 통합 풀시스템 자동전송 데이터:', autoSendData);
+        console.log('📤 서버에 전달할 자동전송 데이터:', {
+            userId: autoSendData.userId,
+            group_ids: autoSendData.group_ids,
+            message: autoSendData.message,
+            media_info: autoSendData.media_info,
+            settings: autoSendData.settings
+        });
+        console.log('📤 자동전송 데이터 상세:', {
+            userId: autoSendData.userId,
+            group_ids_count: autoSendData.group_ids.length,
+            message_length: autoSendData.message.length,
+            has_media: !!autoSendData.media_info,
+            settings: autoSendData.settings
+        });
+        
+        // 커스텀 이모지가 있는 경우 원본 메시지 객체 전체를 전송
+        if (mediaInfo && mediaInfo.has_custom_emoji) {
+            autoSendData.original_message_object = mediaInfo.original_message_object || mediaInfo.raw_message_data || mediaInfo;
+            autoSendData.is_original_message = true;
+            autoSendData.bypass_text_processing = true;
+            autoSendData.message = null; // 텍스트 처리를 우회
+            autoSendData.send_as_original = true; // 서버에서 원본 객체로 처리하라는 플래그
+            
+            console.log('📤 자동전송 커스텀 이모지 원본 객체 전체 전송:', {
+                original_message_object: autoSendData.original_message_object,
+                is_original_message: autoSendData.is_original_message,
+                bypass_text_processing: autoSendData.bypass_text_processing,
+                send_as_original: autoSendData.send_as_original
+            });
+        }
         
         const autoSendResponse = await fetch(`${getApiBaseUrl()}/api/auto-send/start`, {
             method: 'POST',
@@ -7827,26 +7746,24 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo, targe
         console.log('📥 서버 응답 데이터:', autoSendResult);
         
         if (autoSendResponse.ok && autoSendResult.success) {
-            console.log('✅ 통합 풀시스템 자동전송 시작 성공:', autoSendResult);
+            console.log('✅ 자동전송 시작 성공:', autoSendResult);
             
-            // 서버에서 자동전송이 시작되었으므로 클라이언트에서도 실행
-            console.log('🔄 클라이언트에서도 통합 풀시스템 자동전송 실행');
-            const poolResults = await executePoolSystemWithDelay(pools, selectedGroups);
+            // 자동전송에 사용된 계정 정보 저장 (중지 시 사용)
+            window.autoSendActiveAccount = {
+                userId: String(account.user_id),
+                accountName: `${account.first_name} ${account.last_name || ''}`.trim(),
+                timestamp: Date.now()
+            };
+            console.log('🔥 자동전송 활성 계정 정보 저장:', window.autoSendActiveAccount);
             
-            console.log('📊 통합 풀시스템 전송 결과:', poolResults);
-            
-            const successCount = poolResults.filter(r => r.success).length;
-            const totalCount = poolResults.length;
-            
-            if (successCount > 0) {
-                console.log(`✅ 통합 풀시스템 전송 완료: ${successCount}/${totalCount} 성공`);
-                return true;
-            } else {
-                console.log('❌ 통합 풀시스템 전송 실패');
-                return false;
-            }
+            // 시작 확정 → 잠금 해제, 설정 저장 플래그 리셋, 바로 서버 상태 다시 받아 UI와 1:1 동기화
+            window.autoSendSyncLocked = false;
+            window.autoSendSettingsSaved = false; // 자동전송이 시작되면 설정 저장 플래그 리셋
+            try { await restoreAutoSendStatusFor(String(account.user_id)); } catch(_){}
+            return true;
         } else {
-            console.log('❌ 통합 풀시스템 자동전송 시작 실패:', autoSendResult);
+            console.error('❌ 자동전송 시작 실패:', autoSendResult);
+            window.autoSendSyncLocked = false; // 실패 시에도 잠금 해제
             return false;
         }
         
@@ -7893,66 +7810,37 @@ function startAutoSendStatusUpdate() {
 }
 
 // 자동전송 상태를 localStorage에 저장하는 함수
-// 자동전송 상태를 localStorage에 저장하는 함수 (다중 계정 + 모든 설정 포함)
-function saveAutoSendStatusToLocalStorage(isRunning, selectedGroups = null, targetAccounts = null) {
+function saveAutoSendStatusToLocalStorage(isRunning, selectedGroups = null) {
     try {
-        // 통합 풀시스템 상태 저장
+        const accountKey = getCurrentAccountKey();
+        if (!accountKey) {
+            console.log('❌ 계정 키가 없어서 자동전송 상태 저장 불가');
+            return;
+        }
+        
         const statusData = {
             isRunning: isRunning,
             timestamp: Date.now(),
-            systemType: 'pool_system', // 통합 풀시스템 식별자
-            // 다중 계정 정보 저장
-            targetAccounts: targetAccounts || window.selectedMultiAccounts || [],
-            multiAccountMode: window.multiAccountMode || false,
-            // 선택된 그룹들 저장
-            selectedGroups: selectedGroups || getCurrentSelectedGroups(),
-            // 자동전송 설정 저장
-            autoSendSettings: {
-                groupInterval: document.getElementById('groupInterval')?.value || 30,
-                repeatInterval: document.getElementById('repeatInterval')?.value || 30,
-                maxRepeats: document.getElementById('maxRepeats')?.value || 10,
-                messageThreshold: document.getElementById('messageThreshold')?.value || 5,
-                enableMessageCheck: document.getElementById('enableMessageCheck')?.checked || true
-            },
-            // 풀시스템 설정 저장
-            poolSystemSettings: {
-                rotationPoolsEnabled: window.rotationPoolsEnabled || false,
-                rotationPools: window.rotationPools || {},
-                groupPoolMapping: window.groupPoolMapping || {}
-            },
-            // 메시지 정보 저장
-            messageInfo: {
-                message: document.querySelector('.message-input')?.value || '',
-                mediaInfo: window.selectedMediaInfo || null
-            }
+            accountKey: accountKey
         };
         
-        // 통합 풀시스템 상태로 저장
-        localStorage.setItem('autoSendStatus_pool_system', JSON.stringify(statusData));
-        console.log('💾 통합 풀시스템 자동전송 상태 저장됨:', statusData);
-        
-        // 기존 개별 계정 상태는 정리 (중복 방지)
-        const keys = Object.keys(localStorage);
-        keys.forEach(key => {
-            if (key.startsWith('autoSendStatus_') && key !== 'autoSendStatus_pool_system') {
-                localStorage.removeItem(key);
-                console.log('🗑️ 기존 개별 계정 상태 제거:', key);
+        // 선택된 그룹들도 저장
+        if (selectedGroups && selectedGroups.length > 0) {
+            statusData.selectedGroups = selectedGroups;
+        } else {
+            // 현재 선택된 그룹들을 가져와서 저장
+            const checkedBoxes = document.querySelectorAll('.group-checkbox:checked');
+            const groupIds = Array.from(checkedBoxes).map(checkbox => checkbox.value);
+            if (groupIds.length > 0) {
+                statusData.selectedGroups = groupIds;
             }
-        });
+        }
+        
+        localStorage.setItem(`autoSendStatus_${accountKey}`, JSON.stringify(statusData));
+        console.log('💾 자동전송 상태 저장됨:', statusData);
         
     } catch (error) {
         console.error('❌ 자동전송 상태 저장 에러:', error);
-    }
-}
-
-// 현재 선택된 그룹들 가져오기
-function getCurrentSelectedGroups() {
-    try {
-        const checkedBoxes = document.querySelectorAll('.group-checkbox:checked');
-        return Array.from(checkedBoxes).map(checkbox => checkbox.value);
-    } catch (error) {
-        console.error('❌ 선택된 그룹 가져오기 실패:', error);
-        return [];
     }
 }
 
@@ -8019,83 +7907,10 @@ function restoreAutoSendStatusFromLocalStorage() {
     }
 }
 
-// 마지막 선택 계정 복원 함수
-async function restoreLastSelectedAccount() {
-    try {
-        console.log('🔄 마지막 선택 계정 복원 시작');
-        
-        const lastSelectedAccountId = localStorage.getItem('lastSelectedAccount');
-        if (!lastSelectedAccountId) {
-            console.log('❌ 저장된 계정 정보 없음');
-            return;
-        }
-        
-        console.log('💾 저장된 계정 ID:', lastSelectedAccountId);
-        
-        // 계정 목록 로드
-        const response = await fetch('/api/telegram/load-accounts', {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        });
-        
-        if (!response.ok) {
-            console.error('❌ 계정 목록 로드 실패');
-            return;
-        }
-        
-        const result = await response.json();
-        if (!result.success || !result.accounts) {
-            console.error('❌ 계정 데이터 없음');
-            return;
-        }
-        
-        // 저장된 계정 ID와 일치하는 계정 찾기
-        const savedAccount = result.accounts.find(acc => String(acc.user_id) === String(lastSelectedAccountId));
-        if (!savedAccount) {
-            console.error('❌ 저장된 계정을 찾을 수 없음:', lastSelectedAccountId);
-            return;
-        }
-        
-        console.log('✅ 저장된 계정 발견:', savedAccount.first_name, savedAccount.last_name);
-        
-        // 계정 정보를 UI에 표시
-        const accountNameEl = document.getElementById('selectedAccountName');
-        const accountPhoneEl = document.getElementById('selectedAccountPhone');
-        
-        if (accountNameEl) {
-            accountNameEl.textContent = `${savedAccount.first_name} ${savedAccount.last_name || ''}`.trim();
-        }
-        
-        if (accountPhoneEl) {
-            accountPhoneEl.textContent = savedAccount.phone_number || '';
-        }
-        
-        // 계정 선택 상태 복원
-        const accountItems = document.querySelectorAll('.account-item');
-        accountItems.forEach(item => {
-            item.classList.remove('selected');
-            if (String(item.dataset.userId) === String(lastSelectedAccountId)) {
-                item.classList.add('selected');
-                console.log('✅ 계정 선택 상태 복원 완료');
-            }
-        });
-        
-        // 계정 정보만 복원하고 그룹은 자동 로드하지 않음 (사용자가 LOAD 버튼을 눌러야 함)
-        console.log('✅ 계정 정보 복원 완료 (그룹 로드는 LOAD 버튼을 눌러주세요)');
-        
-        console.log('✅ 마지막 선택 계정 복원 완료');
-        
-    } catch (error) {
-        console.error('❌ 마지막 선택 계정 복원 실패:', error);
-    }
-}
-
-// 통합 풀시스템 자동전송 상태 복원 함수
+// 자동전송 상태 복원 함수
 async function restoreAutoSendStatusOnLoad() {
     try {
-        console.log('🔄 페이지 로드 시 통합 풀시스템 상태 복원 시작');
+        console.log('🔄 페이지 로드 시 자동전송 상태 복원 시작');
         
         // 먼저 localStorage에서 상태 복원 시도
         const localStatusRestored = restoreAutoSendStatusFromLocalStorage();
@@ -8104,7 +7919,7 @@ async function restoreAutoSendStatusOnLoad() {
             // localStorage에서 복원된 경우 서버 상태와 동기화
             setTimeout(async () => {
                 try {
-                    await restoreAutoSendStatusFor('pool_system');
+                    await restoreAutoSendStatusFor(lastUserId);
                     console.log('✅ 서버 상태와 동기화 완료');
                 } catch (error) {
                     console.error('❌ 서버 상태 동기화 실패:', error);
@@ -8113,21 +7928,28 @@ async function restoreAutoSendStatusOnLoad() {
             return;
         }
         
-        // 통합 풀시스템 상태 조회
+        // 계정 미선택이면 전역 복원 동작 금지 (계정 확정 시점에만 복원)
+        const lastUserId = localStorage.getItem('lastSelectedAccount');
+        if (!lastUserId) {
+            console.log('❌ 계정이 선택되지 않음, 자동전송 상태 복원 건너뜀');
+            return;
+        }
+        
+        // 서버에서 자동전송 상태 조회
         const response = await fetch('/api/auto-send/status', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                userId: 'pool_system' // 통합 풀시스템 상태 조회
+                userId: lastUserId
             })
         });
         
         if (response.ok) {
             const statusData = await response.json();
-            console.log('📊 서버에서 가져온 통합 풀시스템 상태:', statusData);
-            console.log('🔥 통합 풀시스템 상태 상세: is_running=', statusData.is_running, ', group_ids=', statusData.group_ids?.length, ', message_length=', statusData.message?.length);
+            console.log('📊 서버에서 가져온 자동전송 상태:', statusData);
+            console.log('🔥 자동전송 상태 상세: is_running=', statusData.is_running, ', groups=', statusData.groups?.length, ', message_length=', statusData.message?.length);
             
             if (statusData.is_running) {
                 // 자동전송이 실행 중인 경우 UI 업데이트
@@ -8137,36 +7959,17 @@ async function restoreAutoSendStatusOnLoad() {
                     console.log('✅ 자동전송 토글 ON으로 설정');
                 }
                 
-                // 그룹 체크박스 복원
-                if (statusData.group_ids && statusData.group_ids.length > 0) {
-                    const allCbs = document.querySelectorAll('.group-checkbox');
-                    allCbs.forEach(cb => {
-                        const gid = cb.dataset.groupId;
-                        cb.checked = statusData.group_ids.includes(String(gid));
+                // 그룹 상태 업데이트
+                if (statusData.groups && statusData.groups.length > 0) {
+                    statusData.groups.forEach(group => {
+                        updateGroupAutoStatus(group.id, true);
+                        if (group.next_send_time) {
+                            updateGroupNextSendTime(group.id, group.next_send_time);
+                        }
                     });
-                    updateSelectedGroupsCount();
-                    console.log('✅ 그룹 체크박스 복원 완료:', statusData.group_ids.length + '개');
                 }
                 
-                // 저장된 메시지 복원
-                if (statusData.message) {
-                    const messageInput = document.querySelector('.message-input');
-                    if (messageInput) {
-                        messageInput.value = statusData.message;
-                        console.log('✅ 저장된 메시지 복원 완료');
-                    }
-                }
-                
-                // 저장된 미디어 정보 복원
-                if (statusData.media_info) {
-                    window.selectedMediaInfo = statusData.media_info;
-                    console.log('✅ 저장된 미디어 정보 복원 완료');
-                }
-                
-                // 전송 버튼 텍스트 업데이트
-                updateSendButtonText(true);
-                
-                console.log('✅ 통합 풀시스템 자동전송 상태 복원 완료');
+                console.log('✅ 자동전송 상태 복원 완료');
             } else {
                 // 자동전송이 실행 중이 아닌 경우 토글을 OFF로 설정
                 const autoSendToggle = document.getElementById('autoSendToggle');
@@ -8174,14 +7977,13 @@ async function restoreAutoSendStatusOnLoad() {
                     autoSendToggle.checked = false;
                     console.log('✅ 자동전송 토글 OFF로 설정');
                 }
-                updateSendButtonText(false);
-                console.log('ℹ️ 통합 풀시스템 자동전송이 실행 중이 아님 - 토글 OFF로 설정');
+                console.log('ℹ️ 자동전송이 실행 중이 아님 - 토글 OFF로 설정');
             }
         } else {
-            console.log('❌ 통합 풀시스템 상태 조회 실패:', response.status);
+            console.log('❌ 자동전송 상태 조회 실패:', response.status);
         }
     } catch (error) {
-        console.error('❌ 통합 풀시스템 상태 복원 실패:', error);
+        console.error('❌ 자동전송 상태 복원 실패:', error);
     }
 }
 
@@ -8192,9 +7994,6 @@ let isPageUnloading = false;
 window.addEventListener('beforeunload', function() {
     isPageUnloading = true;
     console.log('🔄 페이지 언로드 시작, 자동전송 중지 방지');
-    
-    // 페이지 언로드 시 로딩 애니메이션 강제 제거
-    forceHideAllLoadingAnimations();
 });
 
 // 페이지 가시성 변경 감지
@@ -8202,9 +8001,6 @@ document.addEventListener('visibilitychange', function() {
     if (document.visibilityState === 'hidden') {
         isPageUnloading = true;
         console.log('🔄 페이지 숨김, 자동전송 중지 방지');
-        
-        // 페이지 숨김 시 로딩 애니메이션 강제 제거
-        forceHideAllLoadingAnimations();
     } else if (document.visibilityState === 'visible') {
         isPageUnloading = false;
         console.log('🔄 페이지 표시, 자동전송 중지 방지 해제');
@@ -9531,79 +9327,27 @@ function saveGroupPoolMapping() {
 // 새로운 풀 시스템 전송 로직
 // ============================================================
 
-// 계정들을 풀별로 그룹화 - 개선된 버전
+// 계정들을 풀별로 그룹화
 function groupAccountsByPool(targetAccounts) {
     const pools = {};
     
-    // 풀 시스템이 활성화되어 있는지 확인
-    const rotationPoolsEnabled = window.rotationPoolsEnabled || false;
-    const rotationPools = window.rotationPools || {};
-    
-    console.log('🔄 풀별 계정 그룹화 시작:', {
-        accountsCount: targetAccounts.length,
-        rotationPoolsEnabled: rotationPoolsEnabled,
-        rotationPoolsCount: Object.keys(rotationPools).length
-    });
-    
-    if (rotationPoolsEnabled && Object.keys(rotationPools).length > 0) {
-        // 풀 시스템 활성화 상태 - 실제 풀 설정 사용
-        for (const account of targetAccounts) {
-            // 계정이 속한 풀 찾기
-            let assignedPoolId = null;
-            let assignedPoolName = null;
-            
-            for (const [poolId, pool] of Object.entries(rotationPools)) {
-                if (pool.accounts && pool.accounts.some(acc => acc.user_id === account.user_id)) {
-                    assignedPoolId = poolId;
-                    assignedPoolName = pool.name;
-                    break;
-                }
-            }
-            
-            // 풀에 할당되지 않은 계정은 기본 풀에 할당
-            if (!assignedPoolId) {
-                assignedPoolId = 'default';
-                assignedPoolName = '기본 풀';
-            }
-            
-            if (!pools[assignedPoolId]) {
-                pools[assignedPoolId] = {
-                    poolId: assignedPoolId,
-                    poolName: assignedPoolName,
-                    accounts: [],
-                    rotationInterval: rotationPools[assignedPoolId]?.rotationInterval || 15
-                };
-            }
-            pools[assignedPoolId].accounts.push(account);
+    for (const account of targetAccounts) {
+        const poolId = account.poolId || 'default';
+        if (!pools[poolId]) {
+            pools[poolId] = {
+                poolId: poolId,
+                poolName: account.poolName || `풀 ${poolId}`,
+                accounts: []
+            };
         }
-    } else {
-        // 풀 시스템 비활성화 상태 - 기본 풀 사용
-        for (const account of targetAccounts) {
-            const poolId = 'default';
-            if (!pools[poolId]) {
-                pools[poolId] = {
-                    poolId: poolId,
-                    poolName: '기본 풀',
-                    accounts: [],
-                    rotationInterval: 15 // 기본 15분
-                };
-            }
-            pools[poolId].accounts.push(account);
-        }
+        pools[poolId].accounts.push(account);
     }
     
-    const result = Object.values(pools);
-    console.log('🔄 풀별 계정 그룹화 결과:', result.map(pool => ({
-        poolId: pool.poolId,
-        poolName: pool.poolName,
-        accountsCount: pool.accounts.length,
-        rotationInterval: pool.rotationInterval
-    })));
-    
-    return result;
+    console.log('🔄 풀별 계정 그룹화 결과:', pools);
+    return Object.values(pools);
 }
 
-// 풀별 시차 시작 실행 (풀간 연동 전송) - 개선된 로테이션
+// 풀별 시차 시작 실행 (풀간 연동 전송)
 async function executePoolSystemWithDelay(pools, selectedGroups) {
     const results = [];
     const poolDelay = getPoolIntervalDelay(); // 사용자 설정 풀간 간격 (밀리초)
@@ -9615,49 +9359,51 @@ async function executePoolSystemWithDelay(pools, selectedGroups) {
         startTime: Date.now()
     };
     
-    console.log(`🔄 개선된 풀간 연동 시스템 시작: ${pools.length}개 풀, ${selectedGroups.length}개 그룹`);
+    console.log(`🔄 풀간 연동 시스템 시작: ${pools.length}개 풀, ${selectedGroups.length}개 그룹`);
     console.log(`⏰ 풀간 간격: ${poolDelay / 1000}초`);
     
-    // 풀별 계정 인덱스 초기화 (각 풀별로 독립적인 로테이션)
-    if (!window.poolRotationIndex) {
-        window.poolRotationIndex = {};
-    }
-    
+    // 풀별 계정 인덱스 초기화 (기존 인덱스 시스템 활용)
     pools.forEach(pool => {
         if (window.poolRotationIndex[pool.poolId] === undefined) {
             window.poolRotationIndex[pool.poolId] = 0;
-            console.log(`🔄 풀 ${pool.poolName} 인덱스 초기화: 0`);
         }
     });
     
-    // 각 풀별로 독립적인 전송 실행
-    const poolPromises = pools.map(async (pool, poolIndex) => {
-        const poolResults = [];
-        const poolRotationInterval = (pool.rotationInterval || 15) * 60 * 1000; // 풀별 순환 간격 (밀리초)
-        
-        console.log(`🔄 풀 ${pool.poolName} 독립 전송 시작: ${pool.accounts.length}개 계정, ${poolRotationInterval / 1000}초 간격`);
-        
-        // 풀 시작 지연 (풀간 시차를 위해)
-        if (poolIndex > 0) {
-            const delay = poolIndex * poolDelay;
-            console.log(`⏳ 풀 ${pool.poolName} 시작 지연: ${delay / 1000}초`);
-            await new Promise(resolve => setTimeout(resolve, delay));
+    // 최대 반복 횟수 (모든 풀의 계정 수 중 최대값)
+    const maxAccounts = Math.max(...pools.map(pool => pool.accounts.length));
+    
+    // 풀간 교차 전송 실행
+    for (let round = 0; round < maxAccounts; round++) {
+        // 자동전송 중지 플래그 확인
+        if (window.autoSendShouldStop) {
+            console.log('🛑 자동전송 중지 플래그 감지 - 풀 시스템 중단');
+            // 서버에 중지 요청 전송
+            await stopAutoSend();
+            break;
         }
         
-        // 풀 내 계정 순환 전송 (무한 루프)
-        while (!window.autoSendShouldStop) {
+        console.log(`🔄 라운드 ${round + 1}/${maxAccounts} 시작`);
+        
+        // 각 풀에서 현재 인덱스의 계정 전송
+        for (let i = 0; i < pools.length; i++) {
+            const pool = pools[i];
             const currentIndex = window.poolRotationIndex[pool.poolId] || 0;
-            const account = pool.accounts[currentIndex];
             
-            console.log(`🔄 풀 ${pool.poolName} 계정 ${currentIndex + 1}/${pool.accounts.length}: ${account.first_name} (${account.user_id})`);
+            // 해당 풀에 더 이상 전송할 계정이 없으면 건너뛰기
+            if (currentIndex >= pool.accounts.length) {
+                console.log(`⏭️ 풀 ${pool.poolName}: 모든 계정 전송 완료, 건너뛰기`);
+                continue;
+            }
             
             try {
+                const account = pool.accounts[currentIndex];
+                console.log(`🔄 풀 ${pool.poolName} 계정 ${currentIndex + 1}/${pool.accounts.length}: ${account.first_name} (${account.user_id})`);
+                
                 // 계정의 메시지 정보 가져오기
                 const accountElement = document.querySelector(`[data-account-id="${account.user_id}"]`);
                 if (!accountElement) {
                     console.error(`❌ 계정 ${account.user_id}의 메시지 설정 요소를 찾을 수 없습니다.`);
                     window.poolRotationIndex[pool.poolId] = (currentIndex + 1) % pool.accounts.length;
-                    await new Promise(resolve => setTimeout(resolve, poolRotationInterval));
                     continue;
                 }
                 
@@ -9665,7 +9411,6 @@ async function executePoolSystemWithDelay(pools, selectedGroups) {
                 if (!mediaInfoStr || mediaInfoStr === 'null' || mediaInfoStr === '') {
                     console.error(`❌ 계정 ${account.user_id}에 메시지 정보가 없습니다.`);
                     window.poolRotationIndex[pool.poolId] = (currentIndex + 1) % pool.accounts.length;
-                    await new Promise(resolve => setTimeout(resolve, poolRotationInterval));
                     continue;
                 }
                 
@@ -9675,54 +9420,54 @@ async function executePoolSystemWithDelay(pools, selectedGroups) {
                 const accountResult = await sendAccountToAllGroups(account, selectedGroups, accountMediaInfo);
                 
                 // 결과 저장
-                poolResults.push({
-                    poolId: pool.poolId,
-                    poolName: pool.poolName,
-                    account: account.first_name,
-                    success: accountResult.success,
-                    results: accountResult.results || []
-                });
+                if (!results.find(r => r.poolId === pool.poolId)) {
+                    results.push({
+                        poolId: pool.poolId,
+                        poolName: pool.poolName,
+                        success: true,
+                        results: []
+                    });
+                }
+                const poolResult = results.find(r => r.poolId === pool.poolId);
+                poolResult.results.push(accountResult);
                 
-                // 다음 계정으로 인덱스 증가
+                // 계정 인덱스 증가 (다음 라운드를 위해)
                 window.poolRotationIndex[pool.poolId] = (currentIndex + 1) % pool.accounts.length;
                 
-                // 풀 내 계정 순환 간격 대기
-                console.log(`⏳ 풀 ${pool.poolName} 다음 계정까지 대기: ${poolRotationInterval / 1000}초`);
-                await new Promise(resolve => setTimeout(resolve, poolRotationInterval));
+                // 풀간 간격 대기 (마지막 풀이 아닌 경우)
+                if (i < pools.length - 1) {
+                    console.log(`⏳ 다음 풀로 전환까지 대기: ${poolDelay / 1000}초`);
+                    await new Promise(resolve => setTimeout(resolve, poolDelay));
+                }
                 
             } catch (error) {
-                console.error(`❌ 풀 ${pool.poolName} 계정 ${account.first_name} 전송 실패:`, error);
-                
-                // 에러 결과 저장
-                poolResults.push({
-                    poolId: pool.poolId,
-                    poolName: pool.poolName,
-                    account: account.first_name,
-                    success: false,
-                    error: error.message
-                });
-                
-                // 다음 계정으로 인덱스 증가
+                console.error(`❌ 풀 ${pool.poolName} 계정 전송 실패:`, error);
                 window.poolRotationIndex[pool.poolId] = (currentIndex + 1) % pool.accounts.length;
                 
-                // 에러 후에도 간격 대기
-                await new Promise(resolve => setTimeout(resolve, poolRotationInterval));
+                // 에러 결과 저장
+                if (!results.find(r => r.poolId === pool.poolId)) {
+                    results.push({
+                        poolId: pool.poolId,
+                        poolName: pool.poolName,
+                        success: false,
+                        results: [],
+                        error: error.message
+                    });
+                }
             }
         }
         
-        console.log(`✅ 풀 ${pool.poolName} 전송 완료`);
-        return poolResults;
-    });
+        // 라운드 완료 후 순환 간격 대기 (마지막 라운드가 아닌 경우)
+        if (round < maxAccounts - 1) {
+            // 첫 번째 풀의 간격을 기준으로 대기 (풀간 동기화를 위해)
+            const firstPool = pools[0];
+            const firstPoolInterval = (firstPool.rotationInterval || 15) * 60 * 1000; // 분을 밀리초로 변환
+            console.log(`⏳ 다음 라운드까지 순환 간격 대기: ${firstPoolInterval / 1000}초 (${firstPool.poolName} 기준)`);
+            await new Promise(resolve => setTimeout(resolve, firstPoolInterval));
+        }
+    }
     
-    // 모든 풀의 전송이 완료될 때까지 대기
-    const allResults = await Promise.all(poolPromises);
-    
-    // 결과 통합
-    allResults.forEach(poolResults => {
-        results.push(...poolResults);
-    });
-    
-    console.log('✅ 개선된 풀간 연동 전송 완료');
+    console.log('✅ 풀간 연동 전송 완료');
     return results;
 }
 
