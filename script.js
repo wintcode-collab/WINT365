@@ -7397,6 +7397,12 @@ function getCurrentAccountKey() {
     const accountPhone = document.getElementById('selectedAccountPhone')?.textContent;
     
     if (!accountName || accountName === '계정을 선택하세요') {
+        // 다중 계정 모드에서는 다른 방식으로 키 생성
+        if (window.multiAccountMode && window.selectedMultiAccounts) {
+            // 다중 계정 모드에서는 선택된 계정들의 ID를 조합하여 키 생성
+            const accountIds = window.selectedMultiAccounts.map(acc => acc.user_id).sort().join('_');
+            return `multi_${accountIds}`;
+        }
         return null;
     }
     
@@ -7425,6 +7431,13 @@ function saveAccountSettings(settingsType, settings) {
 function loadAccountSettings(settingsType) {
     try {
         const accountKey = getCurrentAccountKey();
+        console.log(`🔍 loadAccountSettings 호출:`, {
+            settingsType,
+            accountKey,
+            multiAccountMode: window.multiAccountMode,
+            selectedMultiAccounts: window.selectedMultiAccounts?.length
+        });
+        
         if (!accountKey) {
             console.log('❌ 계정이 선택되지 않음, 기본 설정 사용');
             return null;
