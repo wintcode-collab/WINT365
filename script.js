@@ -1773,12 +1773,14 @@ function showAccountList(accounts) {
         background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
         border-radius: 20px;
         padding: 30px;
-        max-width: 500px;
+        max-width: 600px;
         width: 90%;
         max-height: 80vh;
         overflow-y: auto;
         border: 2px solid #10B981;
         box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+        position: relative;
+        z-index: 10001;
     `;
     
     modalContent.innerHTML = `
@@ -1809,17 +1811,20 @@ function showAccountList(accounts) {
         </div>
         
         
-        <div id="accountList" style="margin-bottom: 25px;">
+        <div id="accountList" style="margin-bottom: 25px; display: flex; flex-direction: column; gap: 12px;">
             ${accounts.map((account, index) => `
                 <div class="account-item" style="
                     background: linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%);
                     border: 1px solid #444;
                     border-radius: 12px;
                     padding: 15px;
-                    margin-bottom: 10px;
                     cursor: pointer;
                     transition: all 0.3s ease;
                     position: relative;
+                    display: block;
+                    width: 100%;
+                    box-sizing: border-box;
+                    flex-shrink: 0;
                 " data-user-id="${account.user_id}">
                     <div style="display: flex; align-items: center; justify-content: space-between;">
                         <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
@@ -1833,6 +1838,7 @@ function showAccountList(accounts) {
                                 align-items: center;
                                 justify-content: center;
                                 transition: all 0.3s ease;
+                                flex-shrink: 0;
                             " class="account-checkbox">
                                 <div style="
                                     color: #10B981;
@@ -1841,11 +1847,11 @@ function showAccountList(accounts) {
                                     transition: opacity 0.3s ease;
                                 " class="checkmark">✓</div>
                             </div>
-                            <div style="flex: 1;">
-                                <div style="color: #10B981; font-weight: 600; font-size: 16px; margin-bottom: 5px;">
+                            <div style="flex: 1; min-width: 0;">
+                                <div style="color: #10B981; font-weight: 600; font-size: 16px; margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
                                     ${account.first_name} ${account.last_name || ''}
                                 </div>
-                                <div style="color: #888; font-size: 14px; margin-bottom: 3px;">
+                                <div style="color: #888; font-size: 14px; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
                                     📱 ${account.phone_number}
                             </div>
                             ${account.username ? `
