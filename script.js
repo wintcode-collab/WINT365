@@ -7179,8 +7179,7 @@ function getApiBaseUrl() {
 // 서버 자동전송 상태 복원 (특정 userId)
 async function restoreAutoSendStatusFor(userId) {
     try {
-        if (!userId) return;
-        console.log('🔄 특정 계정 상태 복원 시작:', userId);
+        console.log('🔄 통합 풀시스템 상태 복원 시작');
         
         // 먼저 localStorage에서 상태 복원 시도
         const localStatusRestored = restoreAutoSendStatusFromLocalStorage();
@@ -7189,7 +7188,7 @@ async function restoreAutoSendStatusFor(userId) {
             // localStorage에서 복원된 경우 서버 상태와 동기화
             setTimeout(async () => {
                 try {
-                    await restoreAutoSendStatusFor(userId);
+                    await restoreAutoSendStatusFor('pool_system');
                     console.log('✅ 서버 상태와 동기화 완료');
                 } catch (error) {
                     console.error('❌ 서버 상태 동기화 실패:', error);
@@ -7197,13 +7196,14 @@ async function restoreAutoSendStatusFor(userId) {
             }, 1000);
             return;
         }
+        
         const resp = await fetch(`${getApiBaseUrl()}/api/auto-send/status`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId })
+            body: JSON.stringify({ userId: 'pool_system' }) // 통합 풀시스템 상태 조회
         });
         const data = await resp.json();
-        console.log('📊 특정 계정 상태:', data);
+        console.log('📊 통합 풀시스템 상태:', data);
         const toggle = document.getElementById('autoSendToggle');
         if (!(data && data.success)) return;
 
@@ -7255,7 +7255,7 @@ async function restoreAutoSendStatusFor(userId) {
             }
         } catch (_) {}
 
-        // 4) 서버가 is_running:false면 로컬 스냅샷 제거 및 UI 초기화(이전 로직 유지)
+        // 4) 서버가 is_running:false면 로컬 스냅샷 제거 및 UI 초기화
         if (!data.is_running) {
             try {
                 const key = getCurrentAccountKey ? getCurrentAccountKey() : null;
@@ -7263,136 +7263,44 @@ async function restoreAutoSendStatusFor(userId) {
             } catch (_) {}
         }
     } catch (e) {
-        console.warn('상태 복원 실패:', e);
+        console.warn('통합 풀시스템 상태 복원 실패:', e);
     }
 }
 
-// 자동전송 중지 API 호출
+// 통합 풀시스템 자동전송 중지 API 호출
 async function stopAutoSend() {
     try {
-        console.log('🛑 자동전송 중지 요청 시작');
+        console.log('🛑 통합 풀시스템 자동전송 중지 요청 시작');
         
-        // 새로운 풀 시스템에서는 모든 활성 계정들을 중지
-        if (window.rotationPoolsEnabled && window.groupPoolMapping) {
-            console.log('🔄 풀시스템 자동전송 중지 - 모든 활성 계정 중지');
-            
-            // 모든 활성 계정들 수집
-            const activeAccounts = [];
-            for (const [groupId, poolIds] of Object.entries(window.groupPoolMapping)) {
-                for (const poolId of poolIds) {
-                    const pool = window.rotationPools[poolId];
-                    if (pool && pool.accounts) {
-                        activeAccounts.push(...pool.accounts);
-                    }
-                }
-            }
-            
-            // 중복 제거
-            const uniqueAccounts = activeAccounts.filter((account, index, self) => 
-                index === self.findIndex(a => a.user_id === account.user_id)
-            );
-            
-            console.log(`🔄 중지할 계정들: ${uniqueAccounts.length}개`, uniqueAccounts.map(a => a.first_name));
-            
-            // 모든 계정에 대해 중지 요청
-            const stopPromises = uniqueAccounts.map(async (account) => {
-                try {
-                    const response = await fetch(`${getApiBaseUrl()}/api/auto-send/stop`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            userId: account.user_id
-                        })
-                    });
-                    
-                    const result = await response.json();
-                    console.log(`🛑 계정 ${account.first_name} 중지 결과:`, result);
-                    return result;
-                } catch (error) {
-                    console.error(`❌ 계정 ${account.first_name} 중지 실패:`, error);
-                    return { success: false, error: error.message };
-                }
-            });
-            
-            const stopResults = await Promise.all(stopPromises);
-            const successCount = stopResults.filter(r => r.success).length;
-            
-            console.log(`✅ 풀시스템 자동전송 중지 완료: ${successCount}/${uniqueAccounts.length} 성공`);
-            
-            // 자동전송 상태를 localStorage에 저장
-            saveAutoSendStatusToLocalStorage(false);
-            
-            return;
-        }
-        
-        // 단일 계정 모드
-        let accountName = document.getElementById('selectedAccountName')?.textContent?.trim();
-        let userId = document.getElementById('selectedAccountUserId')?.textContent?.trim()
-            || document.querySelector('.account-item.selected')?.dataset?.userId
-            || window.currentSelectedAccount?.user_id
-            || window.selectedAccount?.user_id
-            || '';
-        
-        console.log('🛑 단일 계정 자동전송 중지:', accountName, userId);
-        
-        // userId가 없으면 서버에서 계정 목록을 받아 매핑 (이름 → userId, 실패 시 전화번호로 매칭)
-        if (!userId && accountName) {
-            try {
-                const accResp = await fetch(`${getApiBaseUrl()}/api/telegram/load-accounts`, {
-                    method: 'GET'
-                });
-                const accData = await accResp.json();
-                const accounts = accData.accounts || accData || [];
-                // 1) 이름 매칭
-                let found = (accounts || []).find(a => {
-                    const full = `${a.first_name || ''} ${a.last_name || ''}`.trim();
-                    return full === accountName;
-                });
-                // 2) 전화번호 매칭 (DOM에서 선택된 번호 읽기)
-                if (!found) {
-                    const phoneText = document.getElementById('selectedAccountPhone')?.textContent?.trim();
-                    if (phoneText) {
-                        found = (accounts || []).find(a => (a.phone_number || '').trim() === phoneText);
-                    }
-                }
-                if (found && found.user_id) {
-                    userId = String(found.user_id);
-                }
-            } catch (e) {
-                console.warn('⚠️ 계정 목록 조회 실패(중지 준비)', e);
-            }
-        }
-        // 계정명이나 userId 중 하나라도 있으면 중지 요청 전송
-        if (!accountName && !userId) {
-            console.warn('⚠️ 계정명과 userId 모두 없어 자동전송 중지 요청을 건너뜀');
-            return;
-        }
-        
-        // userId가 없어도 계정명으로 중지 시도
-        if (!userId && accountName) {
-            console.log('⚠️ userId 없음, 계정명으로만 중지 시도:', accountName);
-        }
-        console.log('🛑 자동전송 중지 요청:', { account_name: accountName, userId });
-        const resp = await fetch(`${getApiBaseUrl()}/api/auto-send/stop`, {
+        // 통합 풀시스템 중지 요청
+        const response = await fetch(`${getApiBaseUrl()}/api/auto-send/stop`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ account_name: accountName, userId })
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                userId: 'pool_system' // 통합 풀시스템 식별자
+            })
         });
-        const result = await resp.json().catch(() => ({}));
-        console.log('🛑 자동전송 중지 응답:', resp.status, result);
         
-        // 자동전송 중지 성공 시 활성 계정 정보 정리
-        if (resp.ok && result.success) {
-            window.autoSendActiveAccount = null;
-            console.log('🔥 자동전송 활성 계정 정보 정리 완료');
+        const result = await response.json();
+        console.log('🛑 통합 풀시스템 중지 결과:', result);
+        
+        if (result.success) {
+            console.log('✅ 통합 풀시스템 자동전송 중지 성공');
             
             // 자동전송 상태를 localStorage에 저장
             saveAutoSendStatusToLocalStorage(false);
+            
+            return true;
+        } else {
+            console.error('❌ 통합 풀시스템 자동전송 중지 실패:', result.error);
+            return false;
         }
+        
     } catch (e) {
-        console.error('❌ 자동전송 중지 에러:', e);
+        console.error('❌ 통합 풀시스템 자동전송 중지 에러:', e);
+        return false;
     }
 }
 // 전역에서 접근 가능하도록 등록
@@ -7568,7 +7476,7 @@ function getGroupInterval() {
     }
 }
 
-// 자동전송 시작 함수
+// 통합 풀시스템 자동전송 시작 함수
 async function startAutoSendWithGroups(selectedGroups, message, mediaInfo, targetAccounts = null) {
     try {
         // 자동전송 중지 플래그 확인
@@ -7578,82 +7486,17 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo, targe
             return false;
         }
         
-        console.log('🚀 자동전송 시작:', { selectedGroups, message, mediaInfo, targetAccounts });
+        console.log('🚀 통합 풀시스템 자동전송 시작:', { selectedGroups, message, mediaInfo, targetAccounts });
         
-        let account;
+        // 계정 정보 수집 (단일 계정이든 다중 계정이든 모두 풀시스템으로 처리)
+        let accounts = [];
         
         if (targetAccounts && targetAccounts.length > 0) {
-            // 새로운 풀 시스템: 서버 API를 통해 자동전송 시작
-            console.log('🔄 새로운 풀 시스템 시작 - 서버 API 호출');
-            
-            // 풀별로 그룹화
-            const pools = groupAccountsByPool(targetAccounts);
-            console.log('🔄 풀별 계정 그룹화:', pools);
-            
-            // 서버 API를 통해 풀시스템 자동전송 시작
-            console.log('🔥 풀시스템 서버 API 호출 시작');
-            const autoSendData = {
-                userId: 'pool_system', // 풀시스템 식별자
-                group_ids: selectedGroups,
-                message: message || '',
-                media_info: mediaInfo,
-                // 자동전송 설정 정보도 함께 전달
-                settings: {
-                    groupInterval: window.groupIntervalMinutes || 30,
-                    repeatInterval: window.repeatIntervalMinutes || 30,
-                    maxRepeats: window.maxRepeats || 10,
-                    messageThreshold: window.messageThreshold || 5,
-                    enableMessageCheck: window.enableMessageCheck || true
-                },
-                // 풀시스템 정보
-                pool_system: {
-                    pools: pools,
-                    targetAccounts: targetAccounts
-                }
-            };
-            
-            console.log('📤 서버에 전달할 풀시스템 자동전송 데이터:', autoSendData);
-            
-            const autoSendResponse = await fetch(`${getApiBaseUrl()}/api/auto-send/start`, {
-                method: 'POST',
-                mode: 'cors',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*',
-                },
-                body: JSON.stringify(autoSendData)
-            });
-            
-            const autoSendResult = await autoSendResponse.json();
-            
-            console.log('📥 서버 응답 상태:', autoSendResponse.status);
-            console.log('📥 서버 응답 데이터:', autoSendResult);
-            
-            if (autoSendResponse.ok && autoSendResult.success) {
-                console.log('✅ 풀시스템 자동전송 시작 성공:', autoSendResult);
-                
-                // 서버에서 자동전송이 시작되었으므로 클라이언트에서도 실행
-                console.log('🔄 클라이언트에서도 풀시스템 자동전송 실행');
-                const poolResults = await executePoolSystemWithDelay(pools, selectedGroups);
-                
-                console.log('📊 풀 시스템 전송 결과:', poolResults);
-                
-                const successCount = poolResults.filter(r => r.success).length;
-                const totalCount = poolResults.length;
-                
-                if (successCount > 0) {
-                    console.log(`✅ 풀 시스템 전송 완료: ${successCount}/${totalCount} 성공`);
-                    return true;
-                } else {
-                    console.log('❌ 풀 시스템 전송 실패');
-                    return false;
-                }
-            } else {
-                console.log('❌ 풀시스템 자동전송 시작 실패:', autoSendResult);
-                return false;
-            }
+            // 다중 계정 모드
+            accounts = targetAccounts;
+            console.log('🔄 다중 계정 모드 - 선택된 계정들:', accounts.length);
         } else {
-            // 기존 단일 계정 로직
+            // 단일 계정 모드 - 현재 선택된 계정을 풀로 구성
             const accountName = document.getElementById('selectedAccountName').textContent;
             const accountPhone = document.getElementById('selectedAccountPhone').textContent;
             
@@ -7669,26 +7512,40 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo, targe
                 }
             });
             
-            const result = await response.json();
-            if (!response.ok || !result.success || !result.accounts) {
-                throw new Error(result.error || '계정 목록 로딩 실패');
+            if (!response.ok) {
+                throw new Error('계정 목록을 불러올 수 없습니다.');
             }
             
-            account = result.accounts.find(acc => 
-                `${acc.first_name} ${acc.last_name || ''}`.trim() === accountName.trim()
+            const accountsData = await response.json();
+            if (!accountsData.success || !accountsData.accounts) {
+                throw new Error('계정 데이터를 불러올 수 없습니다.');
+            }
+            
+            // 선택된 계정 찾기
+            const selectedAccount = accountsData.accounts.find(acc => 
+                `${acc.first_name} ${acc.last_name}`.trim() === accountName.trim()
             );
             
-            if (!account) {
-                throw new Error('계정을 찾을 수 없습니다.');
+            if (!selectedAccount) {
+                throw new Error('선택된 계정을 찾을 수 없습니다.');
             }
+            
+            accounts = [selectedAccount];
+            console.log('🔄 단일 계정 모드 - 계정을 풀로 구성:', selectedAccount.user_id);
         }
         
-        // 자동전송 시작 API 호출 (CORS 우회)
+        // 풀별로 그룹화 (단일 계정도 풀로 처리)
+        const pools = groupAccountsByPool(accounts);
+        console.log('🔄 풀별 계정 그룹화:', pools);
+        
+        // 통합 풀시스템 자동전송 시작
+        console.log('🔥 통합 풀시스템 서버 API 호출 시작');
         const autoSendData = {
-            userId: String(account.user_id),
+            userId: 'pool_system', // 통합 풀시스템 식별자
             group_ids: selectedGroups,
-            message: message,
+            message: message || '',
             media_info: mediaInfo,
+            target_accounts: accounts, // 모든 계정 정보 전달
             // 자동전송 설정 정보도 함께 전달
             settings: {
                 groupInterval: window.groupIntervalMinutes || 30,
@@ -7696,39 +7553,15 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo, targe
                 maxRepeats: window.maxRepeats || 10,
                 messageThreshold: window.messageThreshold || 5,
                 enableMessageCheck: window.enableMessageCheck || true
+            },
+            // 풀시스템 정보
+            pool_system: {
+                pools: pools,
+                targetAccounts: accounts
             }
         };
         
-        console.log('📤 서버에 전달할 자동전송 데이터:', {
-            userId: autoSendData.userId,
-            group_ids: autoSendData.group_ids,
-            message: autoSendData.message,
-            media_info: autoSendData.media_info,
-            settings: autoSendData.settings
-        });
-        console.log('📤 자동전송 데이터 상세:', {
-            userId: autoSendData.userId,
-            group_ids_count: autoSendData.group_ids.length,
-            message_length: autoSendData.message.length,
-            has_media: !!autoSendData.media_info,
-            settings: autoSendData.settings
-        });
-        
-        // 커스텀 이모지가 있는 경우 원본 메시지 객체 전체를 전송
-        if (mediaInfo && mediaInfo.has_custom_emoji) {
-            autoSendData.original_message_object = mediaInfo.original_message_object || mediaInfo.raw_message_data || mediaInfo;
-            autoSendData.is_original_message = true;
-            autoSendData.bypass_text_processing = true;
-            autoSendData.message = null; // 텍스트 처리를 우회
-            autoSendData.send_as_original = true; // 서버에서 원본 객체로 처리하라는 플래그
-            
-            console.log('📤 자동전송 커스텀 이모지 원본 객체 전체 전송:', {
-                original_message_object: autoSendData.original_message_object,
-                is_original_message: autoSendData.is_original_message,
-                bypass_text_processing: autoSendData.bypass_text_processing,
-                send_as_original: autoSendData.send_as_original
-            });
-        }
+        console.log('📤 서버에 전달할 통합 풀시스템 자동전송 데이터:', autoSendData);
         
         const autoSendResponse = await fetch(`${getApiBaseUrl()}/api/auto-send/start`, {
             method: 'POST',
@@ -7746,24 +7579,26 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo, targe
         console.log('📥 서버 응답 데이터:', autoSendResult);
         
         if (autoSendResponse.ok && autoSendResult.success) {
-            console.log('✅ 자동전송 시작 성공:', autoSendResult);
+            console.log('✅ 통합 풀시스템 자동전송 시작 성공:', autoSendResult);
             
-            // 자동전송에 사용된 계정 정보 저장 (중지 시 사용)
-            window.autoSendActiveAccount = {
-                userId: String(account.user_id),
-                accountName: `${account.first_name} ${account.last_name || ''}`.trim(),
-                timestamp: Date.now()
-            };
-            console.log('🔥 자동전송 활성 계정 정보 저장:', window.autoSendActiveAccount);
+            // 서버에서 자동전송이 시작되었으므로 클라이언트에서도 실행
+            console.log('🔄 클라이언트에서도 통합 풀시스템 자동전송 실행');
+            const poolResults = await executePoolSystemWithDelay(pools, selectedGroups);
             
-            // 시작 확정 → 잠금 해제, 설정 저장 플래그 리셋, 바로 서버 상태 다시 받아 UI와 1:1 동기화
-            window.autoSendSyncLocked = false;
-            window.autoSendSettingsSaved = false; // 자동전송이 시작되면 설정 저장 플래그 리셋
-            try { await restoreAutoSendStatusFor(String(account.user_id)); } catch(_){}
-            return true;
+            console.log('📊 통합 풀시스템 전송 결과:', poolResults);
+            
+            const successCount = poolResults.filter(r => r.success).length;
+            const totalCount = poolResults.length;
+            
+            if (successCount > 0) {
+                console.log(`✅ 통합 풀시스템 전송 완료: ${successCount}/${totalCount} 성공`);
+                return true;
+            } else {
+                console.log('❌ 통합 풀시스템 전송 실패');
+                return false;
+            }
         } else {
-            console.error('❌ 자동전송 시작 실패:', autoSendResult);
-            window.autoSendSyncLocked = false; // 실패 시에도 잠금 해제
+            console.log('❌ 통합 풀시스템 자동전송 시작 실패:', autoSendResult);
             return false;
         }
         
