@@ -5903,24 +5903,6 @@ function setupAutoSendEventListeners() {
     
     // 입력창 자동 크기 조절
     setupAutoResizeInputs();
-    
-    // 풀간 전송 간격 설정 이벤트 리스너 (항상 활성화)
-    const poolIntervalDelayElement = document.getElementById('poolIntervalDelay');
-    if (poolIntervalDelayElement) {
-        poolIntervalDelayElement.addEventListener('input', function() {
-            // 실시간 전체주기 업데이트
-            updatePoolSystemCycleTime();
-        });
-        
-        poolIntervalDelayElement.addEventListener('change', function() {
-            const delay = parseInt(this.value) || 2;
-            console.log(`⏰ 풀간 간격 설정 변경: ${delay}분`);
-            // 실시간 저장
-            savePoolSettings();
-            // 전체주기 업데이트
-            updatePoolSystemCycleTime();
-        });
-    }
 }
 
 // 자동 전송 설정 모달 표시
@@ -5939,31 +5921,6 @@ async function showAutoSendSettingsModal() {
         
         // 그룹간 전송간격 실시간 업데이트 이벤트 리스너 설정
         setupGroupIntervalRealtimeUpdate();
-        
-        // 풀간 전송 간격 설정 이벤트 리스너 설정 (모달 열릴 때마다)
-        const poolIntervalDelayElement = document.getElementById('poolIntervalDelay');
-        if (poolIntervalDelayElement) {
-            // 기존 이벤트 리스너 제거 (중복 방지)
-            poolIntervalDelayElement.removeEventListener('input', updatePoolSystemCycleTime);
-            poolIntervalDelayElement.removeEventListener('change', updatePoolSystemCycleTime);
-            
-            poolIntervalDelayElement.addEventListener('input', function() {
-                // 실시간 전체주기 업데이트
-                updatePoolSystemCycleTime();
-            });
-            
-            poolIntervalDelayElement.addEventListener('change', function() {
-                const delay = parseInt(this.value) || 2;
-                console.log(`⏰ 풀간 간격 설정 변경: ${delay}분`);
-                // 실시간 저장
-                savePoolSettings();
-                // 전체주기 업데이트
-                updatePoolSystemCycleTime();
-            });
-        }
-        
-        // 초기 전체 주기 시간 업데이트
-        updatePoolSystemCycleTime();
     }
 }
 
