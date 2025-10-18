@@ -8775,52 +8775,127 @@ function groupAccountsByPool(targetAccounts) {
     return Object.values(pools);
 }
 
-// 풀별 시차 시작 실행
+// 풀별 시차 시작 실행 (풀간 연동 전송)
 async function executePoolSystemWithDelay(pools, selectedGroups) {
     const results = [];
     const poolDelay = 2 * 60 * 1000; // 2분 (밀리초)
     
-    console.log(`🔄 풀 시스템 시작: ${pools.length}개 풀, ${selectedGroups.length}개 그룹`);
+    // 풀 시스템 활성 상태 추적
+    window.activePoolSystem = {
+        isRunning: true,
+        pools: pools.map(pool => ({ ...pool, isActive: true })),
+        startTime: Date.now()
+    };
     
-    for (let i = 0; i < pools.length; i++) {
-        const pool = pools[i];
+    console.log(`🔄 풀간 연동 시스템 시작: ${pools.length}개 풀, ${selectedGroups.length}개 그룹`);
+    console.log(`⏰ 풀간 간격: ${poolDelay / 1000}초`);
+    
+    // 풀별 계정 인덱스 초기화 (기존 인덱스 시스템 활용)
+    pools.forEach(pool => {
+        if (window.poolRotationIndex[pool.poolId] === undefined) {
+            window.poolRotationIndex[pool.poolId] = 0;
+        }
+    });
+    
+    // 최대 반복 횟수 (모든 풀의 계정 수 중 최대값)
+    const maxAccounts = Math.max(...pools.map(pool => pool.accounts.length));
+    
+    // 풀간 교차 전송 실행
+    for (let round = 0; round < maxAccounts; round++) {
+        // 자동전송 중지 플래그 확인
+        if (window.autoSendShouldStop) {
+            console.log('🛑 자동전송 중지 플래그 감지 - 풀 시스템 중단');
+            // 서버에 중지 요청 전송
+            await stopAutoSend();
+            break;
+        }
         
-        try {
-            // 자동전송 중지 플래그 확인
-            if (window.autoSendShouldStop) {
-                console.log('🛑 자동전송 중지 플래그 감지 - 풀 시스템 중단');
-                break;
+        console.log(`🔄 라운드 ${round + 1}/${maxAccounts} 시작`);
+        
+        // 각 풀에서 현재 인덱스의 계정 전송
+        for (let i = 0; i < pools.length; i++) {
+            const pool = pools[i];
+            const currentIndex = window.poolRotationIndex[pool.poolId] || 0;
+            
+            // 해당 풀에 더 이상 전송할 계정이 없으면 건너뛰기
+            if (currentIndex >= pool.accounts.length) {
+                console.log(`⏭️ 풀 ${pool.poolName}: 모든 계정 전송 완료, 건너뛰기`);
+                continue;
             }
             
-            console.log(`🔄 풀 ${i + 1}/${pools.length} 시작: ${pool.poolName} (${pool.accounts.length}개 계정)`);
-            
-            // 풀별 계정 순차 전송 실행
-            const poolResult = await executePoolAccountsSequentially(pool, selectedGroups);
-            results.push({
-                poolId: pool.poolId,
-                poolName: pool.poolName,
-                success: poolResult.success,
-                results: poolResult.results,
-                error: poolResult.error
-            });
-            
-            // 마지막 풀이 아닌 경우 다음 풀 시작까지 대기
-            if (i < pools.length - 1) {
-                console.log(`⏳ 다음 풀 시작까지 대기: ${poolDelay / 1000}초`);
-                await new Promise(resolve => setTimeout(resolve, poolDelay));
+            try {
+                const account = pool.accounts[currentIndex];
+                console.log(`🔄 풀 ${pool.poolName} 계정 ${currentIndex + 1}/${pool.accounts.length}: ${account.first_name} (${account.user_id})`);
+                
+                // 계정의 메시지 정보 가져오기
+                const accountElement = document.querySelector(`[data-account-id="${account.user_id}"]`);
+                if (!accountElement) {
+                    console.error(`❌ 계정 ${account.user_id}의 메시지 설정 요소를 찾을 수 없습니다.`);
+                    window.poolRotationIndex[pool.poolId] = (currentIndex + 1) % pool.accounts.length;
+                    continue;
+                }
+                
+                const mediaInfoStr = accountElement.dataset.mediaInfo;
+                if (!mediaInfoStr || mediaInfoStr === 'null' || mediaInfoStr === '') {
+                    console.error(`❌ 계정 ${account.user_id}에 메시지 정보가 없습니다.`);
+                    window.poolRotationIndex[pool.poolId] = (currentIndex + 1) % pool.accounts.length;
+                    continue;
+                }
+                
+                const accountMediaInfo = JSON.parse(mediaInfoStr);
+                
+                // 계정이 모든 그룹에 순차적으로 전송
+                const accountResult = await sendAccountToAllGroups(account, selectedGroups, accountMediaInfo);
+                
+                // 결과 저장
+                if (!results.find(r => r.poolId === pool.poolId)) {
+                    results.push({
+                        poolId: pool.poolId,
+                        poolName: pool.poolName,
+                        success: true,
+                        results: []
+                    });
+                }
+                const poolResult = results.find(r => r.poolId === pool.poolId);
+                poolResult.results.push(accountResult);
+                
+                // 계정 인덱스 증가 (다음 라운드를 위해)
+                window.poolRotationIndex[pool.poolId] = (currentIndex + 1) % pool.accounts.length;
+                
+                // 풀간 간격 대기 (마지막 풀이 아닌 경우)
+                if (i < pools.length - 1) {
+                    console.log(`⏳ 다음 풀로 전환까지 대기: ${poolDelay / 1000}초`);
+                    await new Promise(resolve => setTimeout(resolve, poolDelay));
+                }
+                
+            } catch (error) {
+                console.error(`❌ 풀 ${pool.poolName} 계정 전송 실패:`, error);
+                window.poolRotationIndex[pool.poolId] = (currentIndex + 1) % pool.accounts.length;
+                
+                // 에러 결과 저장
+                if (!results.find(r => r.poolId === pool.poolId)) {
+                    results.push({
+                        poolId: pool.poolId,
+                        poolName: pool.poolName,
+                        success: false,
+                        results: [],
+                        error: error.message
+                    });
+                }
             }
-            
-        } catch (error) {
-            console.error(`❌ 풀 ${pool.poolName} 실행 실패:`, error);
-            results.push({
-                poolId: pool.poolId,
-                poolName: pool.poolName,
-                success: false,
-                error: error.message
-            });
+        }
+        
+        // 라운드 완료 후 순환 간격 대기 (마지막 라운드가 아닌 경우)
+        if (round < maxAccounts - 1) {
+            // 첫 번째 풀의 간격을 기준으로 대기 (풀간 동기화를 위해)
+            const firstPool = pools[0];
+            const firstPoolInterval = (firstPool.rotationInterval || 15) * 60 * 1000; // 분을 밀리초로 변환
+            console.log(`⏳ 다음 라운드까지 순환 간격 대기: ${firstPoolInterval / 1000}초 (${firstPool.poolName} 기준)`);
+            await new Promise(resolve => setTimeout(resolve, firstPoolInterval));
         }
     }
     
+    console.log('✅ 풀간 연동 전송 완료');
     return results;
 }
 
@@ -8838,6 +8913,8 @@ async function executePoolAccountsSequentially(pool, selectedGroups) {
             // 자동전송 중지 플래그 확인
             if (window.autoSendShouldStop) {
                 console.log('🛑 자동전송 중지 플래그 감지 - 계정 전송 중단');
+                // 서버에 중지 요청 전송
+                await stopAutoSend();
                 break;
             }
             
@@ -8898,6 +8975,8 @@ async function sendAccountToAllGroups(account, selectedGroups, accountMediaInfo)
             // 자동전송 중지 플래그 확인
             if (window.autoSendShouldStop) {
                 console.log('🛑 자동전송 중지 플래그 감지 - 그룹 전송 중단');
+                // 서버에 중지 요청 전송
+                await stopAutoSend();
                 break;
             }
             
