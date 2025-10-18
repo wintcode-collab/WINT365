@@ -89,6 +89,38 @@ document.addEventListener('DOMContentLoaded', function() {
         updateAutoSendSettingsDisplay();
     }, 100);
     
+    // 메시지 입력 이벤트 리스너 추가
+    setTimeout(() => {
+        const messageInputs = document.querySelectorAll('.message-input');
+        messageInputs.forEach(input => {
+            input.addEventListener('input', async function() {
+                try {
+                    const userId = localStorage.getItem('lastSelectedAccount')?.trim();
+                    if (userId && window.firebaseService && this.value.trim()) {
+                        // 메시지 변경 시 Firebase에 자동 저장
+                        const checkedBoxes = document.querySelectorAll('.group-checkbox:checked');
+                        const selectedGroups = Array.from(checkedBoxes).map(checkbox => checkbox.value);
+                        const toggle = document.getElementById('autoSendToggle');
+                        
+                        const statusData = {
+                            isRunning: toggle ? toggle.checked : false,
+                            isEnabled: toggle ? toggle.checked : false,
+                            selectedGroups: selectedGroups,
+                            message: this.value.trim(),
+                            mediaInfo: window.selectedMediaInfo || null,
+                            timestamp: Date.now()
+                        };
+                        
+                        await window.firebaseService.saveAutoSendStatus(userId, statusData);
+                        console.log('✅ 메시지 입력 시 Firebase 상태 자동 저장:', this.value.trim());
+                    }
+                } catch (error) {
+                    console.error('❌ 메시지 입력 시 Firebase 저장 실패:', error);
+                }
+            });
+        });
+    }, 1000);
+    
     // 로그인 상태 확인 및 자동 로그인
     checkLoginState();
 });
@@ -3507,15 +3539,22 @@ function renderGroupsList(groups) {
                     const selectedGroups = Array.from(checkedBoxes).map(checkbox => checkbox.value);
                     const toggle = document.getElementById('autoSendToggle');
                     
+                    // 현재 메시지와 미디어 정보도 포함하여 저장
+                    const messageInput = document.querySelector('.message-input');
+                    const currentMessage = messageInput ? messageInput.value.trim() : '';
+                    const currentMediaInfo = window.selectedMediaInfo || null;
+                    
                     const statusData = {
                         isRunning: toggle ? toggle.checked : false,
                         isEnabled: toggle ? toggle.checked : false,
                         selectedGroups: selectedGroups,
+                        message: currentMessage,
+                        mediaInfo: currentMediaInfo,
                         timestamp: Date.now()
                     };
                     
                     await window.firebaseService.saveAutoSendStatus(userId, statusData);
-                    console.log('✅ 그룹 선택 변경 시 Firebase 상태 저장:', selectedGroups);
+                    console.log('✅ 그룹 선택 변경 시 Firebase 상태 저장:', selectedGroups, '메시지:', currentMessage);
                 }
             } catch (error) {
                 console.error('❌ 그룹 선택 변경 시 Firebase 저장 실패:', error);
@@ -5992,15 +6031,22 @@ function setupAutoSendEventListeners() {
                     const checkedBoxes = document.querySelectorAll('.group-checkbox:checked');
                     const selectedGroups = Array.from(checkedBoxes).map(checkbox => checkbox.value);
                     
+                    // 현재 메시지와 미디어 정보도 포함하여 저장
+                    const messageInput = document.querySelector('.message-input');
+                    const currentMessage = messageInput ? messageInput.value.trim() : '';
+                    const currentMediaInfo = window.selectedMediaInfo || null;
+                    
                     const statusData = {
                         isRunning: this.checked,
                         isEnabled: this.checked, // OFF일 때는 false로 설정
                         selectedGroups: selectedGroups,
+                        message: currentMessage,
+                        mediaInfo: currentMediaInfo,
                         timestamp: Date.now()
                     };
                     
                     await window.firebaseService.saveAutoSendStatus(userId, statusData);
-                    console.log('✅ 자동전송 토글 상태 Firebase 저장 완료:', this.checked, '그룹:', selectedGroups);
+                    console.log('✅ 자동전송 토글 상태 Firebase 저장 완료:', this.checked, '그룹:', selectedGroups, '메시지:', currentMessage);
                     
                     // OFF로 변경된 경우 자동전송 중지
                     if (!this.checked && window.stopAutoSend) {
@@ -8092,13 +8138,20 @@ async function saveAutoSendStatusToLocalStorage(isRunning, selectedGroups = null
                 const checkedBoxes = document.querySelectorAll('.group-checkbox:checked');
                 const selectedGroups = Array.from(checkedBoxes).map(checkbox => checkbox.value);
                 
+                // 현재 메시지와 미디어 정보도 포함하여 저장
+                const messageInput = document.querySelector('.message-input');
+                const currentMessage = messageInput ? messageInput.value.trim() : '';
+                const currentMediaInfo = window.selectedMediaInfo || null;
+                
                 const firebaseStatusData = {
                     ...statusData,
-                    selectedGroups: selectedGroups
+                    selectedGroups: selectedGroups,
+                    message: currentMessage,
+                    mediaInfo: currentMediaInfo
                 };
                 
                 await window.firebaseService.saveAutoSendStatus(userId, firebaseStatusData);
-                console.log('✅ 자동전송 상태 Firebase 저장됨 (그룹 포함):', selectedGroups);
+                console.log('✅ 자동전송 상태 Firebase 저장됨 (그룹, 메시지, 미디어 포함):', selectedGroups);
             }
         } catch (error) {
             console.error('❌ 자동전송 상태 Firebase 저장 실패:', error);
@@ -8241,6 +8294,21 @@ async function restoreAutoSendStatusOnLoad() {
                 await loadAutoSendSettings();
             }
             
+            // 저장된 메시지 복원
+            if (firebaseStatus.message) {
+                const messageInput = document.querySelector('.message-input');
+                if (messageInput) {
+                    messageInput.value = firebaseStatus.message;
+                    console.log('✅ 저장된 메시지 복원:', firebaseStatus.message);
+                }
+            }
+            
+            // 저장된 미디어 정보 복원
+            if (firebaseStatus.mediaInfo) {
+                window.selectedMediaInfo = firebaseStatus.mediaInfo;
+                console.log('✅ 저장된 미디어 정보 복원:', firebaseStatus.mediaInfo);
+            }
+            
             // 선택된 그룹들 복원 (Firebase에서)
             if (firebaseStatus.selectedGroups && firebaseStatus.selectedGroups.length > 0) {
                 // 모든 그룹 체크박스 해제
@@ -8277,6 +8345,36 @@ async function restoreAutoSendStatusOnLoad() {
         const localStatusRestored = await restoreAutoSendStatusFromLocalStorage();
         if (localStatusRestored) {
             console.log('✅ localStorage에서 자동전송 상태 복원 완료');
+            
+            // localStorage에서 메시지와 미디어 정보도 복원 시도
+            try {
+                const accountKey = getCurrentAccountKey();
+                if (accountKey) {
+                    // 저장된 메시지 복원
+                    const savedMessage = localStorage.getItem(`${accountKey}_message`);
+                    if (savedMessage) {
+                        const messageInput = document.querySelector('.message-input');
+                        if (messageInput) {
+                            messageInput.value = savedMessage;
+                            console.log('✅ localStorage에서 메시지 복원:', savedMessage);
+                        }
+                    }
+                    
+                    // 저장된 미디어 정보 복원
+                    const savedMediaInfo = localStorage.getItem(`${accountKey}_mediaInfo`);
+                    if (savedMediaInfo) {
+                        try {
+                            window.selectedMediaInfo = JSON.parse(savedMediaInfo);
+                            console.log('✅ localStorage에서 미디어 정보 복원:', window.selectedMediaInfo);
+                        } catch (e) {
+                            console.warn('⚠️ 미디어 정보 파싱 실패:', e);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('❌ localStorage 메시지/미디어 복원 실패:', error);
+            }
+            
             return;
         }
         
