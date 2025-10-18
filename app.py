@@ -3789,8 +3789,8 @@ def start_auto_send_job(user_id, group_ids, message, media_info=None, settings=N
     try:
         logger.info(f'🤖 자동전송 작업 시작: {user_id}')
         
-        # 기존 작업 중지
-        stop_auto_send_job(user_id)
+        # 기존 작업 중지 (Firebase 상태는 중지하지 않음)
+        stop_auto_send_job_without_firebase_update(user_id)
         
         # 설정 조회
         if not settings:
@@ -3895,6 +3895,22 @@ def start_auto_send_job(user_id, group_ids, message, media_info=None, settings=N
     except Exception as e:
         logger.error(f'❌ 자동전송 시작 에러: {e}')
         return False
+
+def stop_auto_send_job_without_firebase_update(user_id):
+    """자동전송 작업 중지 (Firebase 상태 업데이트 없음)"""
+    try:
+        logger.info(f'🛑 자동전송 작업 중지 (Firebase 업데이트 없음): {user_id}')
+        
+        # 메모리에서 작업 제거
+        if user_id in auto_send_jobs:
+            del auto_send_jobs[user_id]
+        if f'{user_id}_repeats' in auto_send_jobs:
+            del auto_send_jobs[f'{user_id}_repeats']
+        
+        logger.info(f'✅ 자동전송 작업 중지 완료 (Firebase 업데이트 없음): {user_id}')
+        
+    except Exception as e:
+        logger.error(f'❌ 자동전송 작업 중지 에러: {e}')
 
 def stop_auto_send_job(user_id):
     """자동전송 작업 중지"""
