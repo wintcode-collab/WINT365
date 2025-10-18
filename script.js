@@ -7535,18 +7535,11 @@ async function initRotationPools() {
     // 풀간 간격 설정 변경 이벤트 리스너
     const poolIntervalDelayElement = document.getElementById('poolIntervalDelay');
     if (poolIntervalDelayElement) {
-        poolIntervalDelayElement.addEventListener('input', function() {
-            // 실시간 전체주기 업데이트
-            updatePoolSystemCycleTime();
-        });
-        
         poolIntervalDelayElement.addEventListener('change', function() {
             const delay = parseInt(this.value) || 2;
             console.log(`⏰ 풀간 간격 설정 변경: ${delay}분`);
             // 실시간 저장
             savePoolSettings();
-            // 전체주기 업데이트
-            updatePoolSystemCycleTime();
         });
     }
     
@@ -7591,9 +7584,6 @@ function createRotationPool(poolName) {
     
     // 풀 목록 업데이트
     renderRotationPoolsList();
-    
-    // 풀 시스템 전체주기 업데이트
-    updatePoolSystemCycleTime();
     
     // 풀 설정 저장
     savePoolSettings();
@@ -7828,9 +7818,19 @@ function showManagePoolsModal() {
     let message = '생성된 로테이션 풀:\n\n';
     Object.values(window.rotationPools).forEach(pool => {
         const intervalMinutes = pool.rotationInterval || 15;
-        const cycleInfo = calculateIndividualPoolCycleTime(pool);
+        const groupIntervalSeconds = getGroupInterval();
+        const groupIntervalMinutes = groupIntervalSeconds / 60;
         
-        message += `• ${pool.name}: ${pool.accounts.length}개 계정, ${intervalMinutes}분 간격\n  전체 주기: ${cycleInfo.cycleText}\n\n`;
+        // 실제 전체주기 = (풀별 간격 + 그룹간 전송 시간) × 계정 수
+        const totalCycleMinutes = (intervalMinutes + groupIntervalMinutes) * pool.accounts.length;
+        const totalCycleHours = Math.floor(totalCycleMinutes / 60);
+        const remainingMinutes = totalCycleMinutes % 60;
+        
+        const cycleText = totalCycleHours > 0 
+            ? `${totalCycleHours}시간 ${remainingMinutes}분`
+            : `${totalCycleMinutes}분`;
+        
+        message += `• ${pool.name}: ${pool.accounts.length}개 계정, ${intervalMinutes}분 간격\n  전체 주기: ${cycleText}\n\n`;
     });
     
     alert(message);
@@ -7885,7 +7885,17 @@ function showDeletePoolModal() {
     // 풀 목록 생성
     Object.values(window.rotationPools).forEach(pool => {
         const intervalMinutes = pool.rotationInterval || 15;
-        const cycleInfo = calculateIndividualPoolCycleTime(pool);
+        const groupIntervalSeconds = getGroupInterval();
+        const groupIntervalMinutes = groupIntervalSeconds / 60;
+        
+        // 실제 전체주기 = (풀별 간격 + 그룹간 전송 시간) × 계정 수
+        const totalCycleMinutes = (intervalMinutes + groupIntervalMinutes) * pool.accounts.length;
+        const totalCycleHours = Math.floor(totalCycleMinutes / 60);
+        const remainingMinutes = totalCycleMinutes % 60;
+        
+        const cycleText = totalCycleHours > 0 
+            ? `${totalCycleHours}시간 ${remainingMinutes}분`
+            : `${totalCycleMinutes}분`;
         
         modalHtml += `
             <div style="
@@ -7906,7 +7916,7 @@ function showDeletePoolModal() {
                             ${pool.accounts.length}개 계정, ${intervalMinutes}분 간격
                         </div>
                         <div style="font-size: 11px; color: #9CA3AF;">
-                            전체 주기: ${cycleInfo.cycleText}
+                            전체 주기: ${cycleText}
                         </div>
                     </div>
                     <div style="
@@ -8069,9 +8079,6 @@ function confirmPoolDeletion() {
     // 풀 설정 저장
     savePoolSettings();
     
-    // 풀 시스템 전체주기 업데이트
-    updatePoolSystemCycleTime();
-    
     // UI 업데이트
     renderRotationPoolsList();
     renderPoolIntervalsList();
@@ -8107,7 +8114,17 @@ function renderPoolIntervalsList() {
     pools.forEach(pool => {
         const intervalMinutes = pool.rotationInterval || 15; // 기본 15분
         const accountCount = pool.accounts.length;
-        const cycleInfo = calculateIndividualPoolCycleTime(pool);
+        const groupIntervalSeconds = getGroupInterval();
+        const groupIntervalMinutes = groupIntervalSeconds / 60;
+        
+        // 실제 전체주기 = (풀별 간격 + 그룹간 전송 시간) × 계정 수
+        const totalCycleMinutes = (intervalMinutes + groupIntervalMinutes) * accountCount;
+        const totalCycleHours = Math.floor(totalCycleMinutes / 60);
+        const remainingMinutes = totalCycleMinutes % 60;
+        
+        const cycleText = totalCycleHours > 0 
+            ? `${totalCycleHours}시간 ${remainingMinutes}분`
+            : `${totalCycleMinutes}분`;
         
         html += `
             <div style="margin-bottom: 15px; padding: 10px; background: rgba(255,255,255,0.1); border-radius: 6px;">
@@ -8115,7 +8132,7 @@ function renderPoolIntervalsList() {
                     <span style="font-weight: 600; color: #10B981;">${pool.name}</span>
                     <div style="display: flex; gap: 10px; align-items: center;">
                         <span style="font-size: 12px; color: #888;">${accountCount}개 계정</span>
-                        <span style="font-size: 11px; color: #10B981; font-weight: 600;">전체 주기: ${cycleInfo.cycleText}</span>
+                        <span style="font-size: 11px; color: #10B981; font-weight: 600;">전체 주기: ${cycleText}</span>
                         <button onclick="deletePoolFromInterval('${pool.id}')" style="
                             background: #EF4444;
                             color: white;
@@ -8139,7 +8156,7 @@ function renderPoolIntervalsList() {
                            onchange="updatePoolInterval('${pool.id}', this.value)">
                     <span style="font-size: 12px; color: #666;">분</span>
                     <span style="font-size: 11px; color: #888; margin-left: 10px;" id="cycle-display-${pool.id}">
-                        전체 주기: ${cycleInfo.cycleText}
+                        전체 주기: ${cycleText}
                     </span>
                 </div>
             </div>
@@ -8157,19 +8174,19 @@ function updatePoolIntervalRealTime(poolId, intervalMinutes) {
     const interval = parseInt(intervalMinutes);
     if (isNaN(interval) || interval < 1) return;
     
-    // 임시로 풀의 간격을 변경하여 계산
-    const originalInterval = pool.rotationInterval;
-    pool.rotationInterval = interval;
+    const accountCount = pool.accounts.length;
+    const totalCycleMinutes = interval * accountCount;
+    const totalCycleHours = Math.floor(totalCycleMinutes / 60);
+    const remainingMinutes = totalCycleMinutes % 60;
     
-    const cycleInfo = calculateIndividualPoolCycleTime(pool);
-    
-    // 원래 간격으로 복원
-    pool.rotationInterval = originalInterval;
+    const cycleText = totalCycleHours > 0 
+        ? `${totalCycleHours}시간 ${remainingMinutes}분`
+        : `${totalCycleMinutes}분`;
     
     // 전체 주기 표시 업데이트
     const cycleDisplay = document.getElementById(`cycle-display-${poolId}`);
     if (cycleDisplay) {
-        cycleDisplay.textContent = `전체 주기: ${cycleInfo.cycleText}`;
+        cycleDisplay.textContent = `전체 주기: ${cycleText}`;
     }
 }
 
@@ -8193,9 +8210,6 @@ function updatePoolInterval(poolId, intervalMinutes) {
     
     // 간격 목록 다시 렌더링 (전체 주기 실시간 업데이트)
     renderPoolIntervalsList();
-    
-    // 풀 시스템 전체주기 업데이트
-    updatePoolSystemCycleTime();
     
     // 풀 목록도 업데이트 (전체 주기 포함)
     renderRotationPoolsList();
@@ -8241,9 +8255,6 @@ function deletePoolFromInterval(poolId) {
     // 풀 설정 저장
     savePoolSettings();
     
-    // 풀 시스템 전체주기 업데이트
-    updatePoolSystemCycleTime();
-    
     // UI 업데이트
     renderRotationPoolsList();
     renderPoolIntervalsList();
@@ -8267,18 +8278,25 @@ function renderRotationPoolsList() {
     const poolList = Object.values(window.rotationPools).map(pool => {
         const accountNames = pool.accounts.map(acc => acc.first_name).join(', ');
         const intervalMinutes = pool.rotationInterval || 15;
-        const cycleInfo = calculateIndividualPoolCycleTime(pool);
+        const groupIntervalSeconds = getGroupInterval();
+        const groupIntervalMinutes = groupIntervalSeconds / 60;
         
-        return `• ${pool.name}: ${pool.accounts.length}개 계정, ${intervalMinutes}분 간격 (전체 주기: ${cycleInfo.cycleText})`;
+        // 실제 전체주기 = (풀별 간격 + 그룹간 전송 시간) × 계정 수
+        const totalCycleMinutes = (intervalMinutes + groupIntervalMinutes) * pool.accounts.length;
+        const totalCycleHours = Math.floor(totalCycleMinutes / 60);
+        const remainingMinutes = totalCycleMinutes % 60;
+        
+        const cycleText = totalCycleHours > 0 
+            ? `${totalCycleHours}시간 ${remainingMinutes}분`
+            : `${totalCycleMinutes}분`;
+        
+        return `• ${pool.name}: ${pool.accounts.length}개 계정, ${intervalMinutes}분 간격 (전체 주기: ${cycleText})`;
     }).join('<br>');
     
     poolsInfo.innerHTML = `✅ ${poolCount}개 풀 생성됨:<br>${poolList}`;
     
     // 풀별 간격 설정도 업데이트
     renderPoolIntervalsList();
-    
-    // 풀 시스템 전체주기 업데이트
-    updatePoolSystemCycleTime();
     
     // 그룹별 풀 매핑도 업데이트
     renderGroupPoolMapping();
@@ -8387,9 +8405,6 @@ async function loadSavedPoolSettings() {
                 console.log('✅ 풀간 간격 설정 로드됨:', poolData.poolIntervalDelay, '분');
             }
             
-            // 전체주기 업데이트
-            updatePoolSystemCycleTime();
-            
             console.log('✅ 풀 설정 로드 완료:', Object.keys(window.rotationPools).length, '개 풀');
         }
         
@@ -8415,9 +8430,6 @@ async function loadSavedPoolSettings() {
                             poolIntervalDelayElement.value = data.pools_data.poolIntervalDelay;
                             console.log('✅ Firebase에서 풀간 간격 설정 로드됨:', data.pools_data.poolIntervalDelay, '분');
                         }
-                        
-                        // 전체주기 업데이트
-                        updatePoolSystemCycleTime();
                         
                         console.log('✅ Firebase에서 풀 설정 로드 완료');
                     }
@@ -9118,73 +9130,6 @@ function getPoolIntervalDelay() {
     const delayElement = document.getElementById('poolIntervalDelay');
     const delay = delayElement ? parseInt(delayElement.value) || 2 : 2; // 기본값 2분
     return delay * 60 * 1000; // 분을 밀리초로 변환
-}
-
-// 풀간 전송 간격 가져오기 (분 단위)
-function getPoolIntervalDelayMinutes() {
-    const delayElement = document.getElementById('poolIntervalDelay');
-    return delayElement ? parseInt(delayElement.value) || 2 : 2; // 기본값 2분
-}
-
-// 개별 풀의 전체주기 계산 (풀간 전송간격 포함)
-function calculateIndividualPoolCycleTime(pool) {
-    if (!pool) return { totalMinutes: 0, totalHours: 0, remainingMinutes: 0, cycleText: '0분' };
-    
-    const intervalMinutes = pool.rotationInterval || 15;
-    const poolIntervalDelay = getPoolIntervalDelayMinutes();
-    const groupIntervalSeconds = getGroupInterval();
-    const groupIntervalMinutes = groupIntervalSeconds / 60;
-    
-    // 개별 풀 전체주기 = (풀간 간격 + 풀별 간격 + 그룹간 전송 시간) × 계정 수
-    const totalCycleMinutes = (poolIntervalDelay + intervalMinutes + groupIntervalMinutes) * pool.accounts.length;
-    const totalCycleHours = Math.floor(totalCycleMinutes / 60);
-    const remainingMinutes = totalCycleMinutes % 60;
-    
-    const cycleText = totalCycleHours > 0 
-        ? `${totalCycleHours}시간 ${remainingMinutes}분`
-        : `${totalCycleMinutes}분`;
-    
-    return { totalMinutes: totalCycleMinutes, totalHours: totalCycleHours, remainingMinutes, cycleText };
-}
-
-// 풀 시스템 전체주기 계산 (풀간 전송간격 포함)
-function calculatePoolSystemCycleTime() {
-    const pools = Object.values(window.rotationPools);
-    if (pools.length === 0) return { totalMinutes: 0, totalHours: 0, remainingMinutes: 0, cycleText: '0분' };
-    
-    // 풀간 전송간격 가져오기
-    const poolIntervalDelay = getPoolIntervalDelayMinutes();
-    
-    // 모든 풀의 계정 수 중 최대값 (라운드 수)
-    const maxAccounts = Math.max(...pools.map(pool => pool.accounts.length));
-    
-    // 각 풀의 순환 간격 가져오기
-    const poolRotationIntervals = pools.map(pool => pool.rotationInterval || 15);
-    const maxRotationInterval = Math.max(...poolRotationIntervals);
-    
-    // 전체주기 계산: 
-    // 각 라운드마다: (풀간 간격 + 순환 간격) × 라운드 수
-    // 실제 동작: 풀1 전송 → 풀간 간격 → 풀2 전송 → 순환 간격 → 풀1 다음 계정 전송
-    const totalCycleMinutes = (poolIntervalDelay + maxRotationInterval) * maxAccounts;
-    const totalCycleHours = Math.floor(totalCycleMinutes / 60);
-    const remainingMinutes = totalCycleMinutes % 60;
-    
-    const cycleText = totalCycleHours > 0 
-        ? `${totalCycleHours}시간 ${remainingMinutes}분`
-        : `${totalCycleMinutes}분`;
-    
-    return { totalMinutes: totalCycleMinutes, totalHours: totalCycleHours, remainingMinutes, cycleText };
-}
-
-// 풀 시스템 전체주기 실시간 업데이트
-function updatePoolSystemCycleTime() {
-    const cycleTimeElement = document.getElementById('poolSystemCycleTimeText');
-    if (!cycleTimeElement) return;
-    
-    const cycleInfo = calculatePoolSystemCycleTime();
-    cycleTimeElement.textContent = cycleInfo.cycleText;
-    
-    console.log(`🔄 풀 시스템 전체주기 업데이트: ${cycleInfo.cycleText}`);
 }
 
 // 로테이션 설정 가져오기
@@ -10275,8 +10220,8 @@ function displayChannelMessagesForMultiAccount(messages, channelTitle) {
     messages.forEach((message, index) => {
         const messageDate = new Date(message.date).toLocaleString('ko-KR');
         const messagePreview = message.text && message.text.length > 100 ? 
-            message.text.substring(0, 100) + '...' : 
-            (message.text || '');
+            parseTelegramEntities(message.text.substring(0, 100), message.entities || []) + '...' : 
+            parseTelegramEntities(message.text || '', message.entities || []);
         
         // 미디어 타입에 따른 아이콘 및 표시
         let mediaIcon = '';
