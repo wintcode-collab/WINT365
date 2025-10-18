@@ -6051,11 +6051,15 @@ async function showAutoSendSettingsModal() {
         
         loadAutoSendSettings();
         
-        // 계정 로테이션 기능 초기화
-        await initAccountRotation();
+        // 모달이 열려있는지 확인하고 계정 로테이션 기능 초기화
+        if (modal && modal.style.display !== 'none' && modal.classList.contains('show')) {
+            await initAccountRotation();
+        }
         
-        // 로테이션 풀 시스템 초기화
-        await initRotationPools();
+        // 모달이 여전히 열려있는지 확인하고 로테이션 풀 시스템 초기화
+        if (modal && modal.style.display !== 'none' && modal.classList.contains('show')) {
+            await initRotationPools();
+        }
         
         // 그룹간 전송간격 실시간 업데이트 이벤트 리스너 설정
         setupGroupIntervalRealtimeUpdate();
@@ -6111,6 +6115,11 @@ function handleGroupIntervalChange() {
 function closeAutoSendSettingsModal() {
     console.log('🚫 closeAutoSendSettingsModal 함수 호출됨');
     console.trace('🔍 호출 스택 추적');
+    console.log('🔍 현재 모달 상태:', {
+        modalDisplay: document.getElementById('autoSendSettingsModal')?.style.display,
+        modalClass: document.getElementById('autoSendSettingsModal')?.className,
+        modalShow: document.getElementById('autoSendSettingsModal')?.classList.contains('show')
+    });
     
     const modal = document.getElementById('autoSendSettingsModal');
     const toggle = document.getElementById('autoSendToggle');
@@ -7785,8 +7794,11 @@ async function initRotationPools() {
         return;
     }
     
-    // 이벤트 리스너 설정
-    enablePoolsCheckbox.addEventListener('change', function() {
+    // 이벤트 리스너 설정 (중복 등록 방지)
+    enablePoolsCheckbox.removeEventListener('change', handlePoolsToggleChange);
+    enablePoolsCheckbox.addEventListener('change', handlePoolsToggleChange);
+    
+    function handlePoolsToggleChange() {
         window.rotationPoolsEnabled = this.checked;
         
         if (this.checked) {
@@ -7809,7 +7821,7 @@ async function initRotationPools() {
         
         // 풀 시스템 상태 변경 시에는 저장하지 않음 (설정 저장 버튼을 눌렀을 때만 저장)
         console.log('✅ 풀 시스템 상태 변경됨:', window.rotationPoolsEnabled);
-    });
+    }
     
     // 풀 생성 버튼
     const createPoolBtn = document.getElementById('createRotationPool');
@@ -9671,8 +9683,11 @@ async function initAccountRotation() {
         return;
     }
     
-    // 로테이션 활성화 토글 이벤트
-    enableRotationCheckbox.addEventListener('change', function() {
+    // 로테이션 활성화 토글 이벤트 (중복 등록 방지)
+    enableRotationCheckbox.removeEventListener('change', handleRotationToggleChange);
+    enableRotationCheckbox.addEventListener('change', handleRotationToggleChange);
+    
+    function handleRotationToggleChange() {
         // 기본 설정 섹션들 (그룹별 전송 텀, 반복 전송, 메시지 개수 확인)
         const basicSections = document.querySelectorAll('.setting-section:not(:has(#enableAccountRotation))');
         
@@ -9707,7 +9722,7 @@ async function initAccountRotation() {
             
             console.log('🎨 기본 설정 활성화 복원');
         }
-    });
+    }
     
     // 뒤로 가기 버튼 이벤트
     const backToBasicBtn = document.getElementById('backToBasicSettings');
