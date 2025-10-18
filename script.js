@@ -5907,20 +5907,28 @@ function setupAutoSendEventListeners() {
 
 // 자동 전송 설정 모달 표시
 async function showAutoSendSettingsModal() {
-    const modal = document.getElementById('autoSendSettingsModal');
-    if (modal) {
-        modal.style.display = 'flex';
-        
-        loadAutoSendSettings();
-        
-        // 계정 로테이션 기능 초기화
-        await initAccountRotation();
-        
-        // 로테이션 풀 시스템 초기화
-        await initRotationPools();
-        
-        // 그룹간 전송간격 실시간 업데이트 이벤트 리스너 설정
-        setupGroupIntervalRealtimeUpdate();
+    try {
+        const modal = document.getElementById('autoSendSettingsModal');
+        if (modal) {
+            modal.style.display = 'flex';
+            
+            loadAutoSendSettings();
+            
+            // 계정 로테이션 기능 초기화
+            await initAccountRotation();
+            
+            // 로테이션 풀 시스템 초기화
+            await initRotationPools();
+            
+            // 그룹간 전송간격 실시간 업데이트 이벤트 리스너 설정
+            setupGroupIntervalRealtimeUpdate();
+            
+            console.log('✅ 자동전송 설정 모달 표시 완료');
+        } else {
+            console.error('❌ 자동전송 설정 모달을 찾을 수 없습니다');
+        }
+    } catch (error) {
+        console.error('❌ 자동전송 설정 모달 표시 실패:', error);
     }
 }
 
@@ -7474,13 +7482,14 @@ window.rotationPoolsEnabled = false; // 풀 시스템 활성화 여부 (기본�
 async function initRotationPools() {
     console.log('🔄 로테이션 풀 시스템 초기화');
     
-    const enablePoolsCheckbox = document.getElementById('enableRotationPools');
-    const poolsSettings = document.getElementById('rotationPoolsSettings');
-    
-    if (!enablePoolsCheckbox || !poolsSettings) {
-        console.warn('⚠️ 로테이션 풀 UI 요소를 찾을 수 없습니다.');
-        return;
-    }
+    try {
+        const enablePoolsCheckbox = document.getElementById('enableRotationPools');
+        const poolsSettings = document.getElementById('rotationPoolsSettings');
+        
+        if (!enablePoolsCheckbox || !poolsSettings) {
+            console.warn('⚠️ 로테이션 풀 UI 요소를 찾을 수 없습니다.');
+            return;
+        }
     
     // 이벤트 리스너 설정
     enablePoolsCheckbox.addEventListener('change', function() {
@@ -7543,14 +7552,19 @@ async function initRotationPools() {
         });
     }
     
-    // 저장된 풀 설정 로드
-    await loadSavedPoolSettings();
-    
-    // 풀 목록 렌더링
-    renderRotationPoolsList();
-    
-    // 풀별 간격 설정 렌더링
-    renderPoolIntervalsList();
+        // 저장된 풀 설정 로드
+        await loadSavedPoolSettings();
+        
+        // 풀 목록 렌더링
+        renderRotationPoolsList();
+        
+        // 풀별 간격 설정 렌더링
+        renderPoolIntervalsList();
+        
+        console.log('✅ 로테이션 풀 시스템 초기화 완료');
+    } catch (error) {
+        console.error('❌ 로테이션 풀 시스템 초기화 실패:', error);
+    }
 }
 
 // 풀 생성 모달 표시
@@ -8408,7 +8422,7 @@ async function loadSavedPoolSettings() {
             console.log('✅ 풀 설정 로드 완료:', Object.keys(window.rotationPools).length, '개 풀');
         }
         
-        // Firebase에서도 로드
+        // Firebase에서도 로드 (계정이 선택된 경우에만)
         const key = getCurrentAccountKey ? getCurrentAccountKey() : null;
         if (key) {
             try {
@@ -8439,6 +8453,8 @@ async function loadSavedPoolSettings() {
             } catch (error) {
                 console.warn('⚠️ Firebase 풀 설정 로드 에러:', error);
             }
+        } else {
+            console.log('ℹ️ 계정이 선택되지 않음 - 로컬 스토리지만 사용');
         }
     } catch (error) {
         console.error('❌ 풀 설정 로드 실패:', error);
