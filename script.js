@@ -2060,11 +2060,13 @@ async function loadMultipleAccountsGroups(accounts) {
     try {
         console.log('🔄 다중 계정 그룹 로딩 시작:', accounts.length, '개');
         
-        // 모든 계정의 그룹 로드
-        const allGroupsData = [];
+        // 로딩 상태 표시
+        showLoadingAnimation('계정별 그룹 로딩 중...', accounts.length);
         
-        for (const account of accounts) {
+        // 모든 계정의 그룹을 병렬로 로드
+        const loadPromises = accounts.map(async (account) => {
             try {
+                console.log(`🔄 계정 ${account.first_name} 그룹 로드 시작`);
                 const response = await fetch('/api/telegram/load-groups', {
                     method: 'POST',
                     headers: {
@@ -2078,28 +2080,49 @@ async function loadMultipleAccountsGroups(accounts) {
                 const result = await response.json();
                 
                 if (response.ok && result.success && result.groups) {
-                    allGroupsData.push({
+                    console.log(`✅ 계정 ${account.first_name}의 그룹 ${result.groups.length}개 로드 완료`);
+                    return {
                         account: account,
                         groups: result.groups
-                    });
-                    console.log(`✅ 계정 ${account.first_name}의 그룹 ${result.groups.length}개 로드`);
+                    };
+                } else {
+                    console.error(`❌ 계정 ${account.first_name} 그룹 로드 실패:`, result.error);
+                    return {
+                        account: account,
+                        groups: [],
+                        error: result.error
+                    };
                 }
             } catch (error) {
                 console.error(`❌ 계정 ${account.first_name} 그룹 로드 실패:`, error);
+                return {
+                    account: account,
+                    groups: [],
+                    error: error.message
+                };
             }
-        }
+        });
         
-        if (allGroupsData.length === 0) {
+        // 모든 계정의 그룹 로드가 완료될 때까지 대기
+        console.log('⏳ 모든 계정의 그룹 로드 완료 대기 중...');
+        const allGroupsData = await Promise.all(loadPromises);
+        
+        // 성공적으로 로드된 계정들만 필터링
+        const successfulGroupsData = allGroupsData.filter(data => data.groups.length > 0);
+        
+        if (successfulGroupsData.length === 0) {
             alert('❌ 그룹을 로드할 수 없습니다.');
             return;
         }
+        
+        console.log(`✅ 병렬 로딩 완료: ${successfulGroupsData.length}/${accounts.length}개 계정 성공`);
         
         // 그룹 통합 (중복 제거)
         const groupMap = new Map();
         const groupAccountMapping = {}; // 각 그룹에 어떤 계정들이 속해있는지
         
         console.log('🔍 그룹 통합 시작:');
-        allGroupsData.forEach(({account, groups}) => {
+        successfulGroupsData.forEach(({account, groups}) => {
             console.log(`  📋 계정 ${account.first_name}: ${groups.length}개 그룹`);
             groups.forEach(group => {
                 const groupId = group.id;
@@ -2126,8 +2149,8 @@ async function loadMultipleAccountsGroups(accounts) {
         console.log(`✅ 통합 완료: ${mergedGroups.length}개 그룹 (중복 제거)`);
         console.log('📊 통합된 그룹 목록:', mergedGroups.map(g => g.title));
         
-        // 계정-그룹 매핑 Firebase에 저장
-        for (const accountData of allGroupsData) {
+        // 계정-그룹 매핑 Firebase에 병렬로 저장
+        const mappingPromises = successfulGroupsData.map(async (accountData) => {
             const userId = accountData.account.user_id;
             const groupIds = accountData.groups.map(g => g.id);
             
@@ -2141,7 +2164,13 @@ async function loadMultipleAccountsGroups(accounts) {
             } catch (error) {
                 console.error(`❌ 계정 ${userId} 매핑 저장 실패:`, error);
             }
-        }
+        });
+        
+        // 모든 매핑 저장이 완료될 때까지 대기
+        await Promise.all(mappingPromises);
+        
+        // 로딩 애니메이션 숨기기
+        hideLoadingAnimation();
         
         // 그룹 관리 창 표시
         const firstAccount = accounts[0];
@@ -2179,7 +2208,110 @@ async function loadMultipleAccountsGroups(accounts) {
         
     } catch (error) {
         console.error('❌ 다중 계정 그룹 로딩 실패:', error);
+        hideLoadingAnimation(); // 에러 시에도 로딩 애니메이션 숨기기
         alert(`❌ 다중 계정 그룹 로딩 실패:\n\n${error.message}`);
+    }
+}
+
+// 로딩 애니메이션 표시
+function showLoadingAnimation(message, totalCount = 0) {
+    try {
+        // 기존 로딩 애니메이션이 있으면 제거
+        hideLoadingAnimation();
+        
+        // 로딩 애니메이션 HTML 생성
+        const loadingHtml = `
+            <div id="loadingAnimation" style="
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.8);
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                z-index: 10000;
+                color: white;
+                font-family: Arial, sans-serif;
+            ">
+                <div style="
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    padding: 30px 40px;
+                    border-radius: 15px;
+                    text-align: center;
+                    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+                    max-width: 400px;
+                    width: 90%;
+                ">
+                    <div style="
+                        width: 50px;
+                        height: 50px;
+                        border: 4px solid rgba(255, 255, 255, 0.3);
+                        border-top: 4px solid white;
+                        border-radius: 50%;
+                        animation: spin 1s linear infinite;
+                        margin: 0 auto 20px;
+                    "></div>
+                    <div style="font-size: 18px; font-weight: bold; margin-bottom: 10px;">
+                        ${message}
+                    </div>
+                    ${totalCount > 0 ? `
+                        <div style="font-size: 14px; color: rgba(255, 255, 255, 0.8);">
+                            총 ${totalCount}개 계정 처리 중...
+                        </div>
+                        <div style="
+                            width: 100%;
+                            height: 4px;
+                            background: rgba(255, 255, 255, 0.2);
+                            border-radius: 2px;
+                            margin-top: 15px;
+                            overflow: hidden;
+                        ">
+                            <div style="
+                                height: 100%;
+                                background: linear-gradient(90deg, #4CAF50, #8BC34A);
+                                border-radius: 2px;
+                                animation: progress 2s ease-in-out infinite;
+                            "></div>
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+            <style>
+                @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                }
+                @keyframes progress {
+                    0% { transform: translateX(-100%); }
+                    50% { transform: translateX(0%); }
+                    100% { transform: translateX(100%); }
+                }
+            </style>
+        `;
+        
+        // 로딩 애니메이션을 body에 추가
+        document.body.insertAdjacentHTML('beforeend', loadingHtml);
+        
+        console.log('🔄 로딩 애니메이션 표시:', message);
+        
+    } catch (error) {
+        console.error('❌ 로딩 애니메이션 표시 실패:', error);
+    }
+}
+
+// 로딩 애니메이션 숨기기
+function hideLoadingAnimation() {
+    try {
+        const loadingAnimation = document.getElementById('loadingAnimation');
+        if (loadingAnimation) {
+            loadingAnimation.remove();
+            console.log('✅ 로딩 애니메이션 숨김');
+        }
+    } catch (error) {
+        console.error('❌ 로딩 애니메이션 숨기기 실패:', error);
     }
 }
 
@@ -3284,6 +3416,9 @@ async function loadGroupsForAccount(account) {
     try {
         console.log('🔍 선택된 계정으로 그룹 로딩 중...', account);
         
+        // 로딩 애니메이션 표시
+        showLoadingAnimation(`계정 ${account.first_name}의 그룹 로딩 중...`);
+        
         const response = await fetch('/api/telegram/load-groups', {
             method: 'POST',
             headers: {
@@ -3299,6 +3434,9 @@ async function loadGroupsForAccount(account) {
         
         if (response.ok && result.success) {
             console.log('✅ 그룹 로딩 성공:', result.groups);
+            
+            // 로딩 애니메이션 숨기기
+            hideLoadingAnimation();
             
             // 그룹 목록 표시
             if (result.groups && result.groups.length > 0) {
@@ -3317,6 +3455,7 @@ async function loadGroupsForAccount(account) {
         
     } catch (error) {
         console.error('❌ 그룹 로딩 실패:', error);
+        hideLoadingAnimation(); // 에러 시에도 로딩 애니메이션 숨기기
         alert(`❌ 그룹 로딩 실패:\n\n${error.message}`);
     }
 }
