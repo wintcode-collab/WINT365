@@ -588,6 +588,33 @@
                             </div>
                         </div>
                         
+                        <!-- 풀간 전송 간격 설정 -->
+                        <div class="setting-item" style="margin-bottom: 20px;">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">
+                                ⏰ 풀간 전송 간격
+                            </label>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <input type="number" 
+                                       id="poolIntervalDelay" 
+                                       min="1" 
+                                       max="60" 
+                                       value="2"
+                                       style="
+                                           width: 80px;
+                                           padding: 8px 12px;
+                                           border: 2px solid #E5E7EB;
+                                           border-radius: 6px;
+                                           font-size: 14px;
+                                           text-align: center;
+                                       ">
+                                <span style="color: #6B7280; font-size: 14px;">분</span>
+                                <span style="color: #9CA3AF; font-size: 12px;">(풀1 전송 후 풀2 전송까지 대기시간)</span>
+                            </div>
+                            <p style="margin-top: 5px; color: #888; font-size: 12px; line-height: 1.4;">
+                                예: 풀1 H1 전송 → 2분 대기 → 풀2 H5 전송
+                            </p>
+                        </div>
+                        
                         <!-- 풀별 계정 순환 간격 설정 -->
                         <div class="setting-item">
                             <label>풀별 계정 순환 간격:</label>

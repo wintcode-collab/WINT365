@@ -7526,6 +7526,17 @@ async function initRotationPools() {
         groupPoolMappingBtn.addEventListener('click', showGroupPoolMappingModal);
     }
     
+    // 풀간 간격 설정 변경 이벤트 리스너
+    const poolIntervalDelayElement = document.getElementById('poolIntervalDelay');
+    if (poolIntervalDelayElement) {
+        poolIntervalDelayElement.addEventListener('change', function() {
+            const delay = parseInt(this.value) || 2;
+            console.log(`⏰ 풀간 간격 설정 변경: ${delay}분`);
+            // 실시간 저장
+            savePoolSettings();
+        });
+    }
+    
     // 저장된 풀 설정 로드
     await loadSavedPoolSettings();
     
@@ -8321,11 +8332,15 @@ function renderGroupPoolMapping() {
 // 풀 설정 저장
 async function savePoolSettings() {
     try {
+        // 풀간 간격 설정 가져오기
+        const poolIntervalDelay = document.getElementById('poolIntervalDelay')?.value || '2';
+        
         const poolData = {
             pools: window.rotationPools,
             groupMapping: window.groupPoolMapping,
             rotationIndex: window.poolRotationIndex,
-            enabled: window.rotationPoolsEnabled
+            enabled: window.rotationPoolsEnabled,
+            poolIntervalDelay: parseInt(poolIntervalDelay)
         };
         
         // 로컬 스토리지에 저장
@@ -8377,6 +8392,13 @@ async function loadSavedPoolSettings() {
             window.poolRotationIndex = poolData.rotationIndex || {};
             window.rotationPoolsEnabled = poolData.enabled || false;
             
+            // 풀간 간격 설정 로드
+            const poolIntervalDelayElement = document.getElementById('poolIntervalDelay');
+            if (poolIntervalDelayElement && poolData.poolIntervalDelay) {
+                poolIntervalDelayElement.value = poolData.poolIntervalDelay;
+                console.log('✅ 풀간 간격 설정 로드됨:', poolData.poolIntervalDelay, '분');
+            }
+            
             console.log('✅ 풀 설정 로드 완료:', Object.keys(window.rotationPools).length, '개 풀');
         }
         
@@ -8395,6 +8417,13 @@ async function loadSavedPoolSettings() {
                         window.groupPoolMapping = data.pools_data.groupMapping || {};
                         window.poolRotationIndex = data.pools_data.rotationIndex || {};
                         window.rotationPoolsEnabled = data.pools_data.enabled || false;
+                        
+                        // 풀간 간격 설정 로드 (Firebase)
+                        const poolIntervalDelayElement = document.getElementById('poolIntervalDelay');
+                        if (poolIntervalDelayElement && data.pools_data.poolIntervalDelay) {
+                            poolIntervalDelayElement.value = data.pools_data.poolIntervalDelay;
+                            console.log('✅ Firebase에서 풀간 간격 설정 로드됨:', data.pools_data.poolIntervalDelay, '분');
+                        }
                         
                         console.log('✅ Firebase에서 풀 설정 로드 완료');
                     }
@@ -8778,7 +8807,7 @@ function groupAccountsByPool(targetAccounts) {
 // 풀별 시차 시작 실행 (풀간 연동 전송)
 async function executePoolSystemWithDelay(pools, selectedGroups) {
     const results = [];
-    const poolDelay = 2 * 60 * 1000; // 2분 (밀리초)
+    const poolDelay = getPoolIntervalDelay(); // 사용자 설정 풀간 간격 (밀리초)
     
     // 풀 시스템 활성 상태 추적
     window.activePoolSystem = {
@@ -9088,6 +9117,13 @@ async function sendAccountToAllGroups(account, selectedGroups, accountMediaInfo)
 function getAccountRotationInterval() {
     const interval = getRotationSettings()?.groupSendInterval || 3; // 기본값 3분
     return interval * 60 * 1000; // 분을 밀리초로 변환
+}
+
+// 풀간 전송 간격 가져오기 (분을 밀리초로 변환)
+function getPoolIntervalDelay() {
+    const delayElement = document.getElementById('poolIntervalDelay');
+    const delay = delayElement ? parseInt(delayElement.value) || 2 : 2; // 기본값 2분
+    return delay * 60 * 1000; // 분을 밀리초로 변환
 }
 
 // 로테이션 설정 가져오기
