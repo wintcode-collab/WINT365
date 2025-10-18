@@ -7550,8 +7550,8 @@ async function initRotationPools() {
     const poolIntervalDelayElement = document.getElementById('poolIntervalDelay');
     if (poolIntervalDelayElement) {
         poolIntervalDelayElement.addEventListener('input', function() {
-            // 실시간 전체주기 업데이트
-            updatePoolSystemCycleTime();
+            // 실시간 풀별 전체주기 업데이트
+            renderPoolIntervalsList();
         });
         
         poolIntervalDelayElement.addEventListener('change', function() {
@@ -7559,8 +7559,8 @@ async function initRotationPools() {
             console.log(`⏰ 풀간 간격 설정 변경: ${delay}분`);
             // 실시간 저장
             savePoolSettings();
-            // 전체주기 업데이트
-            updatePoolSystemCycleTime();
+            // 풀별 전체주기 업데이트
+            renderPoolIntervalsList();
         });
     }
     
@@ -7572,9 +7572,6 @@ async function initRotationPools() {
     
     // 풀별 간격 설정 렌더링
     renderPoolIntervalsList();
-    
-    // 풀 시스템 전체주기 업데이트
-    updatePoolSystemCycleTime();
 }
 
 // 풀 생성 모달 표시
@@ -7612,8 +7609,8 @@ function createRotationPool(poolName) {
     // 풀 설정 저장
     savePoolSettings();
     
-    // 풀 시스템 전체주기 업데이트
-    updatePoolSystemCycleTime();
+    // 풀별 전체주기 업데이트
+    renderPoolIntervalsList();
     
     // 풀 관리 모달 표시 (계정 추가를 위해)
     showManagePoolModal(poolId);
@@ -8210,9 +8207,6 @@ function updatePoolInterval(poolId, intervalMinutes) {
     
     // 풀 목록도 업데이트 (전체 주기 포함)
     renderRotationPoolsList();
-    
-    // 풀 시스템 전체주기 업데이트
-    updatePoolSystemCycleTime();
 }
 
 // 간격 설정에서 풀 삭제
@@ -8259,9 +8253,6 @@ function deletePoolFromInterval(poolId) {
     renderRotationPoolsList();
     renderPoolIntervalsList();
     renderGroupPoolMapping();
-    
-    // 풀 시스템 전체주기 업데이트
-    updatePoolSystemCycleTime();
     
     alert(`✅ 풀 "${pool.name}"이 삭제되었습니다.`);
 }
@@ -8398,8 +8389,8 @@ async function loadSavedPoolSettings() {
                 console.log('✅ 풀간 간격 설정 로드됨:', poolData.poolIntervalDelay, '분');
             }
             
-            // 전체주기 업데이트
-            updatePoolSystemCycleTime();
+            // 풀별 전체주기 업데이트
+            renderPoolIntervalsList();
             
             console.log('✅ 풀 설정 로드 완료:', Object.keys(window.rotationPools).length, '개 풀');
         }
@@ -8427,8 +8418,8 @@ async function loadSavedPoolSettings() {
                             console.log('✅ Firebase에서 풀간 간격 설정 로드됨:', data.pools_data.poolIntervalDelay, '분');
                         }
                         
-                        // 전체주기 업데이트
-                        updatePoolSystemCycleTime();
+                        // 풀별 전체주기 업데이트
+                        renderPoolIntervalsList();
                         
                         console.log('✅ Firebase에서 풀 설정 로드 완료');
                     }
@@ -10510,16 +10501,16 @@ function calculatePoolSystemCycleTime() {
     return { totalMinutes: totalCycleMinutes, totalHours: totalCycleHours, remainingMinutes, cycleText };
 }
 
-// 풀 시스템 전체주기 실시간 업데이트
-function updatePoolSystemCycleTime() {
-    const cycleTimeElement = document.getElementById('poolSystemCycleTimeText');
-    if (!cycleTimeElement) return;
-    
-    const cycleInfo = calculatePoolSystemCycleTime();
-    cycleTimeElement.textContent = cycleInfo.cycleText;
-    
-    console.log(`🔄 풀 시스템 전체주기 업데이트: ${cycleInfo.cycleText}`);
-}
+// 풀 시스템 전체주기 실시간 업데이트 (사용하지 않음 - 풀별 개별 주기로 대체)
+// function updatePoolSystemCycleTime() {
+//     const cycleTimeElement = document.getElementById('poolSystemCycleTimeText');
+//     if (!cycleTimeElement) return;
+//     
+//     const cycleInfo = calculatePoolSystemCycleTime();
+//     cycleTimeElement.textContent = cycleInfo.cycleText;
+//     
+//     console.log(`🔄 풀 시스템 전체주기 업데이트: ${cycleInfo.cycleText}`);
+// }
 
 // 텔레그램 엔티티 파싱 함수 (@사용자명, 링크 등)
 function parseTelegramEntities(text, entities = []) {
