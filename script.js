@@ -6128,6 +6128,29 @@ function closeAutoSendSettingsModal() {
 // 자동 전송 설정 로드
 function loadAutoSendSettings() {
     try {
+        console.log('🔄 자동전송 설정 로드 시작');
+        
+        // DOM 요소 존재 확인
+        const groupInterval = document.getElementById('groupInterval');
+        const repeatInterval = document.getElementById('repeatInterval');
+        const maxRepeats = document.getElementById('maxRepeats');
+        const messageThreshold = document.getElementById('messageThreshold');
+        const enableMessageCheck = document.getElementById('enableMessageCheck');
+        
+        console.log('🔍 DOM 요소 확인:', {
+            groupInterval: !!groupInterval,
+            repeatInterval: !!repeatInterval,
+            maxRepeats: !!maxRepeats,
+            messageThreshold: !!messageThreshold,
+            enableMessageCheck: !!enableMessageCheck
+        });
+        
+        // DOM 요소가 없으면 로드하지 않음
+        if (!groupInterval || !repeatInterval || !maxRepeats || !messageThreshold || !enableMessageCheck) {
+            console.log('⚠️ 자동전송 설정 DOM 요소가 없음 - 로드 건너뜀');
+            return;
+        }
+        
         // 먼저 계정별 설정 확인
         let settings = loadAccountSettings('autoSend');
         
@@ -6138,6 +6161,8 @@ function loadAutoSendSettings() {
                 settings = JSON.parse(savedSettings);
             }
         }
+        
+        console.log('💾 로드된 설정:', settings);
         
         if (settings) {
             // 저장된 풀 시스템 설정이 있으면 복원
@@ -6158,23 +6183,29 @@ function loadAutoSendSettings() {
                 console.log('✅ 풀 시스템 설정 없음 - 비활성화로 초기화');
             }
             
-            // 그룹간 전송간격은 풀 시스템 활성화 여부와 관계없이 항상 로드
-            const groupInterval = document.getElementById('groupInterval');
-            if (groupInterval && settings.groupInterval > 0) {
-                groupInterval.value = settings.groupInterval;
-                console.log('✅ 그룹간 전송간격 로드됨:', settings.groupInterval);
+            // 그룹간 전송간격 로드
+            if (groupInterval) {
+                groupInterval.value = settings.groupInterval > 0 ? settings.groupInterval : 30;
+                console.log('✅ 그룹간 전송간격 로드됨:', groupInterval.value);
             }
             
-            // 기본 자동전송 설정 로드 (풀 시스템 상태와 관계없이)
-            const repeatInterval = document.getElementById('repeatInterval');
-            const maxRepeats = document.getElementById('maxRepeats');
-            const messageThreshold = document.getElementById('messageThreshold');
-            const enableMessageCheck = document.getElementById('enableMessageCheck');
-            
-            if (repeatInterval) repeatInterval.value = settings.repeatInterval || 30;
-            if (maxRepeats) maxRepeats.value = settings.maxRepeats || 10;
-            if (messageThreshold) messageThreshold.value = settings.messageThreshold || 5;
-            if (enableMessageCheck) enableMessageCheck.checked = settings.enableMessageCheck !== false;
+            // 기본 자동전송 설정 로드
+            if (repeatInterval) {
+                repeatInterval.value = settings.repeatInterval > 0 ? settings.repeatInterval : 30;
+                console.log('✅ 반복 간격 로드됨:', repeatInterval.value);
+            }
+            if (maxRepeats) {
+                maxRepeats.value = settings.maxRepeats > 0 ? settings.maxRepeats : 10;
+                console.log('✅ 최대 반복 로드됨:', maxRepeats.value);
+            }
+            if (messageThreshold) {
+                messageThreshold.value = settings.messageThreshold >= 0 ? settings.messageThreshold : 5;
+                console.log('✅ 메시지 임계값 로드됨:', messageThreshold.value);
+            }
+            if (enableMessageCheck) {
+                enableMessageCheck.checked = settings.enableMessageCheck !== false;
+                console.log('✅ 메시지 확인 로드됨:', enableMessageCheck.checked);
+            }
             
             console.log('✅ 기본 자동전송 설정 로드됨:', settings);
         } else {
@@ -6182,20 +6213,33 @@ function loadAutoSendSettings() {
             console.log('⚠️ 자동전송 설정이 없음 - 기본값으로 설정');
             
             // 기본값 설정
-            const groupInterval = document.getElementById('groupInterval');
-            const repeatInterval = document.getElementById('repeatInterval');
-            const maxRepeats = document.getElementById('maxRepeats');
-            const messageThreshold = document.getElementById('messageThreshold');
-            const enableMessageCheck = document.getElementById('enableMessageCheck');
-            
-            if (groupInterval) groupInterval.value = 30;
-            if (repeatInterval) repeatInterval.value = 30;
-            if (maxRepeats) maxRepeats.value = 10;
-            if (messageThreshold) messageThreshold.value = 5;
-            if (enableMessageCheck) enableMessageCheck.checked = true;
+            if (groupInterval) {
+                groupInterval.value = 30;
+                console.log('✅ 그룹간 전송간격 기본값 설정: 30초');
+            }
+            if (repeatInterval) {
+                repeatInterval.value = 30;
+                console.log('✅ 반복 간격 기본값 설정: 30초');
+            }
+            if (maxRepeats) {
+                maxRepeats.value = 10;
+                console.log('✅ 최대 반복 기본값 설정: 10회');
+            }
+            if (messageThreshold) {
+                messageThreshold.value = 5;
+                console.log('✅ 메시지 임계값 기본값 설정: 5개');
+            }
+            if (enableMessageCheck) {
+                enableMessageCheck.checked = true;
+                console.log('✅ 메시지 확인 기본값 설정: true');
+            }
             
             // 풀 시스템 비활성화
             window.rotationPoolsEnabled = false;
+            const enablePoolsCheckbox = document.getElementById('enableRotationPools');
+            if (enablePoolsCheckbox) {
+                enablePoolsCheckbox.checked = false;
+            }
             console.log('✅ 기본값 설정 완료 - 풀 시스템 비활성화 상태로 설정');
         }
         
@@ -6232,7 +6276,8 @@ function loadAutoSendSettings() {
         }
         }
     } catch (error) {
-        console.error('자동전송 설정 로드 실패:', error);
+        console.error('❌ 자동전송 설정 로드 실패:', error);
+        console.error('❌ 에러 상세:', error.stack);
         
         // 에러 발생 시 기본값으로 설정
         console.log('⚠️ 에러 발생으로 기본값 설정');
@@ -6243,14 +6288,41 @@ function loadAutoSendSettings() {
         const messageThreshold = document.getElementById('messageThreshold');
         const enableMessageCheck = document.getElementById('enableMessageCheck');
         
-        if (groupInterval) groupInterval.value = 30;
-        if (repeatInterval) repeatInterval.value = 30;
-        if (maxRepeats) maxRepeats.value = 10;
-        if (messageThreshold) messageThreshold.value = 5;
-        if (enableMessageCheck) enableMessageCheck.checked = true;
+        console.log('🔍 에러 처리 시 DOM 요소 확인:', {
+            groupInterval: !!groupInterval,
+            repeatInterval: !!repeatInterval,
+            maxRepeats: !!maxRepeats,
+            messageThreshold: !!messageThreshold,
+            enableMessageCheck: !!enableMessageCheck
+        });
+        
+        if (groupInterval) {
+            groupInterval.value = 30;
+            console.log('✅ 그룹간 전송간격 기본값 설정: 30초');
+        }
+        if (repeatInterval) {
+            repeatInterval.value = 30;
+            console.log('✅ 반복 간격 기본값 설정: 30초');
+        }
+        if (maxRepeats) {
+            maxRepeats.value = 10;
+            console.log('✅ 최대 반복 기본값 설정: 10회');
+        }
+        if (messageThreshold) {
+            messageThreshold.value = 5;
+            console.log('✅ 메시지 임계값 기본값 설정: 5개');
+        }
+        if (enableMessageCheck) {
+            enableMessageCheck.checked = true;
+            console.log('✅ 메시지 확인 기본값 설정: true');
+        }
         
         // 풀 시스템 비활성화
         window.rotationPoolsEnabled = false;
+        const enablePoolsCheckbox = document.getElementById('enableRotationPools');
+        if (enablePoolsCheckbox) {
+            enablePoolsCheckbox.checked = false;
+        }
         console.log('✅ 에러 발생으로 기본값 설정 완료');
     }
 }
