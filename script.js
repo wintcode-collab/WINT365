@@ -5832,6 +5832,13 @@ function setupAutoSendEventListeners() {
             }
             
             if (this.checked) {
+                // 이미 모달이 열려있는지 확인
+                const modal = document.getElementById('autoSendSettingsModal');
+                if (modal && modal.style.display === 'flex') {
+                    console.log('⚠️ 자동전송 설정 모달이 이미 열려있습니다');
+                    return;
+                }
+                
                 // 자동전송 토글 ON - 설정 모달만 열고 자동전송은 시작하지 않음
                 console.log('🔄 자동전송 토글 ON - 설정 모달 열기');
                 // 상태 동기화 잠금 설정 (토글이 OFF로 돌아가는 것 방지)
@@ -5923,7 +5930,17 @@ function setupAutoSendEventListeners() {
 async function showAutoSendSettingsModal() {
     const modal = document.getElementById('autoSendSettingsModal');
     if (modal) {
+        // 이미 모달이 열려있는지 확인
+        if (modal.style.display === 'flex') {
+            console.log('⚠️ 자동전송 설정 모달이 이미 열려있습니다');
+            return;
+        }
+        
+        console.log('🔄 자동전송 설정 모달 열기 시작');
         modal.style.display = 'flex';
+        
+        // DOM 요소들이 로드될 때까지 잠시 대기
+        await new Promise(resolve => setTimeout(resolve, 100));
         
         loadAutoSendSettings();
         
@@ -5935,6 +5952,10 @@ async function showAutoSendSettingsModal() {
         
         // 그룹간 전송간격 실시간 업데이트 이벤트 리스너 설정
         setupGroupIntervalRealtimeUpdate();
+        
+        console.log('✅ 자동전송 설정 모달 표시 완료');
+    } else {
+        console.error('❌ 자동전송 설정 모달을 찾을 수 없습니다');
     }
 }
 
@@ -5943,6 +5964,7 @@ function hideAutoSendSettingsModal() {
     const modal = document.getElementById('autoSendSettingsModal');
     if (modal) {
         modal.style.display = 'none';
+        console.log('✅ 자동전송 설정 모달 닫기 완료');
     }
     
     // 자동전송 동기화 잠금 해제 (설정 모달이 닫힐 때)
@@ -5997,6 +6019,10 @@ function closeAutoSendSettingsModal() {
     if (settingsDisplay) {
         settingsDisplay.style.display = 'none';
     }
+    
+    // 자동전송 동기화 잠금 해제 (모달이 닫힐 때)
+    window.autoSendSyncLocked = false;
+    console.log('🔓 자동전송 동기화 잠금 해제 (X 버튼으로 닫기)');
 }
 
 // 자동 전송 설정 로드
