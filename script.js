@@ -260,10 +260,16 @@ function setupEventListeners() {
     // 자동 전송 토글 이벤트 리스너
     setupAutoSendEventListeners();
     
-    // Enter 키 이벤트
+    // 키보드 이벤트
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Enter') {
             handleLogin();
+        }
+        
+        // ESC 키로 로딩 애니메이션 강제 제거
+        if (e.key === 'Escape') {
+            console.log('🚨 ESC 키 감지 - 로딩 애니메이션 강제 제거');
+            forceHideAllLoadingAnimations();
         }
     });
     
@@ -1816,12 +1822,31 @@ function showAccountList(accounts) {
                     position: relative;
                 " data-user-id="${account.user_id}">
                     <div style="display: flex; align-items: center; justify-content: space-between;">
-                        <div style="flex: 1;">
-                            <div style="color: #10B981; font-weight: 600; font-size: 16px; margin-bottom: 5px;">
-                                ${account.first_name} ${account.last_name || ''}
+                        <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
+                            <div style="
+                                width: 20px;
+                                height: 20px;
+                                border: 2px solid #10B981;
+                                border-radius: 4px;
+                                background: transparent;
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                transition: all 0.3s ease;
+                            " class="account-checkbox">
+                                <div style="
+                                    color: #10B981;
+                                    font-size: 12px;
+                                    opacity: 0;
+                                    transition: opacity 0.3s ease;
+                                " class="checkmark">✓</div>
                             </div>
-                            <div style="color: #888; font-size: 14px; margin-bottom: 3px;">
-                                📱 ${account.phone_number}
+                            <div style="flex: 1;">
+                                <div style="color: #10B981; font-weight: 600; font-size: 16px; margin-bottom: 5px;">
+                                    ${account.first_name} ${account.last_name || ''}
+                                </div>
+                                <div style="color: #888; font-size: 14px; margin-bottom: 3px;">
+                                    📱 ${account.phone_number}
                             </div>
                             ${account.username ? `
                                 <div style="color: #888; font-size: 14px;">
@@ -1906,9 +1931,20 @@ function showAccountList(accounts) {
                 item.style.borderColor = '#444';
                 item.classList.remove('selected');
                 
+                // 체크박스 해제
+                const checkbox = item.querySelector('.account-checkbox');
+                const checkmark = item.querySelector('.checkmark');
+                if (checkbox) {
+                    checkbox.style.background = 'transparent';
+                    checkbox.style.borderColor = '#10B981';
+                }
+                if (checkmark) {
+                    checkmark.style.opacity = '0';
+                }
+                
                 // 텍스트 색상 복원
-                const nameEl = item.querySelector('div > div:first-child');
-                const phoneEl = item.querySelector('div > div:nth-child(2)');
+                const nameEl = item.querySelector('div > div:nth-child(2) > div:first-child');
+                const phoneEl = item.querySelector('div > div:nth-child(2) > div:nth-child(2)');
                 const arrowEl = item.querySelector('div > div:last-child');
                 if (nameEl) {
                     nameEl.style.color = '#10B981';
@@ -1921,11 +1957,22 @@ function showAccountList(accounts) {
                 selectedAccounts.push(account);
                 item.style.background = 'linear-gradient(135deg, #374151 0%, #1F2937 100%)'; // 어두운 회색 배경
                 item.style.borderColor = '#4B5563';
-            item.classList.add('selected');
+                item.classList.add('selected');
+                
+                // 체크박스 체크
+                const checkbox = item.querySelector('.account-checkbox');
+                const checkmark = item.querySelector('.checkmark');
+                if (checkbox) {
+                    checkbox.style.background = '#10B981';
+                    checkbox.style.borderColor = '#10B981';
+                }
+                if (checkmark) {
+                    checkmark.style.opacity = '1';
+                }
                 
                 // 텍스트 색상을 흰색으로 변경 (어두운 배경에 잘 보이도록)
-                const nameEl = item.querySelector('div > div:first-child');
-                const phoneEl = item.querySelector('div > div:nth-child(2)');
+                const nameEl = item.querySelector('div > div:nth-child(2) > div:first-child');
+                const phoneEl = item.querySelector('div > div:nth-child(2) > div:nth-child(2)');
                 const arrowEl = item.querySelector('div > div:last-child');
                 if (nameEl) {
                     nameEl.style.color = '#FFFFFF'; // 흰색
@@ -1946,13 +1993,15 @@ function showAccountList(accounts) {
     
     // 확인 버튼 상태 업데이트 함수
     function updateConfirmButton() {
-            const confirmBtn = modal.querySelector('#confirmAccountSelection');
+        const confirmBtn = modal.querySelector('#confirmAccountSelection');
         if (selectedAccounts.length > 0) {
             confirmBtn.style.opacity = '1';
             confirmBtn.style.pointerEvents = 'auto';
+            confirmBtn.textContent = `✅ 선택적으로 계정 로드 (${selectedAccounts.length}개)`;
         } else {
             confirmBtn.style.opacity = '0.5';
             confirmBtn.style.pointerEvents = 'none';
+            confirmBtn.textContent = '계정을 선택하세요';
         }
     }
     
@@ -2044,12 +2093,14 @@ function showAccountList(accounts) {
     
     // 닫기 버튼 이벤트
     modal.querySelector('#closeAccountList').addEventListener('click', () => {
+        hideLoadingAnimation(); // 로딩 애니메이션 숨기기
         document.body.removeChild(modal);
     });
     
     // 모달 배경 클릭 시 닫기
     modal.addEventListener('click', (e) => {
         if (e.target === modal) {
+            hideLoadingAnimation(); // 로딩 애니메이션 숨기기
             document.body.removeChild(modal);
         }
     });
@@ -2310,10 +2361,60 @@ function hideLoadingAnimation() {
             loadingAnimation.remove();
             console.log('✅ 로딩 애니메이션 숨김');
         }
+        
+        // 추가 안전장치: 모든 로딩 관련 요소 제거
+        const allLoadingElements = document.querySelectorAll('[id*="loading"], [class*="loading"], [style*="loading"]');
+        allLoadingElements.forEach(element => {
+            if (element.id === 'loadingAnimation' || element.textContent.includes('로딩')) {
+                element.remove();
+            }
+        });
+        
     } catch (error) {
         console.error('❌ 로딩 애니메이션 숨기기 실패:', error);
     }
 }
+
+// 긴급 로딩 애니메이션 강제 제거 (모든 상황에서 사용)
+function forceHideAllLoadingAnimations() {
+    try {
+        console.log('🚨 긴급 로딩 애니메이션 강제 제거');
+        
+        // 모든 가능한 로딩 요소 제거
+        const loadingSelectors = [
+            '#loadingAnimation',
+            '.loading',
+            '[id*="loading"]',
+            '[class*="loading"]'
+        ];
+        
+        loadingSelectors.forEach(selector => {
+            const elements = document.querySelectorAll(selector);
+            elements.forEach(element => {
+                if (element && element.parentNode) {
+                    element.remove();
+                    console.log('🗑️ 로딩 요소 제거:', selector);
+                }
+            });
+        });
+        
+        // 추가: body에서 로딩 관련 스타일 제거
+        const body = document.body;
+        if (body) {
+            body.style.overflow = '';
+            body.style.pointerEvents = '';
+        }
+        
+        console.log('✅ 모든 로딩 애니메이션 강제 제거 완료');
+        
+    } catch (error) {
+        console.error('❌ 강제 로딩 제거 실패:', error);
+    }
+}
+
+// 전역 함수로 등록 (개발자 도구에서도 사용 가능)
+window.forceHideAllLoadingAnimations = forceHideAllLoadingAnimations;
+window.hideLoadingAnimation = hideLoadingAnimation;
 
 // 다중 계정 모드에서 계정별 메시지 설정 표시
 function showMultiAccountMessageSettings(accounts) {
@@ -8067,6 +8168,9 @@ let isPageUnloading = false;
 window.addEventListener('beforeunload', function() {
     isPageUnloading = true;
     console.log('🔄 페이지 언로드 시작, 자동전송 중지 방지');
+    
+    // 페이지 언로드 시 로딩 애니메이션 강제 제거
+    forceHideAllLoadingAnimations();
 });
 
 // 페이지 가시성 변경 감지
@@ -8074,6 +8178,9 @@ document.addEventListener('visibilitychange', function() {
     if (document.visibilityState === 'hidden') {
         isPageUnloading = true;
         console.log('🔄 페이지 숨김, 자동전송 중지 방지');
+        
+        // 페이지 숨김 시 로딩 애니메이션 강제 제거
+        forceHideAllLoadingAnimations();
     } else if (document.visibilityState === 'visible') {
         isPageUnloading = false;
         console.log('🔄 페이지 표시, 자동전송 중지 방지 해제');
