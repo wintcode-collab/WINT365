@@ -1811,59 +1811,49 @@ function showAccountList(accounts) {
         </div>
         
         
-        <div id="accountList" style="margin-bottom: 25px; display: flex; flex-direction: column; gap: 12px;">
+        <div id="accountList" style="margin-bottom: 25px;">
             ${accounts.map((account, index) => `
-                <div class="account-item" style="
+                <div class="account-item" data-user-id="${account.user_id}" style="
                     background: linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%);
                     border: 1px solid #444;
                     border-radius: 12px;
                     padding: 15px;
+                    margin-bottom: 12px;
                     cursor: pointer;
                     transition: all 0.3s ease;
-                    position: relative;
-                    display: block;
-                    width: 100%;
-                    box-sizing: border-box;
-                    flex-shrink: 0;
-                " data-user-id="${account.user_id}">
-                    <div style="display: flex; align-items: center; justify-content: space-between;">
-                        <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
-                            <div style="
-                                width: 20px;
-                                height: 20px;
-                                border: 2px solid #10B981;
-                                border-radius: 4px;
-                                background: transparent;
-                                display: flex;
-                                align-items: center;
-                                justify-content: center;
-                                transition: all 0.3s ease;
-                                flex-shrink: 0;
-                            " class="account-checkbox">
-                                <div style="
-                                    color: #10B981;
-                                    font-size: 12px;
-                                    opacity: 0;
-                                    transition: opacity 0.3s ease;
-                                " class="checkmark">✓</div>
-                            </div>
-                            <div style="flex: 1; min-width: 0;">
-                                <div style="color: #10B981; font-weight: 600; font-size: 16px; margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                                    ${account.first_name} ${account.last_name || ''}
-                                </div>
-                                <div style="color: #888; font-size: 14px; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                                    📱 ${account.phone_number}
-                            </div>
-                            ${account.username ? `
-                                <div style="color: #888; font-size: 14px;">
-                                    @${account.username}
-                                </div>
-                            ` : ''}
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                ">
+                    <div style="
+                        width: 20px;
+                        height: 20px;
+                        border: 2px solid #10B981;
+                        border-radius: 4px;
+                        background: transparent;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        transition: all 0.3s ease;
+                        flex-shrink: 0;
+                    " class="account-checkbox">
+                        <div style="
+                            color: #10B981;
+                            font-size: 12px;
+                            opacity: 0;
+                            transition: opacity 0.3s ease;
+                        " class="checkmark">✓</div>
+                    </div>
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="color: #10B981; font-weight: 600; font-size: 16px; margin-bottom: 5px;">
+                            ${account.first_name} ${account.last_name || ''}
                         </div>
-                        <div style="color: #10B981; font-size: 20px;">
-                            ▶
+                        <div style="color: #888; font-size: 14px;">
+                            📱 ${account.phone_number}
+                            ${account.username ? ` • @${account.username}` : ''}
                         </div>
                     </div>
+                    <div style="color: #10B981; font-size: 18px; flex-shrink: 0;">→</div>
                 </div>
             `).join('')}
         </div>
@@ -1904,7 +1894,7 @@ function showAccountList(accounts) {
     let selectedAccounts = []; // 다중 선택용
     
     
-    // 계정 아이템 클릭 이벤트 (체크박스 없이)
+    // 계정 아이템 클릭 이벤트 (다중 선택 가능)
     const accountItems = modal.querySelectorAll('.account-item');
     accountItems.forEach(item => {
         item.addEventListener('mouseenter', () => {
@@ -1949,19 +1939,19 @@ function showAccountList(accounts) {
                 }
                 
                 // 텍스트 색상 복원
-                const nameEl = item.querySelector('div > div:nth-child(2) > div:first-child');
-                const phoneEl = item.querySelector('div > div:nth-child(2) > div:nth-child(2)');
-                const arrowEl = item.querySelector('div > div:last-child');
+                const nameEl = item.querySelector('div:nth-child(2) > div:first-child');
+                const phoneEl = item.querySelector('div:nth-child(2) > div:nth-child(2)');
+                const arrowEl = item.querySelector('div:last-child');
                 if (nameEl) {
                     nameEl.style.color = '#10B981';
-                    nameEl.style.fontWeight = 'normal'; // 굵기 복원
+                    nameEl.style.fontWeight = '600';
                 }
                 if (phoneEl) phoneEl.style.color = '#888';
                 if (arrowEl) arrowEl.style.color = '#10B981';
             } else {
-                // 새로운 계정 선택
+                // 새로운 계정 선택 (기존 선택 유지)
                 selectedAccounts.push(account);
-                item.style.background = 'linear-gradient(135deg, #374151 0%, #1F2937 100%)'; // 어두운 회색 배경
+                item.style.background = 'linear-gradient(135deg, #374151 0%, #1F2937 100%)';
                 item.style.borderColor = '#4B5563';
                 item.classList.add('selected');
                 
@@ -1976,24 +1966,24 @@ function showAccountList(accounts) {
                     checkmark.style.opacity = '1';
                 }
                 
-                // 텍스트 색상을 흰색으로 변경 (어두운 배경에 잘 보이도록)
-                const nameEl = item.querySelector('div > div:nth-child(2) > div:first-child');
-                const phoneEl = item.querySelector('div > div:nth-child(2) > div:nth-child(2)');
-                const arrowEl = item.querySelector('div > div:last-child');
+                // 텍스트 색상을 흰색으로 변경
+                const nameEl = item.querySelector('div:nth-child(2) > div:first-child');
+                const phoneEl = item.querySelector('div:nth-child(2) > div:nth-child(2)');
+                const arrowEl = item.querySelector('div:last-child');
                 if (nameEl) {
-                    nameEl.style.color = '#FFFFFF'; // 흰색
-                    nameEl.style.fontWeight = 'bold'; // 굵게
+                    nameEl.style.color = '#FFFFFF';
+                    nameEl.style.fontWeight = 'bold';
                 }
                 if (phoneEl) {
-                    phoneEl.style.color = '#D1D5DB'; // 연한 회색
+                    phoneEl.style.color = '#D1D5DB';
                 }
                 if (arrowEl) {
-                    arrowEl.style.color = '#FFFFFF'; // 흰색
+                    arrowEl.style.color = '#FFFFFF';
                 }
             }
             
             updateConfirmButton();
-            console.log('✅ 선택된 계정들:', selectedAccounts.length, '개');
+            console.log('✅ 선택된 계정들:', selectedAccounts.length, '개:', selectedAccounts.map(a => a.first_name));
         });
     });
     
@@ -2003,7 +1993,11 @@ function showAccountList(accounts) {
         if (selectedAccounts.length > 0) {
             confirmBtn.style.opacity = '1';
             confirmBtn.style.pointerEvents = 'auto';
-            confirmBtn.textContent = `✅ 선택적으로 계정 로드 (${selectedAccounts.length}개)`;
+            if (selectedAccounts.length === 1) {
+                confirmBtn.textContent = `✅ 계정 로드 (${selectedAccounts[0].first_name})`;
+            } else {
+                confirmBtn.textContent = `✅ 다중 계정 로드 (${selectedAccounts.length}개)`;
+            }
         } else {
             confirmBtn.style.opacity = '0.5';
             confirmBtn.style.pointerEvents = 'none';
