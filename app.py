@@ -3588,7 +3588,7 @@ def execute_auto_send_job(user_id, group_ids, message, media_info=None):
             logger.info(f'🔍 Firebase 상태 확인: {status_guard}')
             
             # is_running이 명시적으로 false인 경우만 중단
-            if status_guard and status_guard.get('is_running') === False:
+            if status_guard and status_guard.get('is_running') == False:
                 logger.info(f'⛔ 자동전송 명시적 중지 상태 감지, 실행 중단: {user_id}')
                 # 메모리에서도 작업 제거
                 if user_id in auto_send_jobs:
