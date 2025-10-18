@@ -4008,8 +4008,8 @@ async function sendMessageToGroup() {
                 if (autoSendSuccess) {
                     console.log('✅ 풀시스템 자동전송 시작 성공');
                     
-                    // 자동전송 상태를 localStorage에 저장
-                    saveAutoSendStatusToLocalStorage(true, validGroupIds);
+                    // 자동전송 상태를 localStorage에 저장 (다중 계정 + 모든 설정 포함)
+                    saveAutoSendStatusToLocalStorage(true, validGroupIds, poolResult.targetAccounts);
                     
                     alert('🤖 풀시스템 자동전송이 시작되었습니다!\n\n설정된 간격마다 자동으로 전송됩니다.\nPC를 종료해도 계속 작동합니다.');
                     return true; // 성공적으로 종료
@@ -4197,8 +4197,8 @@ async function sendMessageToGroup() {
         if (autoSendSuccess) {
             console.log('✅ 자동전송 시작 성공');
             
-            // 자동전송 상태를 localStorage에 저장
-            saveAutoSendStatusToLocalStorage(true, validGroupIds);
+            // 자동전송 상태를 localStorage에 저장 (다중 계정 + 모든 설정 포함)
+            saveAutoSendStatusToLocalStorage(true, validGroupIds, window.selectedMultiAccounts);
             
             alert('🤖 자동전송이 시작되었습니다!\n\n설정된 간격마다 자동으로 전송됩니다.\nPC를 종료해도 계속 작동합니다.');
             return; // 자동전송이 시작되면 여기서 종료
@@ -7893,37 +7893,66 @@ function startAutoSendStatusUpdate() {
 }
 
 // 자동전송 상태를 localStorage에 저장하는 함수
-function saveAutoSendStatusToLocalStorage(isRunning, selectedGroups = null) {
+// 자동전송 상태를 localStorage에 저장하는 함수 (다중 계정 + 모든 설정 포함)
+function saveAutoSendStatusToLocalStorage(isRunning, selectedGroups = null, targetAccounts = null) {
     try {
-        const accountKey = getCurrentAccountKey();
-        if (!accountKey) {
-            console.log('❌ 계정 키가 없어서 자동전송 상태 저장 불가');
-            return;
-        }
-        
+        // 통합 풀시스템 상태 저장
         const statusData = {
             isRunning: isRunning,
             timestamp: Date.now(),
-            accountKey: accountKey
+            systemType: 'pool_system', // 통합 풀시스템 식별자
+            // 다중 계정 정보 저장
+            targetAccounts: targetAccounts || window.selectedMultiAccounts || [],
+            multiAccountMode: window.multiAccountMode || false,
+            // 선택된 그룹들 저장
+            selectedGroups: selectedGroups || getCurrentSelectedGroups(),
+            // 자동전송 설정 저장
+            autoSendSettings: {
+                groupInterval: document.getElementById('groupInterval')?.value || 30,
+                repeatInterval: document.getElementById('repeatInterval')?.value || 30,
+                maxRepeats: document.getElementById('maxRepeats')?.value || 10,
+                messageThreshold: document.getElementById('messageThreshold')?.value || 5,
+                enableMessageCheck: document.getElementById('enableMessageCheck')?.checked || true
+            },
+            // 풀시스템 설정 저장
+            poolSystemSettings: {
+                rotationPoolsEnabled: window.rotationPoolsEnabled || false,
+                rotationPools: window.rotationPools || {},
+                groupPoolMapping: window.groupPoolMapping || {}
+            },
+            // 메시지 정보 저장
+            messageInfo: {
+                message: document.querySelector('.message-input')?.value || '',
+                mediaInfo: window.selectedMediaInfo || null
+            }
         };
         
-        // 선택된 그룹들도 저장
-        if (selectedGroups && selectedGroups.length > 0) {
-            statusData.selectedGroups = selectedGroups;
-        } else {
-            // 현재 선택된 그룹들을 가져와서 저장
-            const checkedBoxes = document.querySelectorAll('.group-checkbox:checked');
-            const groupIds = Array.from(checkedBoxes).map(checkbox => checkbox.value);
-            if (groupIds.length > 0) {
-                statusData.selectedGroups = groupIds;
-            }
-        }
+        // 통합 풀시스템 상태로 저장
+        localStorage.setItem('autoSendStatus_pool_system', JSON.stringify(statusData));
+        console.log('💾 통합 풀시스템 자동전송 상태 저장됨:', statusData);
         
-        localStorage.setItem(`autoSendStatus_${accountKey}`, JSON.stringify(statusData));
-        console.log('💾 자동전송 상태 저장됨:', statusData);
+        // 기존 개별 계정 상태는 정리 (중복 방지)
+        const keys = Object.keys(localStorage);
+        keys.forEach(key => {
+            if (key.startsWith('autoSendStatus_') && key !== 'autoSendStatus_pool_system') {
+                localStorage.removeItem(key);
+                console.log('🗑️ 기존 개별 계정 상태 제거:', key);
+            }
+        });
         
     } catch (error) {
         console.error('❌ 자동전송 상태 저장 에러:', error);
+    }
+}
+
+// 현재 선택된 그룹들 가져오기
+function getCurrentSelectedGroups() {
+    try {
+        const checkedBoxes = document.querySelectorAll('.group-checkbox:checked');
+        return Array.from(checkedBoxes).map(checkbox => checkbox.value);
+    } catch (error) {
+        console.error('❌ 선택된 그룹 가져오기 실패:', error);
+        return [];
     }
 }
 
@@ -8053,13 +8082,8 @@ async function restoreLastSelectedAccount() {
             }
         });
         
-        // 해당 계정의 그룹 로드
-        try {
-            await loadGroupsForAccount(savedAccount);
-            console.log('✅ 계정 그룹 로드 완료');
-        } catch (error) {
-            console.error('❌ 계정 그룹 로드 실패:', error);
-        }
+        // 계정 정보만 복원하고 그룹은 자동 로드하지 않음 (사용자가 LOAD 버튼을 눌러야 함)
+        console.log('✅ 계정 정보 복원 완료 (그룹 로드는 LOAD 버튼을 눌러주세요)');
         
         console.log('✅ 마지막 선택 계정 복원 완료');
         
