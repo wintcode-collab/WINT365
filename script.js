@@ -4059,6 +4059,13 @@ async function sendMessageToGroup() {
                             console.log('📤 원본 메시지 객체:', mediaInfo.raw_message_data);
                         }
                         
+                        // 엔티티 정보가 있는 경우 포함 (일반 텍스트 메시지용)
+                        if (mediaInfo && mediaInfo.entities && mediaInfo.entities.length > 0) {
+                            sendData.entities = mediaInfo.entities;
+                            sendData.has_entities = true;
+                            console.log('📤 엔티티 정보 포함 전송:', mediaInfo.entities);
+                        }
+                        
                         // 원본 메시지 객체가 있는 경우 우선 사용
                         if (mediaInfo && mediaInfo.original_message_object) {
                             sendData.original_message_object = mediaInfo.original_message_object;
@@ -4066,13 +4073,6 @@ async function sendMessageToGroup() {
                             sendData.bypass_text_processing = true;
                             sendData.message = null;
                             sendData.send_as_original = true;
-                        }
-                        
-                        // 엔티티 정보가 있는 경우 포함 (일반 텍스트 메시지용)
-                        if (mediaInfo && mediaInfo.entities && mediaInfo.entities.length > 0) {
-                            sendData.entities = mediaInfo.entities;
-                            sendData.has_entities = true;
-                            console.log('📤 엔티티 정보 포함 전송:', mediaInfo.entities);
                         }
                         
                         console.log('📤 서버로 전송할 데이터:', sendData);
@@ -7303,13 +7303,6 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo, targe
                 bypass_text_processing: autoSendData.bypass_text_processing,
                 send_as_original: autoSendData.send_as_original
             });
-        }
-        
-        // 엔티티 정보가 있는 경우 포함 (자동전송용)
-        if (mediaInfo && mediaInfo.entities && mediaInfo.entities.length > 0) {
-            autoSendData.entities = mediaInfo.entities;
-            autoSendData.has_entities = true;
-            console.log('📤 자동전송 엔티티 정보 포함:', mediaInfo.entities);
         }
         
         const autoSendResponse = await fetch(`${getApiBaseUrl()}/api/auto-send/start`, {

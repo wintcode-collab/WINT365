@@ -2123,6 +2123,9 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                         # InputPeerSelf import
                         from telethon.tl.types import InputPeerSelf
                         
+                        # InputPeerSelf import
+                        from telethon.tl.types import InputPeerSelf
+                        
                         # 원본 메시지를 직접 전달 (완전히 원본 그대로)
                         forwarded_messages = await client.forward_messages(
                             entity=group_entity,
@@ -4279,10 +4282,6 @@ def start_auto_send():
         bypass_text_processing = data.get('bypass_text_processing', False)
         send_as_original = data.get('send_as_original', False)
         
-        # 엔티티 정보 처리
-        entities_data = data.get('entities', [])
-        has_entities = data.get('has_entities', False)
-        
         if original_message_object:
             logger.info('🔥 자동전송 커스텀 이모지 원본 메시지 객체 감지')
             logger.info(f'🔥 원본 메시지 객체: {original_message_object}')
@@ -4293,15 +4292,6 @@ def start_auto_send():
             media_info['is_original_message'] = is_original_message
             media_info['bypass_text_processing'] = bypass_text_processing
             media_info['send_as_original'] = send_as_original
-        
-        # 엔티티 정보가 있으면 media_info에 추가
-        if has_entities and entities_data:
-            logger.info('🔥 자동전송 엔티티 정보 감지')
-            logger.info(f'🔥 엔티티 정보: {entities_data}')
-            if not media_info:
-                media_info = {}
-            media_info['entities'] = entities_data
-            media_info['has_entities'] = has_entities
         
         logger.info(f'🚀 자동전송 시작 요청: account_name={account_name}, group_ids={group_ids}')
         
