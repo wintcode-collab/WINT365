@@ -1975,7 +1975,40 @@ function showAccountList(accounts) {
 
             // 계정 변경 시 설정 복원(그룹 렌더 완료 후 순차 복원)
             loadTelegramSettings();
+            
+            // 자동전송 설정 보존 (계정 변경 시 초기화 방지)
+            const currentAutoSendSettings = {
+                groupInterval: document.getElementById('groupInterval')?.value,
+                repeatInterval: document.getElementById('repeatInterval')?.value,
+                maxRepeats: document.getElementById('maxRepeats')?.value,
+                messageThreshold: document.getElementById('messageThreshold')?.value,
+                enableMessageCheck: document.getElementById('enableMessageCheck')?.checked
+            };
+            console.log('💾 계정 변경 시 자동전송 설정 보존:', currentAutoSendSettings);
+            
             loadAutoSendSettings();
+            
+            // 자동전송 설정 복원 (설정이 보존되어 있으면 복원)
+            setTimeout(() => {
+                if (currentAutoSendSettings.groupInterval || currentAutoSendSettings.repeatInterval || 
+                    currentAutoSendSettings.maxRepeats || currentAutoSendSettings.messageThreshold !== undefined) {
+                    console.log('🔄 계정 변경 후 자동전송 설정 복원 중...');
+                    const groupInterval = document.getElementById('groupInterval');
+                    const repeatInterval = document.getElementById('repeatInterval');
+                    const maxRepeats = document.getElementById('maxRepeats');
+                    const messageThreshold = document.getElementById('messageThreshold');
+                    const enableMessageCheck = document.getElementById('enableMessageCheck');
+                    
+                    if (groupInterval && currentAutoSendSettings.groupInterval) groupInterval.value = currentAutoSendSettings.groupInterval;
+                    if (repeatInterval && currentAutoSendSettings.repeatInterval) repeatInterval.value = currentAutoSendSettings.repeatInterval;
+                    if (maxRepeats && currentAutoSendSettings.maxRepeats) maxRepeats.value = currentAutoSendSettings.maxRepeats;
+                    if (messageThreshold && currentAutoSendSettings.messageThreshold !== undefined) messageThreshold.value = currentAutoSendSettings.messageThreshold;
+                    if (enableMessageCheck && currentAutoSendSettings.enableMessageCheck !== undefined) enableMessageCheck.checked = currentAutoSendSettings.enableMessageCheck;
+                    
+                    console.log('✅ 계정 변경 후 자동전송 설정 복원 완료');
+                }
+            }, 100);
+            
             updateAutoSendSettingsDisplay();
             updateSendButtonText();
             // 서버 자동전송 상태로 토글/버튼 동기화 + 단기 재동기화 폴링
@@ -5809,7 +5842,40 @@ function showAccountListAboveStatusBar(accounts) {
             // 계정 변경 시 설정 복원
             setTimeout(() => {
                 loadTelegramSettings();
+                
+                // 자동전송 설정 보존 (계정 변경 시 초기화 방지)
+                const currentAutoSendSettings = {
+                    groupInterval: document.getElementById('groupInterval')?.value,
+                    repeatInterval: document.getElementById('repeatInterval')?.value,
+                    maxRepeats: document.getElementById('maxRepeats')?.value,
+                    messageThreshold: document.getElementById('messageThreshold')?.value,
+                    enableMessageCheck: document.getElementById('enableMessageCheck')?.checked
+                };
+                console.log('💾 단일 계정 선택 시 자동전송 설정 보존:', currentAutoSendSettings);
+                
                 loadAutoSendSettings();
+                
+                // 자동전송 설정 복원 (설정이 보존되어 있으면 복원)
+                setTimeout(() => {
+                    if (currentAutoSendSettings.groupInterval || currentAutoSendSettings.repeatInterval || 
+                        currentAutoSendSettings.maxRepeats || currentAutoSendSettings.messageThreshold !== undefined) {
+                        console.log('🔄 단일 계정 선택 후 자동전송 설정 복원 중...');
+                        const groupInterval = document.getElementById('groupInterval');
+                        const repeatInterval = document.getElementById('repeatInterval');
+                        const maxRepeats = document.getElementById('maxRepeats');
+                        const messageThreshold = document.getElementById('messageThreshold');
+                        const enableMessageCheck = document.getElementById('enableMessageCheck');
+                        
+                        if (groupInterval && currentAutoSendSettings.groupInterval) groupInterval.value = currentAutoSendSettings.groupInterval;
+                        if (repeatInterval && currentAutoSendSettings.repeatInterval) repeatInterval.value = currentAutoSendSettings.repeatInterval;
+                        if (maxRepeats && currentAutoSendSettings.maxRepeats) maxRepeats.value = currentAutoSendSettings.maxRepeats;
+                        if (messageThreshold && currentAutoSendSettings.messageThreshold !== undefined) messageThreshold.value = currentAutoSendSettings.messageThreshold;
+                        if (enableMessageCheck && currentAutoSendSettings.enableMessageCheck !== undefined) enableMessageCheck.checked = currentAutoSendSettings.enableMessageCheck;
+                        
+                        console.log('✅ 단일 계정 선택 후 자동전송 설정 복원 완료');
+                    }
+                }, 100);
+                
                 updateAutoSendSettingsDisplay();
                 updateSendButtonText();
             }, 500);
