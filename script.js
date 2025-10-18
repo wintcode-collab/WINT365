@@ -6163,6 +6163,14 @@ function loadAutoSendSettings() {
         }
         
         console.log('💾 로드된 설정:', settings);
+        console.log('💾 설정 상세:', {
+            groupInterval: settings.groupInterval,
+            repeatInterval: settings.repeatInterval,
+            maxRepeats: settings.maxRepeats,
+            messageThreshold: settings.messageThreshold,
+            enableMessageCheck: settings.enableMessageCheck,
+            rotationPools: settings.rotationPools
+        });
         
         if (settings) {
             // 저장된 풀 시스템 설정이 있으면 복원
@@ -6185,26 +6193,31 @@ function loadAutoSendSettings() {
             
             // 그룹간 전송간격 로드
             if (groupInterval) {
-                groupInterval.value = settings.groupInterval > 0 ? settings.groupInterval : 30;
-                console.log('✅ 그룹간 전송간격 로드됨:', groupInterval.value);
+                const groupIntervalValue = settings.groupInterval || 30;
+                groupInterval.value = groupIntervalValue;
+                console.log('✅ 그룹간 전송간격 로드됨:', groupIntervalValue);
             }
             
             // 기본 자동전송 설정 로드
             if (repeatInterval) {
-                repeatInterval.value = settings.repeatInterval > 0 ? settings.repeatInterval : 30;
-                console.log('✅ 반복 간격 로드됨:', repeatInterval.value);
+                const repeatIntervalValue = settings.repeatInterval || 30;
+                repeatInterval.value = repeatIntervalValue;
+                console.log('✅ 반복 간격 로드됨:', repeatIntervalValue);
             }
             if (maxRepeats) {
-                maxRepeats.value = settings.maxRepeats > 0 ? settings.maxRepeats : 10;
-                console.log('✅ 최대 반복 로드됨:', maxRepeats.value);
+                const maxRepeatsValue = settings.maxRepeats || 10;
+                maxRepeats.value = maxRepeatsValue;
+                console.log('✅ 최대 반복 로드됨:', maxRepeatsValue);
             }
             if (messageThreshold) {
-                messageThreshold.value = settings.messageThreshold >= 0 ? settings.messageThreshold : 5;
-                console.log('✅ 메시지 임계값 로드됨:', messageThreshold.value);
+                const messageThresholdValue = settings.messageThreshold || 5;
+                messageThreshold.value = messageThresholdValue;
+                console.log('✅ 메시지 임계값 로드됨:', messageThresholdValue);
             }
             if (enableMessageCheck) {
-                enableMessageCheck.checked = settings.enableMessageCheck !== false;
-                console.log('✅ 메시지 확인 로드됨:', enableMessageCheck.checked);
+                const enableMessageCheckValue = settings.enableMessageCheck !== false;
+                enableMessageCheck.checked = enableMessageCheckValue;
+                console.log('✅ 메시지 확인 로드됨:', enableMessageCheckValue);
             }
             
             console.log('✅ 기본 자동전송 설정 로드됨:', settings);
