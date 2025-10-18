@@ -5996,9 +5996,13 @@ function setupAutoSendEventListeners() {
         });
     }
 
-    // 모달 닫기 버튼
+    // 모달 닫기 버튼 (중복 등록 방지)
     if (closeAutoSendSettingsBtn) {
+        // 기존 이벤트 리스너 제거
+        closeAutoSendSettingsBtn.removeEventListener('click', closeAutoSendSettingsModal);
+        // 새로운 이벤트 리스너 추가
         closeAutoSendSettingsBtn.addEventListener('click', closeAutoSendSettingsModal);
+        console.log('✅ X 버튼 이벤트 리스너 등록');
     }
 
     // 모달 배경 클릭 시 닫기 기능 제거 (X 버튼이나 설정 저장으로만 닫기)
@@ -6101,13 +6105,18 @@ function handleGroupIntervalChange() {
 
 // 자동 전송 설정 모달 닫기 (X 버튼으로 닫을 때)
 function closeAutoSendSettingsModal() {
+    console.log('🚫 closeAutoSendSettingsModal 함수 호출됨');
+    console.trace('🔍 호출 스택 추적');
+    
     const modal = document.getElementById('autoSendSettingsModal');
     const toggle = document.getElementById('autoSendToggle');
     if (modal) {
         modal.style.display = 'none';
+        console.log('✅ 모달 닫기 완료');
     }
     // 설정을 저장하지 않고 닫은 경우 토글을 OFF로 변경
     if (toggle && toggle.checked) {
+        console.log('🔄 토글 OFF로 변경');
         toggle.checked = false;
         // 상태 동기화 잠금 해제 및 설정 저장 플래그 리셋
         window.autoSendSyncLocked = false;
