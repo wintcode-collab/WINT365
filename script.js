@@ -7393,21 +7393,32 @@ async function saveAutoSendSettingsToFirebase(settings) {
 
 // 계정별 설정 관리 함수들
 function getCurrentAccountKey() {
+    console.log('🔍 getCurrentAccountKey 호출:', {
+        multiAccountMode: window.multiAccountMode,
+        selectedMultiAccounts: window.selectedMultiAccounts?.length
+    });
+    
+    // 다중 계정 모드인지 먼저 확인
+    if (window.multiAccountMode && window.selectedMultiAccounts && window.selectedMultiAccounts.length > 0) {
+        // 다중 계정 모드에서는 선택된 계정들의 ID를 조합하여 키 생성
+        const accountIds = window.selectedMultiAccounts.map(acc => acc.user_id).sort().join('_');
+        console.log('✅ 다중 계정 모드 키 생성:', `multi_${accountIds}`);
+        return `multi_${accountIds}`;
+    }
+    
+    // 단일 계정 모드
     const accountName = document.getElementById('selectedAccountName')?.textContent;
     const accountPhone = document.getElementById('selectedAccountPhone')?.textContent;
     
     if (!accountName || accountName === '계정을 선택하세요') {
-        // 다중 계정 모드에서는 다른 방식으로 키 생성
-        if (window.multiAccountMode && window.selectedMultiAccounts) {
-            // 다중 계정 모드에서는 선택된 계정들의 ID를 조합하여 키 생성
-            const accountIds = window.selectedMultiAccounts.map(acc => acc.user_id).sort().join('_');
-            return `multi_${accountIds}`;
-        }
+        console.log('❌ 계정이 선택되지 않음');
         return null;
     }
     
-    // 계정명과 전화번호를 조합하여 고유 키 생성
-    return `${accountName}_${accountPhone}`.replace(/[^a-zA-Z0-9_]/g, '_');
+    // 단일 계정 모드: 계정명과 전화번호를 조합하여 고유 키 생성
+    const key = `${accountName}_${accountPhone}`.replace(/[^a-zA-Z0-9_]/g, '_');
+    console.log('✅ 단일 계정 모드 키 생성:', key);
+    return key;
 }
 
 function saveAccountSettings(settingsType, settings) {
