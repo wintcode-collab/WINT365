@@ -7583,26 +7583,73 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo, targe
         let account;
         
         if (targetAccounts && targetAccounts.length > 0) {
-            // 새로운 풀 시스템: 풀별 시차 시작 + 계정별 순차 전송
-            console.log('🔄 새로운 풀 시스템 시작');
+            // 새로운 풀 시스템: 서버 API를 통해 자동전송 시작
+            console.log('🔄 새로운 풀 시스템 시작 - 서버 API 호출');
             
             // 풀별로 그룹화
             const pools = groupAccountsByPool(targetAccounts);
             console.log('🔄 풀별 계정 그룹화:', pools);
             
-            // 풀별 시차 시작 실행
-            const poolResults = await executePoolSystemWithDelay(pools, selectedGroups);
+            // 서버 API를 통해 풀시스템 자동전송 시작
+            console.log('🔥 풀시스템 서버 API 호출 시작');
+            const autoSendData = {
+                userId: 'pool_system', // 풀시스템 식별자
+                group_ids: selectedGroups,
+                message: message || '',
+                media_info: mediaInfo,
+                // 자동전송 설정 정보도 함께 전달
+                settings: {
+                    groupInterval: window.groupIntervalMinutes || 30,
+                    repeatInterval: window.repeatIntervalMinutes || 30,
+                    maxRepeats: window.maxRepeats || 10,
+                    messageThreshold: window.messageThreshold || 5,
+                    enableMessageCheck: window.enableMessageCheck || true
+                },
+                // 풀시스템 정보
+                pool_system: {
+                    pools: pools,
+                    targetAccounts: targetAccounts
+                }
+            };
             
-            console.log('📊 풀 시스템 전송 결과:', poolResults);
+            console.log('📤 서버에 전달할 풀시스템 자동전송 데이터:', autoSendData);
             
-            const successCount = poolResults.filter(r => r.success).length;
-            const totalCount = poolResults.length;
+            const autoSendResponse = await fetch(`${getApiBaseUrl()}/api/auto-send/start`, {
+                method: 'POST',
+                mode: 'cors',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*',
+                },
+                body: JSON.stringify(autoSendData)
+            });
             
-            if (successCount > 0) {
-                console.log(`✅ 풀 시스템 전송 완료: ${successCount}/${totalCount} 성공`);
-                return true;
+            const autoSendResult = await autoSendResponse.json();
+            
+            console.log('📥 서버 응답 상태:', autoSendResponse.status);
+            console.log('📥 서버 응답 데이터:', autoSendResult);
+            
+            if (autoSendResponse.ok && autoSendResult.success) {
+                console.log('✅ 풀시스템 자동전송 시작 성공:', autoSendResult);
+                
+                // 서버에서 자동전송이 시작되었으므로 클라이언트에서도 실행
+                console.log('🔄 클라이언트에서도 풀시스템 자동전송 실행');
+                const poolResults = await executePoolSystemWithDelay(pools, selectedGroups);
+                
+                console.log('📊 풀 시스템 전송 결과:', poolResults);
+                
+                const successCount = poolResults.filter(r => r.success).length;
+                const totalCount = poolResults.length;
+                
+                if (successCount > 0) {
+                    console.log(`✅ 풀 시스템 전송 완료: ${successCount}/${totalCount} 성공`);
+                    return true;
+                } else {
+                    console.log('❌ 풀 시스템 전송 실패');
+                    return false;
+                }
             } else {
-                console.log('❌ 풀 시스템 전송 실패');
+                console.log('❌ 풀시스템 자동전송 시작 실패:', autoSendResult);
                 return false;
             }
         } else {

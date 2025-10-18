@@ -4337,8 +4337,10 @@ def start_auto_send():
         message = (data.get('message', '') or '').strip()
         media_info = data.get('media_info')
         settings = data.get('settings', {})
+        pool_system = data.get('pool_system', {})
         
         logger.info(f'🔥 자동전송 설정 정보: {settings}')
+        logger.info(f'🔥 풀시스템 정보: {pool_system}')
         
         # 커스텀 이모지 원본 메시지 객체 처리
         original_message_object = data.get('original_message_object')
@@ -4395,9 +4397,31 @@ def start_auto_send():
             except Exception as e:
                 logger.error(f'❌ 자동전송 설정 Firebase 저장 실패: {e}')
         
-        # 자동전송 작업 시작
-        logger.info(f'🚀 자동전송 작업 시작 호출: user_id={user_id}, group_ids={group_ids}, message_length={len(message)}, has_media={bool(media_info)}')
-        result = start_auto_send_job(user_id, group_ids, message, media_info, settings)
+        # 풀시스템 자동전송 처리
+        if pool_system and pool_system.get('pools'):
+            logger.info(f'🔥 풀시스템 자동전송 시작: {user_id}')
+            
+            # 풀시스템 정보를 Firebase에 저장
+            try:
+                save_auto_send_status_to_firebase(user_id, {
+                    'is_active': True,
+                    'is_running': True,
+                    'group_ids': group_ids,
+                    'message': message,
+                    'media_info': media_info,
+                    'started_at': datetime.now().isoformat(),
+                    'pool_system': pool_system,
+                    'settings': settings
+                })
+                logger.info(f'🔥 풀시스템 Firebase 상태 저장 완료: {user_id}')
+            except Exception as e:
+                logger.error(f'❌ 풀시스템 Firebase 상태 저장 실패: {e}')
+            
+            result = True  # 풀시스템 자동전송은 클라이언트에서 실행
+        else:
+            # 일반 자동전송 작업 시작
+            logger.info(f'🚀 자동전송 작업 시작 호출: user_id={user_id}, group_ids={group_ids}, message_length={len(message)}, has_media={bool(media_info)}')
+            result = start_auto_send_job(user_id, group_ids, message, media_info, settings)
         
         if result:
             logger.info(f'✅ 자동전송 작업 시작 성공: {user_id}')
