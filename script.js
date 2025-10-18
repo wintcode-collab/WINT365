@@ -89,38 +89,6 @@ document.addEventListener('DOMContentLoaded', function() {
         updateAutoSendSettingsDisplay();
     }, 100);
     
-    // 메시지 입력 이벤트 리스너 추가
-    setTimeout(() => {
-        const messageInputs = document.querySelectorAll('.message-input');
-        messageInputs.forEach(input => {
-            input.addEventListener('input', async function() {
-                try {
-                    const userId = localStorage.getItem('lastSelectedAccount')?.trim();
-                    if (userId && window.firebaseService && this.value.trim()) {
-                        // 메시지 변경 시 Firebase에 자동 저장
-                        const checkedBoxes = document.querySelectorAll('.group-checkbox:checked');
-                        const selectedGroups = Array.from(checkedBoxes).map(checkbox => checkbox.value);
-                        const toggle = document.getElementById('autoSendToggle');
-                        
-                        const statusData = {
-                            isRunning: toggle ? toggle.checked : false,
-                            isEnabled: toggle ? toggle.checked : false,
-                            selectedGroups: selectedGroups,
-                            message: this.value.trim(),
-                            mediaInfo: window.selectedMediaInfo || null,
-                            timestamp: Date.now()
-                        };
-                        
-                        await window.firebaseService.saveAutoSendStatus(userId, statusData);
-                        console.log('✅ 메시지 입력 시 Firebase 상태 자동 저장:', this.value.trim());
-                    }
-                } catch (error) {
-                    console.error('❌ 메시지 입력 시 Firebase 저장 실패:', error);
-                }
-            });
-        });
-    }, 1000);
-    
     // 로그인 상태 확인 및 자동 로그인
     checkLoginState();
 });
@@ -8248,7 +8216,7 @@ async function restoreAutoSendStatusFromLocalStorage() {
     }
 }
 
-// 자동전송 상태 복원 함수 (Firebase 기반)
+// 자동전송 상태 복원 함수
 async function restoreAutoSendStatusOnLoad() {
     try {
         console.log('🔄 페이지 로드 시 자동전송 상태 복원 시작');
@@ -8262,7 +8230,7 @@ async function restoreAutoSendStatusOnLoad() {
         
         console.log('📱 복원할 계정 ID:', lastUserId);
         
-        // Firebase에서 자동전송 상태 조회
+        // 1단계: Firebase에서 자동전송 상태 조회
         let firebaseStatus = null;
         if (window.firebaseService) {
             try {
@@ -8275,10 +8243,10 @@ async function restoreAutoSendStatusOnLoad() {
             }
         }
         
-        // Firebase 상태가 있으면 복원
+        // 2단계: Firebase 상태가 있으면 복원
         if (firebaseStatus) {
             const isRunning = firebaseStatus.isRunning || false;
-            const isEnabled = firebaseStatus.isEnabled !== false; // 기본값 true
+            const isEnabled = firebaseStatus.isEnabled !== false;
             
             console.log('📊 Firebase 상태:', { isRunning, isEnabled });
             
@@ -8309,7 +8277,7 @@ async function restoreAutoSendStatusOnLoad() {
                 console.log('✅ 저장된 미디어 정보 복원:', firebaseStatus.mediaInfo);
             }
             
-            // 선택된 그룹들 복원 (Firebase에서)
+            // 선택된 그룹들 복원
             if (firebaseStatus.selectedGroups && firebaseStatus.selectedGroups.length > 0) {
                 // 모든 그룹 체크박스 해제
                 const allCheckboxes = document.querySelectorAll('.group-checkbox');
@@ -8340,7 +8308,7 @@ async function restoreAutoSendStatusOnLoad() {
             return;
         }
         
-        // Firebase 상태가 없으면 localStorage에서 복원 시도
+        // 3단계: Firebase 상태가 없으면 localStorage에서 복원 시도
         console.log('🔄 Firebase 상태 없음, localStorage에서 복원 시도');
         const localStatusRestored = await restoreAutoSendStatusFromLocalStorage();
         if (localStatusRestored) {
@@ -8378,6 +8346,57 @@ async function restoreAutoSendStatusOnLoad() {
             return;
         }
         
+        // 4단계: 서버에서 자동전송 상태 조회 (최후 수단)
+        try {
+            const response = await fetch('/api/auto-send/status', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    userId: lastUserId
+                })
+            });
+            
+            if (response.ok) {
+                const statusData = await response.json();
+                console.log('📊 서버에서 가져온 자동전송 상태:', statusData);
+                
+                if (statusData.is_running) {
+                    // 자동전송이 실행 중인 경우 UI 업데이트
+                    const autoSendToggle = document.getElementById('autoSendToggle');
+                    if (autoSendToggle) {
+                        autoSendToggle.checked = true;
+                        console.log('✅ 자동전송 토글 ON으로 설정');
+                    }
+                    
+                    // 그룹 상태 업데이트
+                    if (statusData.groups && statusData.groups.length > 0) {
+                        statusData.groups.forEach(group => {
+                            updateGroupAutoStatus(group.id, true);
+                            if (group.next_send_time) {
+                                updateGroupNextSendTime(group.id, group.next_send_time);
+                            }
+                        });
+                    }
+                    
+                    console.log('✅ 서버에서 자동전송 상태 복원 완료');
+                } else {
+                    // 자동전송이 실행 중이 아닌 경우 토글을 OFF로 설정
+                    const autoSendToggle = document.getElementById('autoSendToggle');
+                    if (autoSendToggle) {
+                        autoSendToggle.checked = false;
+                        console.log('✅ 자동전송 토글 OFF로 설정');
+                    }
+                    console.log('ℹ️ 자동전송이 실행 중이 아님 - 토글 OFF로 설정');
+                }
+            } else {
+                console.log('❌ 자동전송 상태 조회 실패:', response.status);
+            }
+        } catch (error) {
+            console.error('❌ 서버 자동전송 상태 조회 실패:', error);
+        }
+        
         console.log('❌ 자동전송 상태 복원할 데이터 없음');
     } catch (error) {
         console.error('❌ 자동전송 상태 복원 실패:', error);
@@ -8388,73 +8407,19 @@ async function restoreAutoSendStatusOnLoad() {
 let isPageUnloading = false;
 
 // 페이지 언로드 이벤트 감지
-window.addEventListener('beforeunload', async function() {
+window.addEventListener('beforeunload', function() {
     isPageUnloading = true;
-    console.log('🔄 페이지 언로드 시작, 자동전송 상태 저장');
-    
-    // 페이지 언로드 시 현재 자동전송 상태를 Firebase에 저장
-    try {
-        const userId = localStorage.getItem('lastSelectedAccount')?.trim();
-        if (userId && window.firebaseService) {
-            const autoSendToggle = document.getElementById('autoSendToggle');
-            const checkedBoxes = document.querySelectorAll('.group-checkbox:checked');
-            const selectedGroups = Array.from(checkedBoxes).map(checkbox => checkbox.value);
-            
-            const statusData = {
-                isRunning: autoSendToggle ? autoSendToggle.checked : false,
-                isEnabled: autoSendToggle ? autoSendToggle.checked : false,
-                selectedGroups: selectedGroups,
-                timestamp: Date.now(),
-                pageUnloading: true
-            };
-            
-            // 동기적으로 Firebase에 저장 (페이지 언로드 시에는 비동기 호출이 취소될 수 있음)
-            await window.firebaseService.saveAutoSendStatus(userId, statusData);
-            console.log('✅ 페이지 언로드 시 Firebase 상태 저장 완료');
-        }
-    } catch (error) {
-        console.error('❌ 페이지 언로드 시 Firebase 저장 실패:', error);
-    }
+    console.log('🔄 페이지 언로드 시작, 자동전송 중지 방지');
 });
 
 // 페이지 가시성 변경 감지
-document.addEventListener('visibilitychange', async function() {
+document.addEventListener('visibilitychange', function() {
     if (document.visibilityState === 'hidden') {
         isPageUnloading = true;
-        console.log('🔄 페이지 숨김, 자동전송 상태 저장');
-        
-        // 페이지 숨김 시 현재 자동전송 상태를 Firebase에 저장
-        try {
-            const userId = localStorage.getItem('lastSelectedAccount')?.trim();
-            if (userId && window.firebaseService) {
-                const autoSendToggle = document.getElementById('autoSendToggle');
-                const checkedBoxes = document.querySelectorAll('.group-checkbox:checked');
-                const selectedGroups = Array.from(checkedBoxes).map(checkbox => checkbox.value);
-                
-                const statusData = {
-                    isRunning: autoSendToggle ? autoSendToggle.checked : false,
-                    isEnabled: autoSendToggle ? autoSendToggle.checked : false,
-                    selectedGroups: selectedGroups,
-                    timestamp: Date.now(),
-                    pageHidden: true
-                };
-                
-                await window.firebaseService.saveAutoSendStatus(userId, statusData);
-                console.log('✅ 페이지 숨김 시 Firebase 상태 저장 완료');
-            }
-        } catch (error) {
-            console.error('❌ 페이지 숨김 시 Firebase 저장 실패:', error);
-        }
+        console.log('🔄 페이지 숨김, 자동전송 중지 방지');
     } else if (document.visibilityState === 'visible') {
         isPageUnloading = false;
-        console.log('🔄 페이지 표시, 자동전송 상태 복원');
-        
-        // 페이지 다시 표시 시 자동전송 상태 복원
-        try {
-            await restoreAutoSendStatusOnLoad();
-        } catch (error) {
-            console.error('❌ 페이지 표시 시 자동전송 상태 복원 실패:', error);
-        }
+        console.log('🔄 페이지 표시, 자동전송 중지 방지 해제');
     }
 });
 

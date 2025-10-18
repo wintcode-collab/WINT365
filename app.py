@@ -4506,8 +4506,7 @@ def restore_auto_send_jobs_from_firebase():
                             'group_ids': status_data.get('group_ids', []),
                             'message': status_data.get('message', ''),
                             'media_info': status_data.get('media_info'),
-                            'started_at': status_data.get('started_at'),
-                            'restored_at': datetime.now().isoformat()
+                            'started_at': status_data.get('started_at')
                         }
                         
                         # 스케줄 작업 재등록
