@@ -559,6 +559,15 @@
                         <p style="margin-top: 5px; color: #888; font-size: 12px; line-height: 1.4;">
                             예: 풀1 H1 전송 → 2분 대기 → 풀2 H5 전송
                         </p>
+                        <div id="poolSystemCycleTime" style="margin-top: 10px; padding: 10px; background: rgba(16, 185, 129, 0.1); border-radius: 6px; border-left: 3px solid #10B981;">
+                            <p style="margin: 0; color: #10B981; font-size: 13px; font-weight: 600;">
+                                🔄 풀 시스템 전체주기: <span id="poolSystemCycleTimeText">계산 중...</span>
+                            </p>
+                            <p style="margin: 5px 0 0 0; color: #059669; font-size: 11px;">
+                                (풀간 간격 + 풀별 순환 간격) × 라운드 수<br>
+                                풀1 전송 → 풀간 간격 → 풀2 전송 → 순환 간격 → 풀1 다음 계정
+                            </p>
+                        </div>
                     </div>
                     
                     <div id="rotationPoolsSettings" style="display: none; margin-top: 15px;">
