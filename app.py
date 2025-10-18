@@ -3582,17 +3582,22 @@ def execute_auto_send_job(user_id, group_ids, message, media_info=None):
     """자동전송 작업 실행"""
     try:
         logger.info(f'🤖 자동전송 작업 시작: {user_id}')
-        # 안전 가드: OFF 상태면 즉시 중단
+        # 안전 가드: OFF 상태면 즉시 중단 (더 관대한 조건)
         try:
             status_guard = get_auto_send_status_from_firebase(user_id)
-            if not status_guard or not status_guard.get('is_active', False) or not status_guard.get('is_running', False):
-                logger.info(f'⛔ 자동전송 비활성/중지 상태 감지, 실행 중단: {user_id}')
+            logger.info(f'🔍 Firebase 상태 확인: {status_guard}')
+            
+            # is_running이 명시적으로 false인 경우만 중단
+            if status_guard and status_guard.get('is_running') === False:
+                logger.info(f'⛔ 자동전송 명시적 중지 상태 감지, 실행 중단: {user_id}')
                 # 메모리에서도 작업 제거
                 if user_id in auto_send_jobs:
                     del auto_send_jobs[user_id]
                 if f'{user_id}_repeats' in auto_send_jobs:
                     del auto_send_jobs[f'{user_id}_repeats']
                 return False
+            else:
+                logger.info(f'✅ 자동전송 상태 확인 통과, 계속 실행: {user_id}')
         except Exception as _e:
             logger.error(f'⛔ 상태 가드 확인 실패(계속 시도): {user_id} - {_e}')
         
@@ -3833,11 +3838,27 @@ def start_auto_send_job(user_id, group_ids, message, media_info=None, settings=N
             'settings': settings  # 자동전송 설정 정보 포함
         }
         
+        logger.info(f'🔥 자동전송 상태 저장 전 확인: is_active={status_data["is_active"]}, is_running={status_data["is_running"]}')
+        
         logger.info(f'🔥 Firebase에 저장할 자동전송 상태 데이터: {status_data}')
         firebase_result = save_auto_send_status_to_firebase(user_id, status_data)
         
         if firebase_result:
             logger.info(f'✅ Firebase 자동전송 상태 저장 성공: {user_id}')
+            
+            # 저장 후 즉시 확인
+            def verify_firebase_save():
+                try:
+                    saved_status = get_auto_send_status_from_firebase(user_id)
+                    logger.info(f'🔍 Firebase 저장 확인: {saved_status}')
+                    if saved_status and saved_status.get('is_running'):
+                        logger.info(f'✅ Firebase 상태 저장 검증 성공: is_running={saved_status.get("is_running")}')
+                    else:
+                        logger.error(f'❌ Firebase 상태 저장 검증 실패: {saved_status}')
+                except Exception as e:
+                    logger.error(f'❌ Firebase 저장 검증 에러: {e}')
+            
+            threading.Timer(1.0, verify_firebase_save).start()
         else:
             logger.error(f'❌ Firebase 자동전송 상태 저장 실패: {user_id}')
 
@@ -3858,6 +3879,17 @@ def start_auto_send_job(user_id, group_ids, message, media_info=None, settings=N
         
         logger.info(f'✅ 자동전송 작업 시작됨: {user_id} (간격: {repeat_interval}분)')
         logger.info(f'🔥 Firebase에 저장된 자동전송 상태: is_active=True, is_running=True, group_ids={group_ids}, started_at={datetime.now().isoformat()}')
+        
+        # Firebase 상태 저장 후 즉시 확인
+        def check_firebase_status():
+            try:
+                status = get_auto_send_status_from_firebase(user_id)
+                logger.info(f'🔍 Firebase 상태 저장 확인: {status}')
+            except Exception as e:
+                logger.error(f'❌ Firebase 상태 확인 실패: {e}')
+        
+        threading.Timer(2.0, check_firebase_status).start()
+        
         return True
         
     except Exception as e:
@@ -4526,7 +4558,16 @@ def get_auto_send_status():
         
         # 현재 작업 상태 확인 (Firebase 상태 우선 확인)
         fb_status = get_auto_send_status_from_firebase(user_id) or {}
-        is_running = fb_status.get('is_running', False) or (user_id in auto_send_jobs)
+        
+        # Firebase 상태가 있으면 Firebase 상태를 우선 사용
+        if fb_status:
+            is_running = fb_status.get('is_running', False)
+            logger.info(f'🔥 Firebase 상태 사용: is_running={is_running}')
+        else:
+            # Firebase 상태가 없으면 메모리 상태 확인
+            is_running = (user_id in auto_send_jobs)
+            logger.info(f'🔥 메모리 상태 사용: is_running={is_running}')
+        
         current_repeats = auto_send_jobs.get(f'{user_id}_repeats', 0)
         
         # 스케줄된 작업 개수 확인
