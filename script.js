@@ -5904,6 +5904,7 @@ async function showAutoSendSettingsModal() {
     const modal = document.getElementById('autoSendSettingsModal');
     if (modal) {
         modal.style.display = 'flex';
+        console.log('✅ 자동전송 설정 모달 열림');
         
         loadAutoSendSettings();
         
