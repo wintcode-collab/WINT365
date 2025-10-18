@@ -127,7 +127,7 @@ function hideProgressSection() {
     }
 }
 
-// Firebase 서비스 준비 대기
+// Firebase 서비스 준비 대기 (개선된 버전)
 async function waitForFirebaseService() {
     let attempts = 0;
     const maxAttempts = 50; // 5초 대기 (100ms * 50)
@@ -140,10 +140,10 @@ async function waitForFirebaseService() {
             try {
                 const signUps = await window.firebaseService.getAllSignUps();
                 console.log('✅ Firebase 데이터베이스 연결 확인됨');
-                return;
+                return true;
             } catch (error) {
-                console.error('❌ Firebase 데이터베이스 연결 실패:', error);
-                throw new Error('Firebase 데이터베이스 연결 실패');
+                console.warn('⚠️ Firebase 데이터베이스 연결 실패, 재시도 중...', error.message);
+                // 연결 실패해도 계속 시도
             }
         }
         
@@ -152,7 +152,8 @@ async function waitForFirebaseService() {
         attempts++;
     }
     
-    throw new Error('Firebase 서비스 초기화 실패');
+    console.warn('⚠️ Firebase 서비스 초기화 시간 초과, 오프라인 모드로 진행');
+    return false;
 }
 
 // 로그인 상태 확인 및 자동 로그인
@@ -5954,11 +5955,33 @@ function setupAutoSendEventListeners() {
 
     // 자동 전송 토글 클릭 시 설정 모달 열기
     if (autoSendToggle) {
-        autoSendToggle.addEventListener('change', function() {
+        autoSendToggle.addEventListener('change', async function() {
             // 페이지가 언로드 중인지 확인
             if (isPageUnloading || document.visibilityState === 'hidden' || document.readyState === 'unload') {
                 console.log('🔄 페이지 언로드 중, 자동전송 중지 건너뜀');
                 return;
+            }
+            
+            // 토글 상태 변경 시 Firebase에 상태 저장
+            try {
+                const userId = localStorage.getItem('lastSelectedAccount')?.trim();
+                if (userId && window.firebaseService) {
+                    const statusData = {
+                        isRunning: this.checked,
+                        isEnabled: this.checked // OFF일 때는 false로 설정
+                    };
+                    
+                    await window.firebaseService.saveAutoSendStatus(userId, statusData);
+                    console.log('✅ 자동전송 토글 상태 Firebase 저장 완료:', this.checked);
+                    
+                    // OFF로 변경된 경우 자동전송 중지
+                    if (!this.checked && window.stopAutoSend) {
+                        console.log('🛑 자동전송 토글 OFF - 자동전송 중지');
+                        await window.stopAutoSend();
+                    }
+                }
+            } catch (error) {
+                console.error('❌ 자동전송 토글 상태 Firebase 저장 실패:', error);
             }
             
             if (this.checked) {
@@ -6209,7 +6232,7 @@ function closeAutoSendSettingsModal() {
 }
 
 // 자동 전송 설정 로드
-function loadAutoSendSettings() {
+async function loadAutoSendSettings() {
     try {
         console.log('🔄 자동전송 설정 로드 시작');
         
@@ -6234,8 +6257,25 @@ function loadAutoSendSettings() {
             return;
         }
         
-        // 먼저 계정별 설정 확인
-        let settings = loadAccountSettings('autoSend');
+        // 먼저 Firebase에서 설정 확인
+        let settings = null;
+        try {
+            const userId = localStorage.getItem('lastSelectedAccount')?.trim();
+            if (userId && window.firebaseService) {
+                const firebaseSettings = await window.firebaseService.getAutoSendSettings(userId);
+                if (firebaseSettings && firebaseSettings.settings) {
+                    settings = firebaseSettings.settings;
+                    console.log('✅ Firebase에서 자동전송 설정 로드됨');
+                }
+            }
+        } catch (error) {
+            console.warn('⚠️ Firebase에서 자동전송 설정 로드 실패:', error);
+        }
+        
+        // Firebase 설정이 없으면 계정별 설정 확인
+        if (!settings) {
+            settings = loadAccountSettings('autoSend');
+        }
         
         // 계정별 설정이 없으면 전역 설정 확인
         if (!settings) {
@@ -7354,6 +7394,20 @@ async function stopAutoSend() {
             // 자동전송 상태를 localStorage에 저장
             saveAutoSendStatusToLocalStorage(false);
             
+            // Firebase에도 상태 저장
+            try {
+                const userId = localStorage.getItem('lastSelectedAccount')?.trim();
+                if (userId && window.firebaseService) {
+                    await window.firebaseService.saveAutoSendStatus(userId, {
+                        isRunning: false,
+                        isEnabled: false
+                    });
+                    console.log('✅ Firebase 자동전송 상태 저장 완료 (풀시스템 중지)');
+                }
+            } catch (error) {
+                console.error('❌ Firebase 자동전송 상태 저장 실패:', error);
+            }
+            
             return;
         }
         
@@ -7420,6 +7474,20 @@ async function stopAutoSend() {
             
             // 자동전송 상태를 localStorage에 저장
             saveAutoSendStatusToLocalStorage(false);
+            
+            // Firebase에도 상태 저장
+            try {
+                const userId = localStorage.getItem('lastSelectedAccount')?.trim();
+                if (userId && window.firebaseService) {
+                    await window.firebaseService.saveAutoSendStatus(userId, {
+                        isRunning: false,
+                        isEnabled: false
+                    });
+                    console.log('✅ Firebase 자동전송 상태 저장 완료 (단일계정 중지)');
+                }
+            } catch (error) {
+                console.error('❌ Firebase 자동전송 상태 저장 실패:', error);
+            }
         }
     } catch (e) {
         console.error('❌ 자동전송 중지 에러:', e);
@@ -7453,31 +7521,32 @@ async function saveAutoSendSettingsToFirebase(settings) {
         }
 
         console.log('🔥 Firebase 자동전송 설정 저장 시작:', userId, settings);
-        console.log('🔥 API URL:', `${getApiBaseUrl()}/api/auto-send/save-settings`);
         
-        const requestData = {
-            userId: userId,
-            settings: settings
-        };
-        console.log('🔥 전송할 데이터:', requestData);
+        // Firebase 서비스가 준비되었는지 확인
+        if (!window.firebaseService) {
+            console.error('❌ Firebase 서비스가 준비되지 않음');
+            throw new Error('Firebase 서비스가 준비되지 않음');
+        }
         
-        const response = await fetch(`${getApiBaseUrl()}/api/auto-send/save-settings`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(requestData)
-        });
+        // Firebase에 직접 저장
+        const success = await window.firebaseService.saveAutoSendSettings(userId, settings);
         
-        console.log('🔥 응답 상태:', response.status);
-        const result = await response.json();
-        console.log('🔥 응답 내용:', result);
-        
-        if (result.success) {
-            console.log('✅ Firebase 자동전송 설정 저장 성공:', result);
+        if (success) {
+            console.log('✅ Firebase 자동전송 설정 저장 성공');
+            
+            // 자동전송 상태도 함께 저장
+            const autoSendToggle = document.getElementById('autoSendToggle');
+            const statusData = {
+                isRunning: autoSendToggle ? autoSendToggle.checked : false,
+                isEnabled: true
+            };
+            
+            await window.firebaseService.saveAutoSendStatus(userId, statusData);
+            console.log('✅ Firebase 자동전송 상태 저장 성공');
+            
             return true;
         } else {
-            console.error('❌ Firebase 자동전송 설정 저장 실패:', result);
+            console.error('❌ Firebase 자동전송 설정 저장 실패');
             throw new Error('Firebase 자동전송 설정 저장 실패');
         }
         
@@ -7848,7 +7917,7 @@ function startAutoSendStatusUpdate() {
 }
 
 // 자동전송 상태를 localStorage에 저장하는 함수
-function saveAutoSendStatusToLocalStorage(isRunning, selectedGroups = null) {
+async function saveAutoSendStatusToLocalStorage(isRunning, selectedGroups = null) {
     try {
         const accountKey = getCurrentAccountKey();
         if (!accountKey) {
@@ -7875,15 +7944,26 @@ function saveAutoSendStatusToLocalStorage(isRunning, selectedGroups = null) {
         }
         
         localStorage.setItem(`autoSendStatus_${accountKey}`, JSON.stringify(statusData));
-        console.log('💾 자동전송 상태 저장됨:', statusData);
+        console.log('💾 자동전송 상태 localStorage 저장됨:', statusData);
+        
+        // Firebase에도 저장
+        try {
+            const userId = localStorage.getItem('lastSelectedAccount')?.trim();
+            if (userId && window.firebaseService) {
+                await window.firebaseService.saveAutoSendStatus(userId, statusData);
+                console.log('✅ 자동전송 상태 Firebase 저장됨');
+            }
+        } catch (error) {
+            console.error('❌ 자동전송 상태 Firebase 저장 실패:', error);
+        }
         
     } catch (error) {
         console.error('❌ 자동전송 상태 저장 에러:', error);
     }
 }
 
-// 자동전송 상태를 localStorage에서 복원하는 함수
-function restoreAutoSendStatusFromLocalStorage() {
+// 자동전송 상태를 Firebase 및 localStorage에서 복원하는 함수
+async function restoreAutoSendStatusFromLocalStorage() {
     try {
         const accountKey = getCurrentAccountKey();
         if (!accountKey) {
@@ -7891,13 +7971,36 @@ function restoreAutoSendStatusFromLocalStorage() {
             return false;
         }
         
-        const savedStatus = localStorage.getItem(`autoSendStatus_${accountKey}`);
-        if (!savedStatus) {
+        let statusData = null;
+        
+        // 먼저 Firebase에서 상태 확인
+        try {
+            const userId = localStorage.getItem('lastSelectedAccount')?.trim();
+            if (userId && window.firebaseService) {
+                const firebaseStatus = await window.firebaseService.getAutoSendStatus(userId);
+                if (firebaseStatus) {
+                    statusData = firebaseStatus;
+                    console.log('✅ Firebase에서 자동전송 상태 로드됨');
+                }
+            }
+        } catch (error) {
+            console.warn('⚠️ Firebase에서 자동전송 상태 로드 실패:', error);
+        }
+        
+        // Firebase 상태가 없으면 localStorage에서 확인
+        if (!statusData) {
+            const savedStatus = localStorage.getItem(`autoSendStatus_${accountKey}`);
+            if (savedStatus) {
+                statusData = JSON.parse(savedStatus);
+                console.log('✅ localStorage에서 자동전송 상태 로드됨');
+            }
+        }
+        
+        if (!statusData) {
             console.log('❌ 저장된 자동전송 상태 없음');
             return false;
         }
         
-        const statusData = JSON.parse(savedStatus);
         console.log('📊 저장된 자동전송 상태:', statusData);
         
         // 24시간 이내의 상태만 유효
@@ -8924,28 +9027,14 @@ async function savePoolSettings() {
         console.log('✅ 풀 시스템 설정 저장됨:', poolData);
         
         // Firebase에도 저장
-        const key = getCurrentAccountKey ? getCurrentAccountKey() : null;
-        if (key) {
-            try {
-                const response = await fetch(`${getApiBaseUrl()}/api/rotation-pools/save`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        user_id: key,
-                        pools_data: poolData
-                    })
-                });
-                
-                if (response.ok) {
-                    console.log('✅ Firebase 풀 설정 저장 성공');
-                } else {
-                    console.warn('⚠️ Firebase 풀 설정 저장 실패');
-                }
-            } catch (error) {
-                console.warn('⚠️ Firebase 풀 설정 저장 에러:', error);
+        try {
+            const userId = localStorage.getItem('lastSelectedAccount')?.trim();
+            if (userId && window.firebaseService) {
+                await window.firebaseService.saveRotationPools(userId, poolData);
+                console.log('✅ Firebase 풀 설정 저장 성공');
             }
+        } catch (error) {
+            console.warn('⚠️ Firebase 풀 설정 저장 에러:', error);
         }
         
         console.log('💾 풀 설정 저장 완료');
@@ -8981,26 +9070,24 @@ async function loadSavedPoolSettings() {
         }
         
         // Firebase에서도 로드
-        const key = getCurrentAccountKey ? getCurrentAccountKey() : null;
-        if (key) {
+        if (!savedData) {
             try {
-                const response = await fetch(`${getApiBaseUrl()}/api/rotation-pools/load?user_id=${key}`);
-                
-                if (response.ok) {
-                    const data = await response.json();
+                const userId = localStorage.getItem('lastSelectedAccount')?.trim();
+                if (userId && window.firebaseService) {
+                    const firebasePoolsData = await window.firebaseService.getRotationPools(userId);
                     
-                    if (data.success && data.pools_data && !savedData) {
-                        // 로컬에 없고 Firebase에 있으면 Firebase 데이터 사용
-                        window.rotationPools = data.pools_data.pools || {};
-                        window.groupPoolMapping = data.pools_data.groupMapping || {};
-                        window.poolRotationIndex = data.pools_data.rotationIndex || {};
-                        window.rotationPoolsEnabled = data.pools_data.enabled || false;
+                    if (firebasePoolsData && firebasePoolsData.pools) {
+                        // Firebase에서 데이터 로드
+                        window.rotationPools = firebasePoolsData.pools.pools || {};
+                        window.groupPoolMapping = firebasePoolsData.pools.groupMapping || {};
+                        window.poolRotationIndex = firebasePoolsData.pools.rotationIndex || {};
+                        window.rotationPoolsEnabled = firebasePoolsData.pools.enabled || false;
                         
                         // 풀간 간격 설정 로드 (Firebase)
                         const poolIntervalDelayElement = document.getElementById('poolIntervalDelay');
-                        if (poolIntervalDelayElement && data.pools_data.poolIntervalDelay) {
-                            poolIntervalDelayElement.value = data.pools_data.poolIntervalDelay;
-                            console.log('✅ Firebase에서 풀간 간격 설정 로드됨:', data.pools_data.poolIntervalDelay, '분');
+                        if (poolIntervalDelayElement && firebasePoolsData.pools.poolIntervalDelay) {
+                            poolIntervalDelayElement.value = firebasePoolsData.pools.poolIntervalDelay;
+                            console.log('✅ Firebase에서 풀간 간격 설정 로드됨:', firebasePoolsData.pools.poolIntervalDelay, '분');
                         }
                         
                         // 풀별 전체주기 업데이트
@@ -9008,8 +9095,6 @@ async function loadSavedPoolSettings() {
                         
                         console.log('✅ Firebase에서 풀 설정 로드 완료');
                     }
-                } else {
-                    console.warn('⚠️ Firebase 풀 설정 로드 실패');
                 }
             } catch (error) {
                 console.warn('⚠️ Firebase 풀 설정 로드 에러:', error);

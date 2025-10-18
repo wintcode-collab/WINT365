@@ -2090,12 +2090,6 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                 # 메시지 전송 (미디어 포함)
                 logger.info(f'📤 메시지 전송 중: 그룹={group_entity.title}, 메시지={message[:50] if message else "None"}...')
                 
-                # 엔티티 정보가 있는지 확인
-                entities_data = data.get('entities', [])
-                has_entities = data.get('has_entities', False)
-                logger.info(f'📤 엔티티 정보: {entities_data}')
-                logger.info(f'📤 엔티티 있음: {has_entities}')
-                
                 # 원본 메시지 객체가 있는지 확인 (최우선 처리)
                 if media_info and media_info.get('original_message_object'):
                     # 원본 메시지 객체로 전송
@@ -2106,11 +2100,9 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                     # 원본 텍스트 사용
                     original_text = original_obj.get('text', message or '')
                     original_message_id = original_obj.get('id', 1)
-                    original_entities = original_obj.get('entities', [])
                     
                     logger.info(f'📤 원본 텍스트: {original_text}')
                     logger.info(f'📤 원본 메시지 ID: {original_message_id}')
-                    logger.info(f'📤 원본 엔티티: {original_entities}')
                     
                     # 🚀 최종 해결책: 원본 메시지 직접 전달
                     try:
@@ -2142,35 +2134,12 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                         
                     except Exception as e:
                         logger.error(f'❌ 원본 메시지 직접 전달 실패: {e}')
-                        logger.info('📤 백업: 엔티티 정보와 함께 원본 텍스트 전송')
+                        logger.info('📤 백업: 원본 텍스트 전송')
                         
-                        # 백업: 엔티티 정보와 함께 원본 텍스트 전송
+                        # 백업: 원본 텍스트 전송
                         if original_text:
-                            # 엔티티 정보가 있으면 파싱해서 전송
-                            if original_entities:
-                                logger.info('📤 엔티티 정보와 함께 메시지 전송')
-                                # 엔티티 정보를 텔레그램 엔티티 객체로 변환
-                                from telethon.tl.types import MessageEntityMention, MessageEntityTextUrl
-                                
-                                entities = []
-                                for entity_data in original_entities:
-                                    if entity_data.get('type') == 'mention':
-                                        entities.append(MessageEntityMention(
-                                            offset=entity_data.get('offset', 0),
-                                            length=entity_data.get('length', 0)
-                                        ))
-                                    elif entity_data.get('type') == 'text_link':
-                                        entities.append(MessageEntityTextUrl(
-                                            offset=entity_data.get('offset', 0),
-                                            length=entity_data.get('length', 0),
-                                            url=entity_data.get('url', '')
-                                        ))
-                                
-                                sent_message = await client.send_message(group_entity, original_text, formatting_entities=entities)
-                                logger.info(f'✅ 백업 성공: 엔티티 정보와 함께 원본 텍스트 전송 완료: {sent_message.id}')
-                            else:
-                                sent_message = await client.send_message(group_entity, original_text)
-                                logger.info(f'✅ 백업 성공: 원본 텍스트 전송 완료: {sent_message.id}')
+                            sent_message = await client.send_message(group_entity, original_text)
+                            logger.info(f'✅ 백업 성공: 원본 텍스트 전송 완료: {sent_message.id}')
                         else:
                             logger.warning('⚠️ 원본 텍스트가 없어서 전송할 수 없습니다.')
                 
@@ -2219,35 +2188,12 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                         
                     except Exception as e:
                         logger.error(f'❌ 원본 메시지 직접 전달 실패: {e}')
-                        logger.info('📤 백업: 엔티티 정보와 함께 원본 텍스트 전송')
+                        logger.info('📤 백업: 단순 텍스트 전송')
                         
-                        # 백업: 엔티티 정보와 함께 원본 텍스트 전송
+                        # 백업: 단순 텍스트 전송
                         if original_text:
-                            # 엔티티 정보가 있으면 파싱해서 전송
-                            if original_entities:
-                                logger.info('📤 엔티티 정보와 함께 메시지 전송')
-                                # 엔티티 정보를 텔레그램 엔티티 객체로 변환
-                                from telethon.tl.types import MessageEntityMention, MessageEntityTextUrl
-                                
-                                entities = []
-                                for entity_data in original_entities:
-                                    if entity_data.get('type') == 'mention':
-                                        entities.append(MessageEntityMention(
-                                            offset=entity_data.get('offset', 0),
-                                            length=entity_data.get('length', 0)
-                                        ))
-                                    elif entity_data.get('type') == 'text_link':
-                                        entities.append(MessageEntityTextUrl(
-                                            offset=entity_data.get('offset', 0),
-                                            length=entity_data.get('length', 0),
-                                            url=entity_data.get('url', '')
-                                        ))
-                                
-                                sent_message = await client.send_message(group_entity, original_text, formatting_entities=entities)
-                                logger.info(f'✅ 백업 성공: 엔티티 정보와 함께 원본 텍스트 전송 완료: {sent_message.id}')
-                            else:
-                                sent_message = await client.send_message(group_entity, original_text)
-                                logger.info(f'✅ 백업 성공: 원본 텍스트 전송 완료: {sent_message.id}')
+                            sent_message = await client.send_message(group_entity, original_text)
+                            logger.info(f'✅ 백업 성공: 단순 텍스트 전송 완료: {sent_message.id}')
                         else:
                             logger.warning('⚠️ 원본 텍스트가 없어서 전송할 수 없습니다.')
                 
@@ -2450,31 +2396,7 @@ def send_message_to_telegram_group(account_info, group_id, message, media_info=N
                     # 텍스트만 전송
                     logger.info('📤 텍스트만 전송')
                     if message:
-                        # 엔티티 정보가 있으면 파싱해서 전송
-                        if has_entities and entities_data:
-                            logger.info('📤 엔티티 정보와 함께 텍스트 전송')
-                            # 엔티티 정보를 텔레그램 엔티티 객체로 변환
-                            from telethon.tl.types import MessageEntityMention, MessageEntityTextUrl
-                            
-                            entities = []
-                            for entity_data in entities_data:
-                                if entity_data.get('type') == 'mention':
-                                    entities.append(MessageEntityMention(
-                                        offset=entity_data.get('offset', 0),
-                                        length=entity_data.get('length', 0)
-                                    ))
-                                elif entity_data.get('type') == 'text_link':
-                                    entities.append(MessageEntityTextUrl(
-                                        offset=entity_data.get('offset', 0),
-                                        length=entity_data.get('length', 0),
-                                        url=entity_data.get('url', '')
-                                    ))
-                            
-                            await client.send_message(group_entity, message, formatting_entities=entities)
-                            logger.info('✅ 엔티티 정보와 함께 텍스트 전송 완료')
-                        else:
-                            await client.send_message(group_entity, message)
-                            logger.info('✅ 일반 텍스트 전송 완료')
+                        await client.send_message(group_entity, message)
                     else:
                         logger.warning('⚠️ 메시지가 없어서 전송할 수 없습니다.')
                 
@@ -3582,22 +3504,17 @@ def execute_auto_send_job(user_id, group_ids, message, media_info=None):
     """자동전송 작업 실행"""
     try:
         logger.info(f'🤖 자동전송 작업 시작: {user_id}')
-        # 안전 가드: OFF 상태면 즉시 중단 (더 관대한 조건)
+        # 안전 가드: OFF 상태면 즉시 중단
         try:
             status_guard = get_auto_send_status_from_firebase(user_id)
-            logger.info(f'🔍 Firebase 상태 확인: {status_guard}')
-            
-            # is_running이 명시적으로 false인 경우만 중단
-            if status_guard and status_guard.get('is_running') == False:
-                logger.info(f'⛔ 자동전송 명시적 중지 상태 감지, 실행 중단: {user_id}')
+            if not status_guard or not status_guard.get('is_active', False) or not status_guard.get('is_running', False):
+                logger.info(f'⛔ 자동전송 비활성/중지 상태 감지, 실행 중단: {user_id}')
                 # 메모리에서도 작업 제거
                 if user_id in auto_send_jobs:
                     del auto_send_jobs[user_id]
                 if f'{user_id}_repeats' in auto_send_jobs:
                     del auto_send_jobs[f'{user_id}_repeats']
                 return False
-            else:
-                logger.info(f'✅ 자동전송 상태 확인 통과, 계속 실행: {user_id}')
         except Exception as _e:
             logger.error(f'⛔ 상태 가드 확인 실패(계속 시도): {user_id} - {_e}')
         
@@ -3784,30 +3701,29 @@ def execute_auto_send_job(user_id, group_ids, message, media_info=None):
         logger.error(f'❌ 자동전송 작업 에러: {e}')
         return False
 
-def start_auto_send_job(user_id, group_ids, message, media_info=None, settings=None):
+def start_auto_send_job(user_id, group_ids, message, media_info=None):
     """자동전송 작업 시작"""
     try:
         logger.info(f'🤖 자동전송 작업 시작: {user_id}')
         
-        # 기존 작업 중지 (Firebase 상태는 중지하지 않음)
-        stop_auto_send_job_without_firebase_update(user_id)
+        # 기존 작업 중지
+        stop_auto_send_job(user_id)
         
         # 설정 조회
+        settings = get_auto_send_settings_from_firebase(user_id)
         if not settings:
-            settings = get_auto_send_settings_from_firebase(user_id)
-            if not settings:
-                logger.warning(f'⚠️ 자동전송 설정 없음, 기본 설정으로 시작: {user_id}')
-                # 기본 설정 생성
-                default_settings = {
-                    'groupInterval': 30,
-                    'repeatInterval': 30,
-                    'maxRepeats': 10,
-                    'messageThreshold': 5,
-                    'enableMessageCheck': False
-                }
-                # Firebase에 기본 설정 저장
-                save_auto_send_settings_to_firebase(user_id, default_settings)
-                settings = default_settings
+            logger.warning(f'⚠️ 자동전송 설정 없음, 기본 설정으로 시작: {user_id}')
+            # 기본 설정 생성
+            default_settings = {
+                'groupInterval': 30,
+                'repeatInterval': 30,
+                'maxRepeats': 10,
+                'messageThreshold': 5,
+                'enableMessageCheck': False
+            }
+            # Firebase에 기본 설정 저장
+            save_auto_send_settings_to_firebase(user_id, default_settings)
+            settings = default_settings
         
         logger.info(f'🔥 Firebase에서 가져온 설정: {settings}')
         
@@ -3826,7 +3742,7 @@ def start_auto_send_job(user_id, group_ids, message, media_info=None, settings=N
         }
         
         # Firebase에 자동전송 상태 저장(선반영)
-        status_data = {
+        save_auto_send_status_to_firebase(user_id, {
             'is_active': True,
             'is_running': True,  # 자동전송 실행 상태 추가
             'group_ids': group_ids,
@@ -3834,33 +3750,8 @@ def start_auto_send_job(user_id, group_ids, message, media_info=None, settings=N
             'media_info': media_info,
             'started_at': datetime.now().isoformat(),
             'job_id': job_id,
-            'last_send_times': {group_id: None for group_id in group_ids},  # 각 그룹별 마지막 전송 시간
-            'settings': settings  # 자동전송 설정 정보 포함
-        }
-        
-        logger.info(f'🔥 자동전송 상태 저장 전 확인: is_active={status_data["is_active"]}, is_running={status_data["is_running"]}')
-        
-        logger.info(f'🔥 Firebase에 저장할 자동전송 상태 데이터: {status_data}')
-        firebase_result = save_auto_send_status_to_firebase(user_id, status_data)
-        
-        if firebase_result:
-            logger.info(f'✅ Firebase 자동전송 상태 저장 성공: {user_id}')
-            
-            # 저장 후 즉시 확인
-            def verify_firebase_save():
-                try:
-                    saved_status = get_auto_send_status_from_firebase(user_id)
-                    logger.info(f'🔍 Firebase 저장 확인: {saved_status}')
-                    if saved_status and saved_status.get('is_running'):
-                        logger.info(f'✅ Firebase 상태 저장 검증 성공: is_running={saved_status.get("is_running")}')
-                    else:
-                        logger.error(f'❌ Firebase 상태 저장 검증 실패: {saved_status}')
-                except Exception as e:
-                    logger.error(f'❌ Firebase 저장 검증 에러: {e}')
-            
-            threading.Timer(1.0, verify_firebase_save).start()
-        else:
-            logger.error(f'❌ Firebase 자동전송 상태 저장 실패: {user_id}')
+            'last_send_times': {group_id: None for group_id in group_ids}  # 각 그룹별 마지막 전송 시간
+        })
 
         def job():
             execute_auto_send_job(user_id, group_ids, message, media_info)
@@ -3878,39 +3769,11 @@ def start_auto_send_job(user_id, group_ids, message, media_info=None, settings=N
         threading.Thread(target=execute_auto_send_job, args=(user_id, group_ids, message, media_info), daemon=True).start()
         
         logger.info(f'✅ 자동전송 작업 시작됨: {user_id} (간격: {repeat_interval}분)')
-        logger.info(f'🔥 Firebase에 저장된 자동전송 상태: is_active=True, is_running=True, group_ids={group_ids}, started_at={datetime.now().isoformat()}')
-        
-        # Firebase 상태 저장 후 즉시 확인
-        def check_firebase_status():
-            try:
-                status = get_auto_send_status_from_firebase(user_id)
-                logger.info(f'🔍 Firebase 상태 저장 확인: {status}')
-            except Exception as e:
-                logger.error(f'❌ Firebase 상태 확인 실패: {e}')
-        
-        threading.Timer(2.0, check_firebase_status).start()
-        
         return True
         
     except Exception as e:
         logger.error(f'❌ 자동전송 시작 에러: {e}')
         return False
-
-def stop_auto_send_job_without_firebase_update(user_id):
-    """자동전송 작업 중지 (Firebase 상태 업데이트 없음)"""
-    try:
-        logger.info(f'🛑 자동전송 작업 중지 (Firebase 업데이트 없음): {user_id}')
-        
-        # 메모리에서 작업 제거
-        if user_id in auto_send_jobs:
-            del auto_send_jobs[user_id]
-        if f'{user_id}_repeats' in auto_send_jobs:
-            del auto_send_jobs[f'{user_id}_repeats']
-        
-        logger.info(f'✅ 자동전송 작업 중지 완료 (Firebase 업데이트 없음): {user_id}')
-        
-    except Exception as e:
-        logger.error(f'❌ 자동전송 작업 중지 에러: {e}')
 
 def stop_auto_send_job(user_id):
     """자동전송 작업 중지"""
@@ -4326,9 +4189,7 @@ def start_auto_send():
     """자동전송 시작"""
     try:
         logger.info('🔥 자동전송 API 호출됨!')
-        request_data = request.get_json()
-        logger.info(f'🔥 요청 데이터: {request_data}')
-        logger.info(f'🔥 자동전송 시작 요청 상세: user_id={request_data.get("userId")}, group_ids={request_data.get("group_ids")}, message_length={len(request_data.get("message", ""))}, has_media={bool(request_data.get("media_info"))}')
+        logger.info(f'🔥 요청 데이터: {request.get_json()}')
         
         data = request.get_json()
         account_name = (data.get('account_name') or '').strip()
@@ -4336,11 +4197,6 @@ def start_auto_send():
         group_ids = data.get('group_ids', [])
         message = (data.get('message', '') or '').strip()
         media_info = data.get('media_info')
-        settings = data.get('settings', {})
-        pool_system = data.get('pool_system', {})
-        
-        logger.info(f'🔥 자동전송 설정 정보: {settings}')
-        logger.info(f'🔥 풀시스템 정보: {pool_system}')
         
         # 커스텀 이모지 원본 메시지 객체 처리
         original_message_object = data.get('original_message_object')
@@ -4389,48 +4245,15 @@ def start_auto_send():
                 'error': '계정을 찾을 수 없습니다.'
             }), 404
         
-        # 자동전송 설정을 Firebase에 저장
-        if settings:
-            try:
-                save_auto_send_settings_to_firebase(user_id, settings)
-                logger.info(f'🔥 자동전송 설정 Firebase 저장 완료: {user_id}')
-            except Exception as e:
-                logger.error(f'❌ 자동전송 설정 Firebase 저장 실패: {e}')
-        
-        # 풀시스템 자동전송 처리
-        if pool_system and pool_system.get('pools'):
-            logger.info(f'🔥 풀시스템 자동전송 시작: {user_id}')
-            
-            # 풀시스템 정보를 Firebase에 저장
-            try:
-                save_auto_send_status_to_firebase(user_id, {
-                    'is_active': True,
-                    'is_running': True,
-                    'group_ids': group_ids,
-                    'message': message,
-                    'media_info': media_info,
-                    'started_at': datetime.now().isoformat(),
-                    'pool_system': pool_system,
-                    'settings': settings
-                })
-                logger.info(f'🔥 풀시스템 Firebase 상태 저장 완료: {user_id}')
-            except Exception as e:
-                logger.error(f'❌ 풀시스템 Firebase 상태 저장 실패: {e}')
-            
-            result = True  # 풀시스템 자동전송은 클라이언트에서 실행
-        else:
-            # 일반 자동전송 작업 시작
-            logger.info(f'🚀 자동전송 작업 시작 호출: user_id={user_id}, group_ids={group_ids}, message_length={len(message)}, has_media={bool(media_info)}')
-            result = start_auto_send_job(user_id, group_ids, message, media_info, settings)
+        # 자동전송 작업 시작
+        result = start_auto_send_job(user_id, group_ids, message, media_info)
         
         if result:
-            logger.info(f'✅ 자동전송 작업 시작 성공: {user_id}')
             return jsonify({
                 'success': True,
                 'message': '자동전송이 시작되었습니다.'
             })
         else:
-            logger.error(f'❌ 자동전송 작업 시작 실패: {user_id}')
             return jsonify({
                 'success': False,
                 'error': '자동전송 시작에 실패했습니다.'
@@ -4598,16 +4421,7 @@ def get_auto_send_status():
         
         # 현재 작업 상태 확인 (Firebase 상태 우선 확인)
         fb_status = get_auto_send_status_from_firebase(user_id) or {}
-        
-        # Firebase 상태가 있으면 Firebase 상태를 우선 사용
-        if fb_status:
-            is_running = fb_status.get('is_running', False)
-            logger.info(f'🔥 Firebase 상태 사용: is_running={is_running}')
-        else:
-            # Firebase 상태가 없으면 메모리 상태 확인
-            is_running = (user_id in auto_send_jobs)
-            logger.info(f'🔥 메모리 상태 사용: is_running={is_running}')
-        
+        is_running = fb_status.get('is_running', False) or (user_id in auto_send_jobs)
         current_repeats = auto_send_jobs.get(f'{user_id}_repeats', 0)
         
         # 스케줄된 작업 개수 확인
@@ -4623,7 +4437,6 @@ def get_auto_send_status():
         fb_media_info = fb_status.get('media_info')
         
         logger.info(f'🤖 자동전송 상태 조회: user_id={user_id}, is_running={is_running}, scheduled_jobs={scheduled_jobs}')
-        logger.info(f'🔥 Firebase 상태 상세: fb_status={fb_status}, fb_group_ids={fb_group_ids}, fb_message_length={len(fb_message) if fb_message else 0}, fb_media_info={bool(fb_media_info)}')
         
         return jsonify({
             'success': True,
