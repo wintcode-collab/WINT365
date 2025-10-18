@@ -6042,6 +6042,9 @@ async function showAutoSendSettingsModal() {
         
         console.log('🔄 자동전송 설정 모달 열기 시작');
         modal.style.display = 'flex';
+        modal.classList.add('show');
+        console.log('✅ 모달 display 속성 설정:', modal.style.display);
+        console.log('✅ 모달 클래스:', modal.className);
         
         // DOM 요소들이 로드될 때까지 잠시 대기
         await new Promise(resolve => setTimeout(resolve, 100));
@@ -6068,6 +6071,7 @@ function hideAutoSendSettingsModal() {
     const modal = document.getElementById('autoSendSettingsModal');
     if (modal) {
         modal.style.display = 'none';
+        modal.classList.remove('show');
         console.log('✅ 자동전송 설정 모달 닫기 완료');
     }
     
@@ -6112,6 +6116,7 @@ function closeAutoSendSettingsModal() {
     const toggle = document.getElementById('autoSendToggle');
     if (modal) {
         modal.style.display = 'none';
+        modal.classList.remove('show');
         console.log('✅ 모달 닫기 완료');
     }
     // 설정을 저장하지 않고 닫은 경우 토글을 OFF로 변경
