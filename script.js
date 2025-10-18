@@ -3737,6 +3737,10 @@ async function sendMessageToGroup() {
                 const autoSendSuccess = await startAutoSendWithGroups(validGroupIds, '', null, poolResult.targetAccounts);
                 if (autoSendSuccess) {
                     console.log('✅ 풀시스템 자동전송 시작 성공');
+                    
+                    // 자동전송 상태를 localStorage에 저장
+                    saveAutoSendStatusToLocalStorage(true, validGroupIds);
+                    
                     alert('🤖 풀시스템 자동전송이 시작되었습니다!\n\n설정된 간격마다 자동으로 전송됩니다.\nPC를 종료해도 계속 작동합니다.');
                     return true; // 성공적으로 종료
                 } else {
@@ -3922,6 +3926,10 @@ async function sendMessageToGroup() {
         const autoSendSuccess = await startAutoSendWithGroups(validGroupIds, messageData);
         if (autoSendSuccess) {
             console.log('✅ 자동전송 시작 성공');
+            
+            // 자동전송 상태를 localStorage에 저장
+            saveAutoSendStatusToLocalStorage(true, validGroupIds);
+            
             alert('🤖 자동전송이 시작되었습니다!\n\n설정된 간격마다 자동으로 전송됩니다.\nPC를 종료해도 계속 작동합니다.');
             return; // 자동전송이 시작되면 여기서 종료
         } else {
@@ -6476,6 +6484,10 @@ async function startAutoSendAfterSettingsSaved() {
         
         if (success) {
             console.log('✅ 자동전송 시작 성공');
+            
+            // 자동전송 상태를 localStorage에 저장
+            saveAutoSendStatusToLocalStorage(true);
+            
             alert('🤖 자동전송이 시작되었습니다!\n\n설정된 간격마다 자동으로 전송됩니다.\nPC를 종료해도 계속 작동합니다.');
         } else {
             console.log('❌ 자동전송 시작 실패');
@@ -7147,6 +7159,13 @@ async function restoreAutoSendStatusFor(userId) {
     try {
         if (!userId) return;
         console.log('🔄 특정 계정 상태 복원 시작:', userId);
+        
+        // 먼저 localStorage에서 상태 복원 시도
+        const localStatusRestored = restoreAutoSendStatusFromLocalStorage();
+        if (localStatusRestored) {
+            console.log('✅ localStorage에서 자동전송 상태 복원 완료');
+            return;
+        }
         const resp = await fetch(`${getApiBaseUrl()}/api/auto-send/status`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -7270,6 +7289,10 @@ async function stopAutoSend() {
             const successCount = stopResults.filter(r => r.success).length;
             
             console.log(`✅ 풀시스템 자동전송 중지 완료: ${successCount}/${uniqueAccounts.length} 성공`);
+            
+            // 자동전송 상태를 localStorage에 저장
+            saveAutoSendStatusToLocalStorage(false);
+            
             return;
         }
         
@@ -7333,6 +7356,9 @@ async function stopAutoSend() {
         if (resp.ok && result.success) {
             window.autoSendActiveAccount = null;
             console.log('🔥 자동전송 활성 계정 정보 정리 완료');
+            
+            // 자동전송 상태를 localStorage에 저장
+            saveAutoSendStatusToLocalStorage(false);
         }
     } catch (e) {
         console.error('❌ 자동전송 중지 에러:', e);
@@ -7584,8 +7610,23 @@ async function startAutoSendWithGroups(selectedGroups, message, mediaInfo, targe
             userId: String(account.user_id),
             group_ids: selectedGroups,
             message: message,
-            media_info: mediaInfo
+            media_info: mediaInfo,
+            // 자동전송 설정 정보도 함께 전달
+            settings: {
+                groupInterval: window.groupIntervalMinutes || 30,
+                repeatInterval: window.repeatIntervalMinutes || 30,
+                maxRepeats: window.maxRepeats || 10,
+                messageThreshold: window.messageThreshold || 5,
+                enableMessageCheck: window.enableMessageCheck || true
+            }
         };
+        
+        console.log('📤 서버에 전달할 자동전송 데이터:', {
+            userId: autoSendData.userId,
+            group_ids: autoSendData.group_ids,
+            message: autoSendData.message,
+            media_info: autoSendData.media_info
+        });
         
         // 커스텀 이모지가 있는 경우 원본 메시지 객체 전체를 전송
         if (mediaInfo && mediaInfo.has_custom_emoji) {
@@ -7679,10 +7720,116 @@ function startAutoSendStatusUpdate() {
     }, 30000); // 30초마다 업데이트
 }
 
+// 자동전송 상태를 localStorage에 저장하는 함수
+function saveAutoSendStatusToLocalStorage(isRunning, selectedGroups = null) {
+    try {
+        const accountKey = getCurrentAccountKey();
+        if (!accountKey) {
+            console.log('❌ 계정 키가 없어서 자동전송 상태 저장 불가');
+            return;
+        }
+        
+        const statusData = {
+            isRunning: isRunning,
+            timestamp: Date.now(),
+            accountKey: accountKey
+        };
+        
+        // 선택된 그룹들도 저장
+        if (selectedGroups && selectedGroups.length > 0) {
+            statusData.selectedGroups = selectedGroups;
+        } else {
+            // 현재 선택된 그룹들을 가져와서 저장
+            const checkedBoxes = document.querySelectorAll('.group-checkbox:checked');
+            const groupIds = Array.from(checkedBoxes).map(checkbox => checkbox.value);
+            if (groupIds.length > 0) {
+                statusData.selectedGroups = groupIds;
+            }
+        }
+        
+        localStorage.setItem(`autoSendStatus_${accountKey}`, JSON.stringify(statusData));
+        console.log('💾 자동전송 상태 저장됨:', statusData);
+        
+    } catch (error) {
+        console.error('❌ 자동전송 상태 저장 에러:', error);
+    }
+}
+
+// 자동전송 상태를 localStorage에서 복원하는 함수
+function restoreAutoSendStatusFromLocalStorage() {
+    try {
+        const accountKey = getCurrentAccountKey();
+        if (!accountKey) {
+            console.log('❌ 계정 키가 없어서 자동전송 상태 복원 불가');
+            return false;
+        }
+        
+        const savedStatus = localStorage.getItem(`autoSendStatus_${accountKey}`);
+        if (!savedStatus) {
+            console.log('❌ 저장된 자동전송 상태 없음');
+            return false;
+        }
+        
+        const statusData = JSON.parse(savedStatus);
+        console.log('📊 저장된 자동전송 상태:', statusData);
+        
+        // 24시간 이내의 상태만 유효
+        const now = Date.now();
+        const statusAge = now - statusData.timestamp;
+        const maxAge = 24 * 60 * 60 * 1000; // 24시간
+        
+        if (statusAge > maxAge) {
+            console.log('❌ 자동전송 상태가 너무 오래됨 (24시간 초과)');
+            localStorage.removeItem(`autoSendStatus_${accountKey}`);
+            return false;
+        }
+        
+        // 자동전송 토글 상태 복원
+        const autoSendToggle = document.getElementById('autoSendToggle');
+        if (autoSendToggle) {
+            autoSendToggle.checked = statusData.isRunning;
+            console.log('✅ 자동전송 토글 상태 복원:', statusData.isRunning);
+        }
+        
+        // 선택된 그룹들 복원
+        if (statusData.selectedGroups && statusData.selectedGroups.length > 0) {
+            // 모든 그룹 체크박스 해제
+            const allCheckboxes = document.querySelectorAll('.group-checkbox');
+            allCheckboxes.forEach(checkbox => {
+                checkbox.checked = false;
+            });
+            
+            // 저장된 그룹들만 체크
+            statusData.selectedGroups.forEach(groupId => {
+                const checkbox = document.querySelector(`.group-checkbox[value="${groupId}"]`);
+                if (checkbox) {
+                    checkbox.checked = true;
+                }
+            });
+            
+            console.log('✅ 선택된 그룹들 복원:', statusData.selectedGroups);
+        }
+        
+        return statusData.isRunning;
+        
+    } catch (error) {
+        console.error('❌ 자동전송 상태 복원 에러:', error);
+        return false;
+    }
+}
+
 // 자동전송 상태 복원 함수
 async function restoreAutoSendStatusOnLoad() {
     try {
         console.log('🔄 페이지 로드 시 자동전송 상태 복원 시작');
+        
+        // 먼저 localStorage에서 상태 복원 시도
+        const localStatusRestored = restoreAutoSendStatusFromLocalStorage();
+        if (localStatusRestored) {
+            console.log('✅ localStorage에서 자동전송 상태 복원 완료');
+            return;
+        }
+        
         // 계정 미선택이면 전역 복원 동작 금지 (계정 확정 시점에만 복원)
         const lastUserId = localStorage.getItem('lastSelectedAccount');
         if (!lastUserId) {
@@ -7704,6 +7851,7 @@ async function restoreAutoSendStatusOnLoad() {
         if (response.ok) {
             const statusData = await response.json();
             console.log('📊 서버에서 가져온 자동전송 상태:', statusData);
+            console.log('🔥 자동전송 상태 상세: is_running=', statusData.is_running, ', groups=', statusData.groups?.length, ', message_length=', statusData.message?.length);
             
             if (statusData.is_running) {
                 // 자동전송이 실행 중인 경우 UI 업데이트

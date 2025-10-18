@@ -3779,7 +3779,7 @@ def execute_auto_send_job(user_id, group_ids, message, media_info=None):
         logger.error(f'❌ 자동전송 작업 에러: {e}')
         return False
 
-def start_auto_send_job(user_id, group_ids, message, media_info=None):
+def start_auto_send_job(user_id, group_ids, message, media_info=None, settings=None):
     """자동전송 작업 시작"""
     try:
         logger.info(f'🤖 자동전송 작업 시작: {user_id}')
@@ -3788,20 +3788,21 @@ def start_auto_send_job(user_id, group_ids, message, media_info=None):
         stop_auto_send_job(user_id)
         
         # 설정 조회
-        settings = get_auto_send_settings_from_firebase(user_id)
         if not settings:
-            logger.warning(f'⚠️ 자동전송 설정 없음, 기본 설정으로 시작: {user_id}')
-            # 기본 설정 생성
-            default_settings = {
-                'groupInterval': 30,
-                'repeatInterval': 30,
-                'maxRepeats': 10,
-                'messageThreshold': 5,
-                'enableMessageCheck': False
-            }
-            # Firebase에 기본 설정 저장
-            save_auto_send_settings_to_firebase(user_id, default_settings)
-            settings = default_settings
+            settings = get_auto_send_settings_from_firebase(user_id)
+            if not settings:
+                logger.warning(f'⚠️ 자동전송 설정 없음, 기본 설정으로 시작: {user_id}')
+                # 기본 설정 생성
+                default_settings = {
+                    'groupInterval': 30,
+                    'repeatInterval': 30,
+                    'maxRepeats': 10,
+                    'messageThreshold': 5,
+                    'enableMessageCheck': False
+                }
+                # Firebase에 기본 설정 저장
+                save_auto_send_settings_to_firebase(user_id, default_settings)
+                settings = default_settings
         
         logger.info(f'🔥 Firebase에서 가져온 설정: {settings}')
         
@@ -3828,7 +3829,8 @@ def start_auto_send_job(user_id, group_ids, message, media_info=None):
             'media_info': media_info,
             'started_at': datetime.now().isoformat(),
             'job_id': job_id,
-            'last_send_times': {group_id: None for group_id in group_ids}  # 각 그룹별 마지막 전송 시간
+            'last_send_times': {group_id: None for group_id in group_ids},  # 각 그룹별 마지막 전송 시간
+            'settings': settings  # 자동전송 설정 정보 포함
         })
 
         def job():
@@ -3847,6 +3849,7 @@ def start_auto_send_job(user_id, group_ids, message, media_info=None):
         threading.Thread(target=execute_auto_send_job, args=(user_id, group_ids, message, media_info), daemon=True).start()
         
         logger.info(f'✅ 자동전송 작업 시작됨: {user_id} (간격: {repeat_interval}분)')
+        logger.info(f'🔥 Firebase에 저장된 자동전송 상태: is_active=True, is_running=True, group_ids={group_ids}, started_at={datetime.now().isoformat()}')
         return True
         
     except Exception as e:
@@ -4267,7 +4270,9 @@ def start_auto_send():
     """자동전송 시작"""
     try:
         logger.info('🔥 자동전송 API 호출됨!')
-        logger.info(f'🔥 요청 데이터: {request.get_json()}')
+        request_data = request.get_json()
+        logger.info(f'🔥 요청 데이터: {request_data}')
+        logger.info(f'🔥 자동전송 시작 요청 상세: user_id={request_data.get("userId")}, group_ids={request_data.get("group_ids")}, message_length={len(request_data.get("message", ""))}, has_media={bool(request_data.get("media_info"))}')
         
         data = request.get_json()
         account_name = (data.get('account_name') or '').strip()
@@ -4275,6 +4280,9 @@ def start_auto_send():
         group_ids = data.get('group_ids', [])
         message = (data.get('message', '') or '').strip()
         media_info = data.get('media_info')
+        settings = data.get('settings', {})
+        
+        logger.info(f'🔥 자동전송 설정 정보: {settings}')
         
         # 커스텀 이모지 원본 메시지 객체 처리
         original_message_object = data.get('original_message_object')
@@ -4323,8 +4331,16 @@ def start_auto_send():
                 'error': '계정을 찾을 수 없습니다.'
             }), 404
         
+        # 자동전송 설정을 Firebase에 저장
+        if settings:
+            try:
+                save_auto_send_settings_to_firebase(user_id, settings)
+                logger.info(f'🔥 자동전송 설정 Firebase 저장 완료: {user_id}')
+            except Exception as e:
+                logger.error(f'❌ 자동전송 설정 Firebase 저장 실패: {e}')
+        
         # 자동전송 작업 시작
-        result = start_auto_send_job(user_id, group_ids, message, media_info)
+        result = start_auto_send_job(user_id, group_ids, message, media_info, settings)
         
         if result:
             return jsonify({
@@ -4515,6 +4531,7 @@ def get_auto_send_status():
         fb_media_info = fb_status.get('media_info')
         
         logger.info(f'🤖 자동전송 상태 조회: user_id={user_id}, is_running={is_running}, scheduled_jobs={scheduled_jobs}')
+        logger.info(f'🔥 Firebase 상태 상세: fb_status={fb_status}, fb_group_ids={fb_group_ids}, fb_message_length={len(fb_message) if fb_message else 0}, fb_media_info={bool(fb_media_info)}')
         
         return jsonify({
             'success': True,
