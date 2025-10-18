@@ -561,16 +561,6 @@
                         </p>
                     </div>
                     
-                    <!-- 풀 시스템 전체 주기 시간 표시 -->
-                    <div class="setting-item" style="margin-top: 15px;">
-                        <div style="display: flex; align-items: center; gap: 10px;">
-                            <span style="color: #10B981; font-weight: 600; font-size: 14px;">🔄 전체 주기 시간:</span>
-                            <span id="poolSystemCycleTimeText" style="color: #374151; font-weight: 600; font-size: 14px;">0분</span>
-                        </div>
-                        <p style="margin-top: 5px; color: #888; font-size: 12px; line-height: 1.4;">
-                            풀1 전송 → 풀간 간격 → 풀2 전송 → 순환 간격 → 풀1 다음 계정
-                        </p>
-                    </div>
                     
                     <div id="rotationPoolsSettings" style="display: none; margin-top: 15px;">
                         <!-- 풀 관리 버튼들 -->
@@ -642,6 +632,17 @@
                                 <div id="poolIntervalsList">
                                     <p style="margin: 0; color: #888; font-size: 12px;">
                                         풀을 생성한 후 간격을 설정할 수 있습니다
+                                    </p>
+                                </div>
+                                
+                                <!-- 전체 주기 시간 표시 (풀별 간격 설정 내부로 이동) -->
+                                <div style="margin-top: 15px; padding: 10px; background: rgba(16, 185, 129, 0.05); border-radius: 6px; border: 1px solid rgba(16, 185, 129, 0.2);">
+                                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                                        <span style="color: #10B981; font-weight: 600; font-size: 14px;">🔄 전체 주기 시간:</span>
+                                        <span id="poolSystemCycleTimeText" style="color: #374151; font-weight: 600; font-size: 14px;">0분</span>
+                                    </div>
+                                    <p style="margin: 0; color: #888; font-size: 12px; line-height: 1.4;">
+                                        풀1 전송 → 풀간 간격 → 풀2 전송 → 순환 간격 → 풀1 다음 계정
                                     </p>
                                 </div>
                             </div>
