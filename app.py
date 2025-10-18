@@ -3742,16 +3742,23 @@ def start_auto_send_job(user_id, group_ids, message, media_info=None):
         }
         
         # Firebase에 자동전송 상태 저장(선반영)
-        save_auto_send_status_to_firebase(user_id, {
+        status_data = {
             'is_active': True,
             'is_running': True,  # 자동전송 실행 상태 추가
+            'is_enabled': True,  # 클라이언트 토글 상태와 동기화
             'group_ids': group_ids,
             'message': message,
             'media_info': media_info,
             'started_at': datetime.now().isoformat(),
             'job_id': job_id,
-            'last_send_times': {group_id: None for group_id in group_ids}  # 각 그룹별 마지막 전송 시간
-        })
+            'last_send_times': {group_id: None for group_id in group_ids},  # 각 그룹별 마지막 전송 시간
+            'server_started': True,  # 서버에서 시작되었음을 표시
+            'timestamp': datetime.now().timestamp() * 1000  # JavaScript 호환 타임스탬프
+        }
+        
+        # Firebase에 상태 저장
+        save_auto_send_status_to_firebase(user_id, status_data)
+        logger.info(f'🔥 Firebase 자동전송 상태 저장 완료: {user_id}')
 
         def job():
             execute_auto_send_job(user_id, group_ids, message, media_info)
@@ -3793,11 +3800,14 @@ def stop_auto_send_job(user_id):
         
         # Firebase에서 자동전송 상태를 중지 상태로 업데이트
         try:
-            save_auto_send_status_to_firebase(user_id, {
+            status_data = {
                 'is_active': False,
                 'is_running': False,  # 자동전송 중지 상태
-                'stopped_at': datetime.now().isoformat()
-            })
+                'is_enabled': False,  # 클라이언트 토글 상태와 동기화
+                'stopped_at': datetime.now().isoformat(),
+                'timestamp': datetime.now().timestamp() * 1000  # JavaScript 호환 타임스탬프
+            }
+            save_auto_send_status_to_firebase(user_id, status_data)
             logger.info(f'🔥 Firebase 자동전송 상태 중지로 업데이트: {user_id}')
         except Exception as e:
             logger.error(f'❌ Firebase 자동전송 상태 업데이트 에러: {e}')
@@ -4481,13 +4491,23 @@ def restore_auto_send_jobs_from_firebase():
                     if status_data.get('is_active') and status_data.get('is_running'):
                         logger.info(f'🔄 자동전송 작업 복원: {user_id}')
                         
+                        # Firebase 상태를 서버 상태로 업데이트
+                        try:
+                            status_data['server_started'] = True
+                            status_data['timestamp'] = datetime.now().timestamp() * 1000
+                            save_auto_send_status_to_firebase(user_id, status_data)
+                            logger.info(f'🔥 Firebase 상태 서버 시작으로 업데이트: {user_id}')
+                        except Exception as e:
+                            logger.error(f'❌ Firebase 상태 업데이트 실패: {e}')
+                        
                         # 메모리에 작업 복원
                         auto_send_jobs[user_id] = {
                             'job_id': status_data.get('job_id'),
                             'group_ids': status_data.get('group_ids', []),
                             'message': status_data.get('message', ''),
                             'media_info': status_data.get('media_info'),
-                            'started_at': status_data.get('started_at')
+                            'started_at': status_data.get('started_at'),
+                            'restored_at': datetime.now().isoformat()
                         }
                         
                         # 스케줄 작업 재등록
@@ -4528,7 +4548,7 @@ def restore_auto_send_jobs_from_firebase():
 
 def auto_resume_watchdog_loop():
     """주기적으로 Firebase를 스캔해 is_active인데 메모리에 작업이 없으면 재개"""
-    logger.info('🛡️ 자동전송 워치독 시작(60초 주기)')
+    logger.info('🛡️ 자동전송 워치독 시작(30초 주기)')
     while True:
         try:
             url = f"{FIREBASE_URL}/auto_send_status.json"
@@ -4538,20 +4558,45 @@ def auto_resume_watchdog_loop():
                 for user_id, status_data in data.items():
                     if not status_data:
                         continue
-                    if status_data.get('is_active') and user_id not in auto_send_jobs:
+                    
+                    # is_active와 is_running이 모두 True이고 메모리에 작업이 없으면 재개
+                    if (status_data.get('is_active') and 
+                        status_data.get('is_running') and 
+                        user_id not in auto_send_jobs):
+                        
                         logger.info(f'🛡️ 워치독: 실행 누락 감지 → 재개 시도: {user_id}')
                         group_ids = status_data.get('group_ids', [])
                         message = status_data.get('message', '')
                         media_info = status_data.get('media_info')
+                        
                         if group_ids:
                             try:
+                                # Firebase 상태를 서버 재시작으로 업데이트
+                                status_data['server_started'] = True
+                                status_data['timestamp'] = datetime.now().timestamp() * 1000
+                                save_auto_send_status_to_firebase(user_id, status_data)
+                                
+                                # 자동전송 작업 재시작
                                 start_auto_send_job(user_id, group_ids, message, media_info)
+                                logger.info(f'✅ 워치독 재개 성공: {user_id}')
                             except Exception as _e:
-                                logger.error(f'🛡️ 워치독 재개 실패: {user_id} - {_e}')
-            time.sleep(60)
+                                logger.error(f'❌ 워치독 재개 실패: {user_id} - {_e}')
+                    
+                    # is_active가 False인데 메모리에 작업이 있으면 정리
+                    elif (not status_data.get('is_active') and 
+                          user_id in auto_send_jobs):
+                        
+                        logger.info(f'🛡️ 워치독: 비활성 상태 감지 → 작업 정리: {user_id}')
+                        try:
+                            stop_auto_send_job(user_id)
+                            logger.info(f'✅ 워치독 작업 정리 완료: {user_id}')
+                        except Exception as _e:
+                            logger.error(f'❌ 워치독 작업 정리 실패: {user_id} - {_e}')
+            
+            time.sleep(30)  # 30초마다 체크
         except Exception as e:
-            logger.error(f'🛡️ 워치독 루프 에러: {e}')
-            time.sleep(60)
+            logger.error(f'❌ 워치독 루프 에러: {e}')
+            time.sleep(30)
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 3000))
     logger.info(f'🚀 WINT365 Python 서버 시작됨 - 포트: {port}')
