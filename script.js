@@ -106,6 +106,12 @@ function initializeApp() {
     // 저장된 이메일 로드
     loadSavedEmail();
     
+    // 자동전송 설정 로드 (페이지 로드 시)
+    setTimeout(() => {
+        loadAutoSendSettings();
+        console.log('✅ 페이지 로드 시 자동전송 설정 로드 완료');
+    }, 200);
+    
     // 모든 입력 필드 초기화 (이메일 제외)
     clearAllInputsExceptEmail();
     
@@ -6134,14 +6140,23 @@ function loadAutoSendSettings() {
         }
         
         if (settings) {
-            // 자동전송 모달이 열릴 때는 항상 풀 시스템을 비활성화 상태로 시작
-            // (사용자가 원하면 체크할 수 있음)
-            window.rotationPoolsEnabled = false;
-            const enablePoolsCheckbox = document.getElementById('enableRotationPools');
-            if (enablePoolsCheckbox) {
-                enablePoolsCheckbox.checked = false;
+            // 저장된 풀 시스템 설정이 있으면 복원
+            if (settings.rotationPools && settings.rotationPools.enabled !== undefined) {
+                window.rotationPoolsEnabled = settings.rotationPools.enabled;
+                const enablePoolsCheckbox = document.getElementById('enableRotationPools');
+                if (enablePoolsCheckbox) {
+                    enablePoolsCheckbox.checked = settings.rotationPools.enabled;
+                }
+                console.log('✅ 풀 시스템 설정 복원:', settings.rotationPools.enabled);
+            } else {
+                // 저장된 풀 시스템 설정이 없으면 비활성화로 초기화
+                window.rotationPoolsEnabled = false;
+                const enablePoolsCheckbox = document.getElementById('enableRotationPools');
+                if (enablePoolsCheckbox) {
+                    enablePoolsCheckbox.checked = false;
+                }
+                console.log('✅ 풀 시스템 설정 없음 - 비활성화로 초기화');
             }
-            console.log('✅ 자동전송 모달 열림 - 풀 시스템 비활성화로 초기화');
             
             // 그룹간 전송간격은 풀 시스템 활성화 여부와 관계없이 항상 로드
             const groupInterval = document.getElementById('groupInterval');
@@ -6150,22 +6165,18 @@ function loadAutoSendSettings() {
                 console.log('✅ 그룹간 전송간격 로드됨:', settings.groupInterval);
             }
             
-            // 풀시스템이 비활성화되어 있을 때만 기본 자동전송 설정 로드
-            if (!window.rotationPoolsEnabled) {
-                const repeatInterval = document.getElementById('repeatInterval');
-                const maxRepeats = document.getElementById('maxRepeats');
-                const messageThreshold = document.getElementById('messageThreshold');
-                const enableMessageCheck = document.getElementById('enableMessageCheck');
-                
-                if (repeatInterval) repeatInterval.value = settings.repeatInterval || 30;
-                if (maxRepeats) maxRepeats.value = settings.maxRepeats || 10;
-                if (messageThreshold) messageThreshold.value = settings.messageThreshold || 5;
-                if (enableMessageCheck) enableMessageCheck.checked = settings.enableMessageCheck !== false;
-                
-                console.log('✅ 기본 자동전송 설정 로드됨:', settings);
-            } else {
-                console.log('✅ 풀시스템 활성화됨 - 기본 자동전송 설정 무시');
-            }
+            // 기본 자동전송 설정 로드 (풀 시스템 상태와 관계없이)
+            const repeatInterval = document.getElementById('repeatInterval');
+            const maxRepeats = document.getElementById('maxRepeats');
+            const messageThreshold = document.getElementById('messageThreshold');
+            const enableMessageCheck = document.getElementById('enableMessageCheck');
+            
+            if (repeatInterval) repeatInterval.value = settings.repeatInterval || 30;
+            if (maxRepeats) maxRepeats.value = settings.maxRepeats || 10;
+            if (messageThreshold) messageThreshold.value = settings.messageThreshold || 5;
+            if (enableMessageCheck) enableMessageCheck.checked = settings.enableMessageCheck !== false;
+            
+            console.log('✅ 기본 자동전송 설정 로드됨:', settings);
         } else {
             // 설정이 아예 없으면 기본값으로 설정
             console.log('⚠️ 자동전송 설정이 없음 - 기본값으로 설정');
