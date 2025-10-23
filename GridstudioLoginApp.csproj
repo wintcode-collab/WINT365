@@ -1,0 +1,49 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>WINT365</AssemblyName>
+    <AssemblyTitle>WINT365</AssemblyTitle>
+    <AssemblyProduct>WINT365</AssemblyProduct>
+    <AssemblyDescription>WINT365 Login Application</AssemblyDescription>
+    <AssemblyCompany>WINT365</AssemblyCompany>
+    <AssemblyCopyright>Copyright �� WINT365 2024</AssemblyCopyright>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <ApplicationIcon>wint365.ico</ApplicationIcon>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <UseWindowsForms>false</UseWindowsForms>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+  </PropertyGroup>
+
+        <ItemGroup>
+          <PackageReference Include="FirebaseDatabase.net" Version="5.0.0" />
+          <PackageReference Include="Firebase.Auth" Version="1.0.0" />
+          <PackageReference Include="System.Text.Json" Version="9.0.0" />
+          <PackageReference Include="WTelegramClient" Version="4.3.11" />
+        </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="InviteCodeTool.cs" />
+    <Compile Remove="InviteCodeTool\**" />
+  </ItemGroup>
+
+        <ItemGroup>
+          <None Include="wint365.ico" />
+
+
+          <None Include="WINT365.runtimeconfig.json" CopyToOutputDirectory="PreserveNewest" />
+        </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Properties\launchSettings.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

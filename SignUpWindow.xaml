@@ -1,0 +1,253 @@
+<Window x:Class="GridstudioLoginApp.SignUpWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Sign Up" 
+        Height="800" 
+        Width="400"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ResizeMode="CanResize"
+        WindowStartupLocation="CenterScreen"
+        Topmost="True">
+    
+    <Window.Resources>
+        <!-- 미니멀 다크 테마 스타일 -->
+        <Style x:Key="MinimalTextBoxStyle" TargetType="TextBox">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="Padding" Value="0,6"/>
+            <Setter Property="Height" Value="35"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="CaretBrush" Value="#FFFFFF"/>
+        </Style>
+
+        <Style x:Key="MinimalPasswordBoxStyle" TargetType="PasswordBox">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="Padding" Value="0,8"/>
+            <Setter Property="Height" Value="35"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="CaretBrush" Value="#FFFFFF"/>
+        </Style>
+
+        <Style x:Key="MinimalButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#CCCCCC"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Padding" Value="20,8"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" 
+                                BorderBrush="{TemplateBinding BorderBrush}" 
+                                BorderThickness="{TemplateBinding BorderThickness}" 
+                                CornerRadius="3">
+                            <ContentPresenter HorizontalAlignment="Center" 
+                                            VerticalAlignment="Center" 
+                                            Margin="{TemplateBinding Padding}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#333333"/>
+                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="CloseButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="Width" Value="30"/>
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" 
+                                CornerRadius="15">
+                            <ContentPresenter HorizontalAlignment="Center" 
+                                            VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#FF4444"/>
+                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <!-- 반투명 배경 -->
+    <Border Background="#1A1A1A" 
+            CornerRadius="6" 
+            Margin="3,30,3,30"
+            Opacity="0.90">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- 상단 바 (제목과 닫기 버튼) -->
+            <Border Grid.Row="0" 
+                    Background="Transparent" 
+                    Height="50">
+                <Grid>
+                    <TextBlock Text="Sign Up" 
+                               FontFamily="Segoe UI" 
+                               FontSize="22" 
+                               FontWeight="Medium"
+                               Foreground="#F0F0F0" 
+                               VerticalAlignment="Center" 
+                               HorizontalAlignment="Center"
+                               Margin="0,5,0,0"/>
+                    <Button x:Name="CloseButton" 
+                            Content="×" 
+                            Style="{StaticResource CloseButtonStyle}" 
+                            Click="CloseButton_Click"
+                            HorizontalAlignment="Right" 
+                            VerticalAlignment="Center" 
+                            Margin="0,0,8,0"/>
+                </Grid>
+            </Border>
+
+            <!-- 메인 콘텐츠 -->
+            <StackPanel Grid.Row="1" 
+                        Margin="25,0,25,50">
+                
+                <!-- 이메일 입력 -->
+                <Border Background="Transparent" 
+                        BorderBrush="#CCCCCC" 
+                        BorderThickness="0,0,0,1" 
+                        Margin="0,0,0,5">
+                    <Grid>
+                        <TextBlock Text="✉" 
+                                   FontSize="18" 
+                                   Foreground="#CCCCCC" 
+                                   HorizontalAlignment="Left" 
+                                   VerticalAlignment="Center" 
+                                   Margin="0,0,0,8"/>
+                        <TextBlock x:Name="EmailPlaceholder" 
+                                   Text="Email ID" 
+                                   FontFamily="Segoe UI" 
+                                   FontSize="12" 
+                                   FontWeight="Light"
+                                   Foreground="#CCCCCC" 
+                                   HorizontalAlignment="Left" 
+                                   VerticalAlignment="Bottom" 
+                                   Margin="50,0,0,8"/>
+                        <TextBox x:Name="EmailTextBox" 
+                                 Style="{StaticResource MinimalTextBoxStyle}" 
+                                 Margin="50,0,0,0"/>
+                    </Grid>
+                </Border>
+
+                <!-- 비밀번호 입력 -->
+                <Border Background="Transparent" 
+                        BorderBrush="#CCCCCC" 
+                        BorderThickness="0,0,0,1" 
+                        Margin="0,0,0,5">
+                    <Grid>
+                        <TextBlock Text="🔒" 
+                                   FontSize="18" 
+                                   Foreground="#CCCCCC" 
+                                   HorizontalAlignment="Left" 
+                                   VerticalAlignment="Center" 
+                                   Margin="1,0,6,0"/>
+                        <TextBlock x:Name="PasswordPlaceholder" 
+                                   Text="Password" 
+                                   FontFamily="Segoe UI" 
+                                   FontSize="12" 
+                                   FontWeight="Light"
+                                   Foreground="#CCCCCC" 
+                                   HorizontalAlignment="Left" 
+                                   VerticalAlignment="Bottom" 
+                                   Margin="50,0,0,8"/>
+                        <PasswordBox x:Name="PasswordBox" 
+                                     Style="{StaticResource MinimalPasswordBoxStyle}" 
+                                     Margin="50,0,0,0"/>
+                    </Grid>
+                </Border>
+
+                <!-- 비밀번호 확인 입력 -->
+                <Border Background="Transparent" 
+                        BorderBrush="#CCCCCC" 
+                        BorderThickness="0,0,0,1" 
+                        Margin="0,0,0,5">
+                    <Grid>
+                        <TextBlock Text="🔒" 
+                                   FontSize="18" 
+                                   Foreground="#CCCCCC" 
+                                   HorizontalAlignment="Left" 
+                                   VerticalAlignment="Center" 
+                                   Margin="1,0,6,0"/>
+                        <TextBlock x:Name="ConfirmPasswordPlaceholder" 
+                                   Text="Confirm Password" 
+                                   FontFamily="Segoe UI" 
+                                   FontSize="12" 
+                                   FontWeight="Light"
+                                   Foreground="#CCCCCC" 
+                                   HorizontalAlignment="Left" 
+                                   VerticalAlignment="Bottom" 
+                                   Margin="50,0,0,8"/>
+                        <PasswordBox x:Name="ConfirmPasswordBox" 
+                                     Style="{StaticResource MinimalPasswordBoxStyle}" 
+                                     Margin="50,0,0,0"/>
+                    </Grid>
+                </Border>
+
+                <!-- 회원가입 버튼 -->
+                <Button x:Name="SignUpButton" 
+                        Content="SIGN UP" 
+                        Style="{StaticResource MinimalButtonStyle}" 
+                        Click="SignUpButton_Click"
+                        HorizontalAlignment="Stretch" 
+                        Margin="0,5,0,0"/>
+
+                <!-- 로그인으로 돌아가기 -->
+                <Button x:Name="BackToLoginButton" 
+                        Content="Back to Login" 
+                        Style="{StaticResource MinimalButtonStyle}" 
+                        Click="BackToLoginButton_Click"
+                        HorizontalAlignment="Stretch" 
+                        Margin="0,2,0,2"/>
+            </StackPanel>
+
+            <!-- 에러 메시지 (하단 프레임에 고정) -->
+            <TextBlock Grid.Row="2"
+                       x:Name="ErrorTextBlock" 
+                       Text="" 
+                       FontFamily="Segoe UI" 
+                       FontSize="12" 
+                       Foreground="#FF4444" 
+                       HorizontalAlignment="Center" 
+                       VerticalAlignment="Center"
+                       Margin="0,5,0,5"
+                       TextWrapping="Wrap"
+                       MinHeight="20"
+                       Panel.ZIndex="1000"
+                       Visibility="Collapsed"/>
+        </Grid>
+    </Border>
+</Window>

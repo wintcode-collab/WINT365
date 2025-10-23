@@ -1,0 +1,61 @@
+<Window x:Class="GridstudioLoginApp.SuccessWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Success" 
+        Height="400" 
+        Width="600"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="CanResize"
+        Background="#1A1A1A"
+        WindowStyle="SingleBorderWindow">
+    
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        
+        <!-- 상단 헤더 -->
+        <Border Grid.Row="0" 
+                Background="#2A2A2A" 
+                Height="40">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                
+                <TextBlock Grid.Column="0" 
+                           Text="Success" 
+                           Foreground="White" 
+                           FontFamily="Segoe UI" 
+                           FontSize="16" 
+                           FontWeight="Bold"
+                           VerticalAlignment="Center"
+                           Margin="15,0,0,0"/>
+                
+                <Button Grid.Column="1" 
+                        Content="✕" 
+                        Background="Transparent"
+                        Foreground="#CCCCCC"
+                        BorderThickness="0"
+                        FontFamily="Segoe UI"
+                        FontSize="16"
+                        FontWeight="Bold"
+                        Width="30"
+                        Height="30"
+                        Cursor="Hand"
+                        Click="CloseButton_Click"
+                        Margin="0,0,10,0"/>
+            </Grid>
+        </Border>
+        
+        <!-- 메인 콘텐츠 (빈 공간) -->
+        <Grid Grid.Row="1" Background="#1A1A1A">
+            <!-- 여기에 아무것도 없음 - 빈 창 -->
+        </Grid>
+    </Grid>
+</Window>
+
+
+

@@ -1,0 +1,55 @@
+<Window x:Class="GridstudioLoginApp.SuccessMessageBox"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Login Success" Height="Auto" Width="Auto" MinHeight="200" MinWidth="400" MaxWidth="500"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        WindowStartupLocation="CenterScreen" Topmost="True"
+        ResizeMode="NoResize"
+        KeyDown="Window_KeyDown">
+    
+    <Border Background="#1a1a1a" CornerRadius="10" BorderBrush="#333333" BorderThickness="1">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            
+            <!-- Header -->
+            <Border Grid.Row="0" Background="#2a2a2a" CornerRadius="10,10,0,0" Height="40">
+                <Grid>
+                    <TextBlock Text="✓ Login Successful" 
+                               Foreground="#10B981" 
+                               FontWeight="Bold" 
+                               FontSize="16"
+                               HorizontalAlignment="Center" 
+                               VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+            
+            <!-- Content -->
+            <Grid Grid.Row="1" Margin="25,10,25,10">
+                <TextBlock x:Name="MessageTextBlock" 
+                           Text="Welcome back!" 
+                           Foreground="White" 
+                           FontSize="14"
+                           TextWrapping="Wrap"
+                           HorizontalAlignment="Center" 
+                           VerticalAlignment="Top"
+                           TextAlignment="Center"
+                           LineHeight="20"
+                           Padding="10,5,10,5"/>
+            </Grid>
+            
+            <!-- Progress Bar -->
+            <Grid Grid.Row="2" Margin="20,0,20,20">
+                <ProgressBar x:Name="ProgressBar" 
+                             Height="4" 
+                             Background="#333333" 
+                             Foreground="#10B981"
+                             Value="0" 
+                             Maximum="100"/>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>
